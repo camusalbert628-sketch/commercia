@@ -80,8 +80,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
   }
 });
 
-// PUT /api/products/:id — Mettre à jour un produit
-router.put('/:id', async (req: AuthRequest, res, next) => {
+// PUT & PATCH /api/products/:id — Mettre à jour un produit
+const updateProductHandler = async (req: AuthRequest, res: any, next: any) => {
   try {
     const businessId = await getTenantBusinessId(req);
     const existing = await req.prisma.product.findFirst({
@@ -109,7 +109,9 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
     if (error instanceof z.ZodError) return next(new AppError(error.errors[0].message, 400));
     next(error);
   }
-});
+};
+router.put('/:id', updateProductHandler);
+router.patch('/:id', updateProductHandler);
 
 // POST /api/products/:id/adjust — Ajustement de stock
 router.post('/:id/adjust', async (req: AuthRequest, res, next) => {

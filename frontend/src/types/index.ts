@@ -191,3 +191,36 @@ export interface DashboardData {
   insights: AIInsight[];
 }
 
+export interface CashSession {
+  id: string;
+  businessId: string;
+  userId: string;
+  status: 'open' | 'closed';
+  openedAt: string;
+  closedAt?: string;
+  initialCash: number;
+  totalCashIn: number;
+  totalCashOut: number;
+  totalMomoIn: number;
+  theoreticalCash: number;
+  actualCash?: number;
+  actualMomo?: number;
+  cashDiscrepancy?: number;
+  discrepancyReason?: string;
+  notes?: string;
+  movements?: CashMovement[];
+}
+
+export interface CashMovement {
+  id: string;
+  sessionId: string;
+  type: 'in' | 'out';
+  amount: number;
+  method: 'cash' | 'mobile_money' | 'bank_transfer' | string;
+  category: 'sale' | 'debt_payment' | 'expense' | 'manual_deposit' | 'manual_withdrawal' | string;
+  referenceId?: string;
+  description?: string;
+  createdAt: string;
+}
+
+

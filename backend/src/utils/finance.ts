@@ -20,7 +20,7 @@ export interface ExpenseData {
   id?: string;
   amount: number;
   category: string;
-  description?: string;
+  description?: string | null;
 }
 
 export interface CustomerPaymentData {
@@ -67,12 +67,12 @@ export const PERSONAL_WITHDRAWAL_KEYWORDS = [
   'dépense personnelle',
 ];
 
-export function isInventoryExpense(category: string, description?: string): boolean {
+export function isInventoryExpense(category: string, description?: string | null): boolean {
   const text = `${category || ''} ${description || ''}`.toLowerCase();
   return INVENTORY_CATEGORY_KEYWORDS.some(kw => text.includes(kw));
 }
 
-export function isPersonalWithdrawal(category: string, description?: string): boolean {
+export function isPersonalWithdrawal(category: string, description?: string | null): boolean {
   const text = `${category || ''} ${description || ''}`.toLowerCase();
   return PERSONAL_WITHDRAWAL_KEYWORDS.some(kw => text.includes(kw));
 }

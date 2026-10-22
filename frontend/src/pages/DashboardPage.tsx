@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   TrendingUp,
-  TrendingDown,
   DollarSign,
   AlertCircle,
   Plus,
   Minus,
   ArrowUpRight,
   ArrowDownRight,
-  Clock,
   Sparkles,
   ChevronRight,
   X,
   HelpCircle,
+  Wallet,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -25,13 +25,21 @@ import {
 } from 'recharts';
 import { api } from '../services/api';
 import { DashboardData } from '../types';
+import { useModals } from '../context/ModalContext';
 
 interface DashboardPageProps {
-  onOpenSaleModal: () => void;
-  onOpenExpenseModal: () => void;
+  onOpenSaleModal?: () => void;
+  onOpenExpenseModal?: () => void;
 }
 
-export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, onOpenExpenseModal }) => {
+export const DashboardPage: React.FC<DashboardPageProps> = ({
+  onOpenSaleModal: propOpenSale,
+  onOpenExpenseModal: propOpenExpense,
+}) => {
+  const { openSaleModal, openExpenseModal, refreshKey } = useModals();
+  const onOpenSaleModal = propOpenSale || openSaleModal;
+  const onOpenExpenseModal = propOpenExpense || openExpenseModal;
+
   const [data, setData] = useState<DashboardData | null>(null);
   const [trends, setTrends] = useState<Array<{ date: string; sales: number; expenses: number; profit: number }>>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +67,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
 
   useEffect(() => {
     fetchDashboard();
-  }, []);
+  }, [refreshKey]);
 
   if (loading) {
     return (
@@ -94,7 +102,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button className="btn btn-primary btn-lg" onClick={onOpenSaleModal}>
             <Plus size={18} />
             <span>+ Nouvelle Vente</span>
@@ -103,6 +111,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
             <Minus size={18} />
             <span>- Dépense</span>
           </button>
+          <Link
+            to="/cash"
+            className="btn btn-outline btn-lg"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              textDecoration: 'none',
+              background: '#FFFFFF',
+              borderColor: '#CBD5E1',
+              color: '#1E293B',
+            }}
+          >
+            <Wallet size={18} color="#2563EB" />
+            <span>Caisse Journalière</span>
+          </Link>
         </div>
       </div>
 
@@ -212,6 +236,21 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
                 'Espèces & Mobile Money entrés'
               )}
             </div>
+            <Link
+              to="/cash"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '0.75rem',
+                color: '#2563EB',
+                fontWeight: 600,
+                marginTop: '6px',
+                textDecoration: 'none',
+              }}
+            >
+              Session caisse du jour &rarr;
+            </Link>
           </div>
           <div className="stat-icon" style={{ background: '#EFF6FF', color: '#2563EB' }}>
             <DollarSign size={24} />

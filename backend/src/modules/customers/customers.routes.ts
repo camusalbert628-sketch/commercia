@@ -95,8 +95,8 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
   }
 });
 
-// POST /api/customers/:id/payments — Enregistrer un remboursement de dette
-router.post('/:id/payments', async (req: AuthRequest, res, next) => {
+// POST /api/customers/:id/payments & /payment — Enregistrer un remboursement de dette
+router.post(['/:id/payments', '/:id/payment'], async (req: AuthRequest, res, next) => {
   try {
     const businessId = await getTenantBusinessId(req);
     const customer = await req.prisma.customer.findFirst({
@@ -148,11 +148,41 @@ router.post('/:id/payments', async (req: AuthRequest, res, next) => {
       }
     }
 
+    // Link debt reimbursement to active cash session
+    const activeSession = await req.prisma.cashSession.findFirst({
+      where: { businessId, status: 'open' },
+    });
+    if (activeSession) {
+      const isCash = data.method === 'cash';
+      const isMomo = data.method === 'mobile_money';
+      await req.prisma.cashMovement.create({
+        data: {
+          sessionId: activeSession.id,
+          businessId,
+          type: 'in',
+          amount: data.amount,
+          method: data.method,
+          category: 'debt_payment',
+          referenceId: payment.id,
+          description: `Remboursement de dette - Client : ${customer.name}`,
+        },
+      });
+      await req.prisma.cashSession.update({
+        where: { id: activeSession.id },
+        data: {
+          totalCashIn: isCash ? { increment: data.amount } : undefined,
+          totalMomoIn: isMomo ? { increment: data.amount } : undefined,
+          theoreticalCash: isCash ? { increment: data.amount } : undefined,
+        },
+      });
+    }
+
     res.status(201).json({
       message: `Paiement de ${data.amount.toLocaleString('fr-FR')} FCFA enregistré avec succès !`,
       payment,
       remainingOwed: newOwed,
     });
+
   } catch (error) {
     if (error instanceof z.ZodError) return next(new AppError(error.errors[0].message, 400));
     next(error);

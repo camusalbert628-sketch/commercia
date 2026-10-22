@@ -5,8 +5,8 @@ import { calculateFinancialMetrics } from '../../utils/finance';
 const router = Router();
 router.use(authenticate);
 
-// GET /api/dashboard — Synthèse financière et commerciale
-router.get('/', async (req: AuthRequest, res, next) => {
+// GET /api/dashboard & GET /api/dashboard/summary — Synthèse financière et commerciale
+router.get(['/', '/summary'], async (req: AuthRequest, res, next) => {
   try {
     const businessId = await getTenantBusinessId(req);
 

@@ -75,7 +75,34 @@ router.post('/', async (req: AuthRequest, res, next) => {
       },
     });
 
+    // Link expense to active cash session
+    const activeSession = await req.prisma.cashSession.findFirst({
+      where: { businessId, status: 'open' },
+    });
+    if (activeSession) {
+      await req.prisma.cashMovement.create({
+        data: {
+          sessionId: activeSession.id,
+          businessId,
+          type: 'out',
+          amount: data.amount,
+          method: 'cash',
+          category: 'expense',
+          referenceId: expense.id,
+          description: `${data.category}${data.description ? ` - ${data.description}` : ''}`,
+        },
+      });
+      await req.prisma.cashSession.update({
+        where: { id: activeSession.id },
+        data: {
+          totalCashOut: { increment: data.amount },
+          theoreticalCash: { decrement: data.amount },
+        },
+      });
+    }
+
     // Audit log
+
     await req.prisma.auditLog.create({
       data: {
         userId: req.userId!,

@@ -402,6 +402,40 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       };
       sales.unshift(newSale);
       localStorage.setItem('commercia_sales', JSON.stringify(sales));
+
+      // Sync with active cash session if open
+      const activeCashRaw = localStorage.getItem('commercia_active_cash_session');
+      if (activeCashRaw) {
+        try {
+          const cs = JSON.parse(activeCashRaw);
+          const paid = Number(newSale.paidAmount);
+          const method = newSale.paymentMethod;
+          if (paid > 0 && method !== 'credit') {
+            const move = {
+              id: 'cm-' + Date.now(),
+              sessionId: cs.id,
+              type: 'in',
+              amount: paid,
+              method,
+              category: 'sale',
+              description: `Vente #${newSale.id.slice(-4)}`,
+              referenceId: newSale.id,
+              createdAt: new Date().toISOString(),
+            };
+            cs.movements = cs.movements || [];
+            cs.movements.unshift(move);
+            if (method === 'cash') {
+              cs.totalCashSales = (cs.totalCashSales || 0) + paid;
+              cs.theoreticalCash = (cs.theoreticalCash || 0) + paid;
+            } else {
+              cs.totalMomoSales = (cs.totalMomoSales || 0) + paid;
+              cs.theoreticalMomo = (cs.theoreticalMomo || 0) + paid;
+            }
+            localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
+          }
+        } catch (e) { /* ignore */ }
+      }
+
       return { message: 'Vente enregistrée avec succès ! 🎉', sale: newSale };
     }
     const raw = localStorage.getItem('commercia_sales') || localStorage.getItem('rsbizz_sales');
@@ -422,6 +456,34 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       };
       expenses.unshift(newExpense);
       localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
+
+      // Sync with active cash session if open
+      const activeCashRaw = localStorage.getItem('commercia_active_cash_session');
+      if (activeCashRaw) {
+        try {
+          const cs = JSON.parse(activeCashRaw);
+          const amt = Number(newExpense.amount);
+          if (amt > 0) {
+            const move = {
+              id: 'cm-' + Date.now(),
+              sessionId: cs.id,
+              type: 'out',
+              amount: amt,
+              method: 'cash',
+              category: 'expense',
+              description: `Dépense: ${newExpense.category}${newExpense.description ? ' - ' + newExpense.description : ''}`,
+              referenceId: newExpense.id,
+              createdAt: new Date().toISOString(),
+            };
+            cs.movements = cs.movements || [];
+            cs.movements.unshift(move);
+            cs.totalCashOut = (cs.totalCashOut || 0) + amt;
+            cs.theoreticalCash = (cs.theoreticalCash || 0) - amt;
+            localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
+          }
+        } catch (e) { /* ignore */ }
+      }
+
       return { message: 'Dépense enregistrée !', expense: newExpense };
     }
     const raw = localStorage.getItem('commercia_expenses') || localStorage.getItem('rsbizz_expenses');
@@ -526,6 +588,245 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         { id: 'u-2', name: 'Reine Ngono', email: 'reine@salon.cm', plan: 'Plan Business', createdAt: '2026-10-18' },
       ],
     };
+  }
+
+  // 18. CASH SESSIONS & MOVEMENTS
+  if (endpoint.startsWith('/cash')) {
+    // A. Current cash session
+    if (endpoint === '/cash/current' && method === 'GET') {
+      const raw = localStorage.getItem('commercia_active_cash_session');
+      if (raw) {
+        try {
+          const session = JSON.parse(raw);
+          return { isOpen: true, session };
+        } catch (e) { /* ignore */ }
+      }
+      return { isOpen: false, session: null };
+    }
+
+    // B. Open cash session
+    if (endpoint === '/cash/open' && method === 'POST') {
+      const initialCash = Number(body?.initialCash || 0);
+      const initialMomo = Number(body?.initialMomo || 0);
+      const newSession = {
+        id: 'cs-' + Date.now(),
+        businessId: 'bizz-demo-1',
+        userId: currentUser?.id || 'user-moussa',
+        status: 'open',
+        openedAt: new Date().toISOString(),
+        initialCash,
+        initialMomo,
+        totalCashSales: 0,
+        totalMomoSales: 0,
+        totalCashIn: 0,
+        totalCashOut: 0,
+        theoreticalCash: initialCash,
+        theoreticalMomo: initialMomo,
+        notes: body?.notes || null,
+        user: {
+          firstName: currentUser?.firstName || 'Moussa',
+          lastName: currentUser?.lastName || 'Ibrahim',
+        },
+        movements: [
+          {
+            id: 'cm-' + Date.now(),
+            sessionId: 'cs-' + Date.now(),
+            type: 'in',
+            amount: initialCash,
+            method: 'cash',
+            category: 'opening_float',
+            description: 'Fond de caisse initial à l\'ouverture',
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      };
+      localStorage.setItem('commercia_active_cash_session', JSON.stringify(newSession));
+      return { message: 'Caisse ouverte avec succès ! 💼', session: newSession };
+    }
+
+    // C. Add manual cash movement (in/out)
+    if (endpoint === '/cash/movement' && method === 'POST') {
+      const raw = localStorage.getItem('commercia_active_cash_session');
+      if (!raw) {
+        throw new Error('Aucune caisse n\'est actuellement ouverte.');
+      }
+      const sess = JSON.parse(raw);
+      const amt = Number(body?.amount || 0);
+      const type = body?.type === 'out' ? 'out' : 'in';
+      const move = {
+        id: 'cm-' + Date.now(),
+        sessionId: sess.id,
+        type,
+        amount: amt,
+        method: body?.method || 'cash',
+        category: body?.category || (type === 'out' ? 'manual_withdrawal' : 'manual_deposit'),
+        description: body?.description || 'Mouvement manuel de caisse',
+        createdAt: new Date().toISOString(),
+      };
+      sess.movements = sess.movements || [];
+      sess.movements.unshift(move);
+      if (type === 'in') {
+        sess.totalCashIn = (sess.totalCashIn || 0) + amt;
+        sess.theoreticalCash = (sess.theoreticalCash || 0) + amt;
+      } else {
+        sess.totalCashOut = (sess.totalCashOut || 0) + amt;
+        sess.theoreticalCash = (sess.theoreticalCash || 0) - amt;
+      }
+      localStorage.setItem('commercia_active_cash_session', JSON.stringify(sess));
+      return { message: 'Mouvement de caisse enregistré !', movement: move, session: sess };
+    }
+
+    // D. Close cash session
+    if (endpoint === '/cash/close' && method === 'POST') {
+      const raw = localStorage.getItem('commercia_active_cash_session');
+      if (!raw) {
+        throw new Error('Aucune caisse n\'est actuellement ouverte.');
+      }
+      const sess = JSON.parse(raw);
+      const actualCash = Number(body?.actualCash || 0);
+      const actualMomo = body?.actualMomo !== undefined ? Number(body.actualMomo) : sess.theoreticalMomo;
+
+      sess.status = 'closed';
+      sess.closedAt = new Date().toISOString();
+      sess.actualCash = actualCash;
+      sess.actualMomo = actualMomo;
+      sess.cashDiscrepancy = actualCash - sess.theoreticalCash;
+      sess.momoDiscrepancy = actualMomo - sess.theoreticalMomo;
+      sess.discrepancyReason = body?.discrepancyReason || null;
+      if (body?.notes) {
+        sess.notes = sess.notes ? sess.notes + '\n' + body.notes : body.notes;
+      }
+
+      // Add to past sessions
+      const pastRaw = localStorage.getItem('commercia_past_cash_sessions');
+      const past = pastRaw ? JSON.parse(pastRaw) : [];
+      past.unshift(sess);
+      localStorage.setItem('commercia_past_cash_sessions', JSON.stringify(past));
+      localStorage.removeItem('commercia_active_cash_session');
+
+      return { message: 'Caisse clôturée avec succès ! 🔒', session: sess };
+    }
+
+    // E. Past sessions list
+    if (endpoint.startsWith('/cash/sessions')) {
+      const pastRaw = localStorage.getItem('commercia_past_cash_sessions');
+      let past = pastRaw ? JSON.parse(pastRaw) : [];
+      if (past.length === 0) {
+        past = [
+          {
+            id: 'cs-demo-prev-1',
+            businessId: 'bizz-demo-1',
+            status: 'closed',
+            openedAt: new Date(Date.now() - 86400000).toISOString(),
+            closedAt: new Date(Date.now() - 43200000).toISOString(),
+            initialCash: 15000,
+            initialMomo: 0,
+            totalCashSales: 54000,
+            totalMomoSales: 12500,
+            totalCashIn: 0,
+            totalCashOut: 8500,
+            theoreticalCash: 60500,
+            theoreticalMomo: 12500,
+            actualCash: 60500,
+            actualMomo: 12500,
+            cashDiscrepancy: 0,
+            momoDiscrepancy: 0,
+            notes: 'Clôture de caisse conforme sans écart.',
+            user: { firstName: 'Moussa', lastName: 'Ibrahim' },
+            movements: [
+              {
+                id: 'cm-1',
+                type: 'in',
+                amount: 15000,
+                method: 'cash',
+                category: 'opening_float',
+                description: 'Fond de caisse initial',
+                createdAt: new Date(Date.now() - 86400000).toISOString(),
+              },
+              {
+                id: 'cm-2',
+                type: 'in',
+                amount: 54000,
+                method: 'cash',
+                category: 'sale',
+                description: 'Total des ventes cash du jour',
+                createdAt: new Date(Date.now() - 50000000).toISOString(),
+              },
+              {
+                id: 'cm-3',
+                type: 'out',
+                amount: 8500,
+                method: 'cash',
+                category: 'expense',
+                description: 'Achat sacs d\'emballage',
+                createdAt: new Date(Date.now() - 45000000).toISOString(),
+              },
+            ],
+          },
+        ];
+        localStorage.setItem('commercia_past_cash_sessions', JSON.stringify(past));
+      }
+      return { sessions: past };
+    }
+  }
+
+  // 10. AI COPILOT & INSIGHTS (Offline / Static fallback)
+  if (endpoint.startsWith('/ai/chat') || endpoint.startsWith('/analytics/ai/chat')) {
+    const rawSales = localStorage.getItem('commercia_sales') || '[]';
+    const rawExpenses = localStorage.getItem('commercia_expenses') || '[]';
+    const rawCustomers = localStorage.getItem('commercia_customers') || '[]';
+    const sales = JSON.parse(rawSales);
+    const expenses = JSON.parse(rawExpenses);
+    const customers = JSON.parse(rawCustomers);
+
+    const metrics = calculateFinancialMetrics({ sales, expenses });
+    const debtors = customers.filter((c: any) => (c.totalOwed || 0) > 0);
+    const totalDebt = debtors.reduce((sum: number, c: any) => sum + (c.totalOwed || 0), 0);
+
+    const message = (body?.message || '').toLowerCase();
+    let reply = '';
+
+    if (message.includes('bénéfice') || message.includes('profit') || message.includes('gagné')) {
+      reply = `📊 **Situation financière (Mode Hors-Ligne) :**\n\n` +
+        `• Ventes enregistrées : **${metrics.revenue.toLocaleString('fr-FR')} FCFA**\n` +
+        `• Dépenses : **${(metrics.operatingExpenses + metrics.inventoryExpenses).toLocaleString('fr-FR')} FCFA**\n` +
+        `• Bénéfice estimé : **${metrics.estimatedNetProfit.toLocaleString('fr-FR')} FCFA** (Taux de marge : ${metrics.grossMarginPercent}%)\n\n` +
+        `💡 ${metrics.whyExplanation}`;
+    } else if (message.includes('dette') || message.includes('crédit') || message.includes('qui me doit')) {
+      if (debtors.length > 0) {
+        const list = debtors.map((d: any) => `• **${d.name}** : ${(d.totalOwed || 0).toLocaleString('fr-FR')} FCFA`).join('\n');
+        reply = `👥 **Créances clients en cours :**\n\nAu total, **${totalDebt.toLocaleString('fr-FR')} FCFA** attendent d'être encaissés :\n\n${list}\n\n` +
+          `💡 Conseil : Relancez vos débiteurs pour sécuriser votre trésorerie.`;
+      } else {
+        reply = `🎉 **Aucune dette en attente !** Tous vos clients sont à jour.`;
+      }
+    } else if (message.includes('dépense') || message.includes('charge')) {
+      reply = `💸 **Total des dépenses :** **${(metrics.operatingExpenses + metrics.inventoryExpenses).toLocaleString('fr-FR')} FCFA**.\n\n` +
+        `• Charges de fonctionnement : ${metrics.operatingExpenses.toLocaleString('fr-FR')} FCFA\n` +
+        `• Ravitaillement marchandise : ${metrics.inventoryExpenses.toLocaleString('fr-FR')} FCFA`;
+    } else {
+      reply = `Bonjour ! Je suis votre Copilote COMMERCIA 🤖.\n\n` +
+        `Activité enregistrée :\n` +
+        `• Chiffre d'affaires : **${metrics.revenue.toLocaleString('fr-FR')} FCFA**\n` +
+        `• Bénéfice estimé : **${metrics.estimatedNetProfit.toLocaleString('fr-FR')} FCFA**\n` +
+        `• Créances clients : **${totalDebt.toLocaleString('fr-FR')} FCFA**\n\n` +
+        `Comment puis-je vous aider ? (Exemples : "Quel est mon bénéfice ?", "Qui me doit de l'argent ?", "Analyse des dépenses")`;
+    }
+
+    return { reply };
+  }
+
+  if (endpoint.startsWith('/ai/insights')) {
+    return [
+      {
+        id: 'ins-mock-1',
+        type: 'profitability',
+        title: 'Rentabilité commerciale',
+        message: 'Votre activité génère des marges saines. Continuez à enregistrer vos flux quotidiens.',
+        severity: 'success',
+        isRead: false,
+      },
+    ];
   }
 
   // Default fallback

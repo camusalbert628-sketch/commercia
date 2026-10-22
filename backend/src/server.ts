@@ -17,7 +17,11 @@ import { analyticsRouter } from './modules/analytics/analytics.routes';
 import { plansRouter } from './modules/subscriptions/plans.routes';
 import { notificationsRouter } from './modules/notifications/notifications.routes';
 import { adminRouter } from './modules/admin/admin.routes';
+import { cashRouter } from './modules/cash/cash.routes';
+import { aiRouter } from './modules/ai/ai.routes';
+import { subscriptionRouter } from './modules/subscriptions/subscription.routes';
 import { errorHandler } from './middleware/errorHandler';
+
 
 dotenv.config();
 
@@ -59,8 +63,12 @@ app.use('/api/customers', customersRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/plans', plansRouter);
+app.use('/api/subscription', subscriptionRouter);
+app.use('/api/ai', aiRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/cash', cashRouter);
+
 
 // Health check
 app.get('/api/health', (_req, res) => {

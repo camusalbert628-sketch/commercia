@@ -11,6 +11,7 @@ import {
   Crown,
   ShieldAlert,
   LogOut,
+  Wallet,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -59,6 +60,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
         >
           <TrendingDown size={18} />
           <span>Dépenses</span>
+        </NavLink>
+
+        <NavLink
+          to="/cash"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Wallet size={18} />
+          <span>Caisse Journalière</span>
         </NavLink>
 
         <div className="menu-category">Gestion Commerciale</div>

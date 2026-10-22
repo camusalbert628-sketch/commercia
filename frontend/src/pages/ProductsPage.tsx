@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, AlertTriangle, Search, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { Plus, AlertTriangle, Search, ArrowUp, X } from 'lucide-react';
 import { api } from '../services/api';
 import { Product } from '../types';
 

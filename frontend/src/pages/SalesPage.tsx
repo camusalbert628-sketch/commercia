@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Search, Trash2, Calendar, CreditCard, User, Eye, X } from 'lucide-react';
 import { api } from '../services/api';
 import { Sale } from '../types';
+import { useModals } from '../context/ModalContext';
 
 interface SalesPageProps {
-  onOpenSaleModal: () => void;
+  onOpenSaleModal?: () => void;
 }
 
-export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal }) => {
+export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenSale }) => {
+  const { openSaleModal, refreshKey } = useModals();
+  const onOpenSaleModal = propOpenSale || openSaleModal;
+
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -28,7 +32,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal }) => {
 
   useEffect(() => {
     fetchSales();
-  }, []);
+  }, [refreshKey]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Voulez-vous vraiment annuler cette vente ? Le stock sera restauré.')) return;

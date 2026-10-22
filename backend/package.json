@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
-    "db:seed": "ts-node src/database/seed.ts"
+    "db:seed": "ts-node src/database/seed.ts",
+    "test": "ts-node src/utils/testFinance.ts && ts-node src/utils/testApiEndpoints.ts"
   },
   "dependencies": {
     "express": "^4.18.2",

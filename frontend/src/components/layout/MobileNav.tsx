@@ -1,12 +1,23 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, ShoppingCart, Plus, Users, Menu } from 'lucide-react';
+import { useModals } from '../../context/ModalContext';
 
 interface MobileNavProps {
   onOpenQuickSale?: () => void;
 }
 
 export const MobileNav: React.FC<MobileNavProps> = ({ onOpenQuickSale }) => {
+  const { openQuickAction } = useModals();
+
+  const handleActionClick = () => {
+    if (onOpenQuickSale) {
+      onOpenQuickSale();
+    } else {
+      openQuickAction();
+    }
+  };
+
   return (
     <nav className="mobile-nav">
       <NavLink
@@ -25,11 +36,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onOpenQuickSale }) => {
         <span>Ventes</span>
       </NavLink>
 
-      {/* Floating Center Action Button */}
+      {/* Floating Center Action Button with Quick Action Sheet */}
       <button
         className="mobile-action-btn"
-        onClick={onOpenQuickSale}
-        title="Vente Express"
+        onClick={handleActionClick}
+        title="Ajouter une opération"
       >
         <Plus size={24} />
       </button>

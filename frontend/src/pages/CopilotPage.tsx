@@ -35,7 +35,7 @@ export const CopilotPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await api.post<{ reply: string }>('/analytics/ai/chat', { message: text });
+      const res = await api.post<{ reply: string }>('/ai/chat', { message: text });
       setMessages(prev => [...prev, { role: 'assistant', content: res.reply }]);
     } catch (err: any) {
       setMessages(prev => [

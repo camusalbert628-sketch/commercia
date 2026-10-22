@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { TrendingDown, Plus, Trash2, Tag, Calendar } from 'lucide-react';
 import { api } from '../services/api';
 import { Expense } from '../types';
+import { useModals } from '../context/ModalContext';
 
 interface ExpensesPageProps {
-  onOpenExpenseModal: () => void;
+  onOpenExpenseModal?: () => void;
 }
 
-export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal }) => {
+export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: propOpenExpense }) => {
+  const { openExpenseModal, refreshKey } = useModals();
+  const onOpenExpenseModal = propOpenExpense || openExpenseModal;
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -26,7 +30,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal }
 
   useEffect(() => {
     fetchExpenses();
-  }, []);
+  }, [refreshKey]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Voulez-vous supprimer cette dépense ?')) return;

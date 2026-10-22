@@ -114,6 +114,36 @@ router.post('/', async (req: AuthRequest, res, next) => {
       });
     }
 
+    // Link sale encaissement to active cash session
+    if (paidAmount > 0) {
+      const activeSession = await req.prisma.cashSession.findFirst({
+        where: { businessId, status: 'open' },
+      });
+      if (activeSession) {
+        await req.prisma.cashMovement.create({
+          data: {
+            sessionId: activeSession.id,
+            businessId,
+            type: 'in',
+            amount: paidAmount,
+            method: data.paymentMethod,
+            category: 'sale',
+            referenceId: sale.id,
+            description: `Vente #${sale.id.slice(0, 8)} (${data.items.map(i => i.name).join(', ')})`,
+          },
+        });
+        await req.prisma.cashSession.update({
+          where: { id: activeSession.id },
+          data: {
+            totalCashIn: data.paymentMethod === 'cash' ? { increment: paidAmount } : undefined,
+            totalMomoIn: data.paymentMethod === 'mobile_money' ? { increment: paidAmount } : undefined,
+            theoreticalCash: data.paymentMethod === 'cash' ? { increment: paidAmount } : undefined,
+          },
+        });
+      }
+    }
+
+
     // Audit log
     await req.prisma.auditLog.create({
       data: {
