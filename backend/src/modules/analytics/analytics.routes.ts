@@ -1,23 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
 router.use(authenticate);
 
-async function getBusinessId(req: AuthRequest): Promise<string> {
-  const member = await req.prisma.businessMember.findFirst({
-    where: { userId: req.userId, isActive: true },
-  });
-  if (!member) throw new AppError('Aucune activité trouvée.', 404);
-  return member.businessId;
-}
 
 // GET /api/analytics/trends — Tendances de ventes & dépenses
 router.get('/trends', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const { days = '7' } = req.query as any;
     const numDays = Math.min(90, Math.max(7, parseInt(days) || 7));
 
@@ -68,7 +61,7 @@ router.get('/trends', async (req: AuthRequest, res, next) => {
 // GET /api/analytics/categories — Répartition des dépenses
 router.get('/categories', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const expenses = await req.prisma.expense.groupBy({
       by: ['category'],
       where: { businessId },
@@ -89,7 +82,7 @@ router.get('/categories', async (req: AuthRequest, res, next) => {
 // GET /api/analytics/top-products — Top produits vendus
 router.get('/top-products', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const saleItems = await req.prisma.saleItem.findMany({
       where: { sale: { businessId } },
       select: {
@@ -121,7 +114,7 @@ router.get('/top-products', async (req: AuthRequest, res, next) => {
 // GET /api/analytics/weekly-report — Rapport hebdomadaire prêt à l'emploi
 router.get('/weekly-report', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const now = new Date();
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(now.getDate() - 7);
@@ -180,7 +173,7 @@ router.get('/weekly-report', async (req: AuthRequest, res, next) => {
 // POST /api/analytics/ai/chat — Copilote financier IA
 router.post('/ai/chat', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const schema = z.object({
       message: z.string().min(1, 'Message requis'),
       conversationId: z.string().optional(),

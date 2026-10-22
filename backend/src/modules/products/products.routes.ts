@@ -1,23 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
 router.use(authenticate);
 
-async function getBusinessId(req: AuthRequest): Promise<string> {
-  const member = await req.prisma.businessMember.findFirst({
-    where: { userId: req.userId, isActive: true },
-  });
-  if (!member) throw new AppError('Aucune activité trouvée.', 404);
-  return member.businessId;
-}
 
 // GET /api/products — Liste des produits
 router.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const { search, lowStock } = req.query as any;
 
     const where: any = { businessId, isActive: true };
@@ -43,7 +36,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
 // POST /api/products — Créer un produit
 router.post('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const schema = z.object({
       name: z.string().min(1, 'Nom du produit requis'),
       description: z.string().optional(),
@@ -90,7 +83,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
 // PUT /api/products/:id — Mettre à jour un produit
 router.put('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const existing = await req.prisma.product.findFirst({
       where: { id: req.params.id, businessId },
     });
@@ -121,7 +114,7 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
 // POST /api/products/:id/adjust — Ajustement de stock
 router.post('/:id/adjust', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const product = await req.prisma.product.findFirst({
       where: { id: req.params.id, businessId },
     });
@@ -176,7 +169,7 @@ router.post('/:id/adjust', async (req: AuthRequest, res, next) => {
 // DELETE /api/products/:id — Supprimer un produit
 router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const product = await req.prisma.product.findFirst({
       where: { id: req.params.id, businessId },
     });

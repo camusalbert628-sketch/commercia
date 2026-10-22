@@ -157,23 +157,28 @@ export interface AIInsight {
   isRead: boolean;
 }
 
+export interface DashboardMetrics {
+  revenue?: number;
+  sales: number;
+  salesCount?: number;
+  cashCollected?: number;
+  creditSales?: number;
+  cogs?: number;
+  grossProfit?: number;
+  grossMarginPercent?: number;
+  operatingExpenses?: number;
+  inventoryExpenses?: number;
+  personalWithdrawals?: number;
+  expenses: number;
+  profit: number;
+  netCashFlow?: number;
+  whyExplanation?: string;
+}
+
 export interface DashboardData {
-  today: {
-    sales: number;
-    salesCount: number;
-    expenses: number;
-    profit: number;
-  };
-  week: {
-    sales: number;
-    expenses: number;
-    profit: number;
-  };
-  month: {
-    sales: number;
-    expenses: number;
-    profit: number;
-  };
+  today: DashboardMetrics;
+  week: DashboardMetrics;
+  month: DashboardMetrics;
   debt: {
     total: number;
     customerCount: number;
@@ -185,3 +190,4 @@ export interface DashboardData {
   };
   insights: AIInsight[];
 }
+

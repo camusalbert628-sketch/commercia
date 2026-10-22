@@ -1,5 +1,6 @@
 // COMMERCIA In-Memory & LocalStorage Mock Backend
 // Ensures zero-downtime demonstration on static cloud deployments (Vercel)
+import { calculateFinancialMetrics } from '../utils/finance';
 
 export function handleMockRequest(endpoint: string, method: string, body?: any): any {
   const storedUser = localStorage.getItem('commercia_user') || localStorage.getItem('rsbizz_user');
@@ -192,26 +193,56 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     const salesList = [...localSales, ...defaultSales];
     const expensesList = [...localExpenses, ...defaultExpenses];
 
-    const totalSales = salesList.reduce((acc: number, s: any) => acc + (s.totalAmount || 0), 0);
-    const totalExpenses = expensesList.reduce((acc: number, e: any) => acc + (e.amount || 0), 0);
-    const profit = totalSales - totalExpenses;
+    const metricsToday = calculateFinancialMetrics({
+      sales: salesList,
+      expenses: expensesList,
+    });
+
+    const metricsWeek = calculateFinancialMetrics({
+      sales: [...salesList, { totalAmount: 120000, paymentMethod: 'cash', items: [] }],
+      expenses: [...expensesList, { amount: 60000, category: 'Loyer boutique' }],
+    });
+
+    const metricsMonth = calculateFinancialMetrics({
+      sales: [...salesList, { totalAmount: 580000, paymentMethod: 'cash', items: [] }],
+      expenses: [...expensesList, { amount: 240000, category: 'Loyer boutique' }],
+    });
 
     return {
       today: {
-        sales: totalSales,
+        revenue: metricsToday.revenue,
+        sales: metricsToday.revenue,
         salesCount: salesList.length,
-        expenses: totalExpenses,
-        profit,
+        cashCollected: metricsToday.cashCollected,
+        creditSales: metricsToday.creditSales,
+        cogs: metricsToday.cogs,
+        grossProfit: metricsToday.grossProfit,
+        grossMarginPercent: metricsToday.grossMarginPercent,
+        operatingExpenses: metricsToday.operatingExpenses,
+        inventoryExpenses: metricsToday.inventoryExpenses,
+        personalWithdrawals: metricsToday.personalWithdrawals,
+        expenses: metricsToday.operatingExpenses + metricsToday.inventoryExpenses,
+        profit: metricsToday.estimatedNetProfit,
+        netCashFlow: metricsToday.netCashFlow,
+        whyExplanation: metricsToday.whyExplanation,
       },
       week: {
-        sales: totalSales + 120000,
-        expenses: totalExpenses + 60000,
-        profit: profit + 60000,
+        revenue: metricsWeek.revenue,
+        sales: metricsWeek.revenue,
+        cashCollected: metricsWeek.cashCollected,
+        expenses: metricsWeek.operatingExpenses + metricsWeek.inventoryExpenses,
+        profit: metricsWeek.estimatedNetProfit,
+        netCashFlow: metricsWeek.netCashFlow,
+        whyExplanation: metricsWeek.whyExplanation,
       },
       month: {
-        sales: totalSales + 580000,
-        expenses: totalExpenses + 240000,
-        profit: profit + 340000,
+        revenue: metricsMonth.revenue,
+        sales: metricsMonth.revenue,
+        cashCollected: metricsMonth.cashCollected,
+        expenses: metricsMonth.operatingExpenses + metricsMonth.inventoryExpenses,
+        profit: metricsMonth.estimatedNetProfit,
+        netCashFlow: metricsMonth.netCashFlow,
+        whyExplanation: metricsMonth.whyExplanation,
       },
       debt: {
         total: 38500,
@@ -227,12 +258,13 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
           id: 'ins-1',
           type: 'profitability',
           title: 'Activité Bénéficiaire !',
-          message: `Votre activité génère un flux de trésorerie net positif aujourd'hui (+${profit.toLocaleString('fr-FR')} FCFA). Continuez ainsi !`,
+          message: `Votre activité génère un bénéfice d'exploitation de +${metricsToday.estimatedNetProfit.toLocaleString('fr-FR')} FCFA aujourd'hui. Vos encaissements réels en cash s'élèvent à ${metricsToday.cashCollected.toLocaleString('fr-FR')} FCFA.`,
           severity: 'success',
         },
       ],
     };
   }
+
 
   // 6. ANALYTICS / TRENDS
   if (endpoint.startsWith('/analytics/trends')) {
@@ -319,18 +351,54 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     };
   }
 
+  // Helper: get or init mock products
+  const getStoredProducts = () => {
+    const rawProd = localStorage.getItem('commercia_products');
+    if (rawProd) {
+      try { return JSON.parse(rawProd); } catch (e) { /* ignore */ }
+    }
+    const defaultProds = [
+      { id: 'p-1', name: 'Riz Blanc Mémé Cassé 5kg', costPrice: 2400, sellingPrice: 3000, quantity: 18, unit: 'sac', lowStockAlert: 5, isActive: true },
+      { id: 'p-2', name: 'Huile de palme raffinée Mayor 1L', costPrice: 1200, sellingPrice: 1500, quantity: 3, unit: 'bouteille', lowStockAlert: 5, isActive: true },
+      { id: 'p-3', name: 'Sucre en morceaux SOSUCAM 1kg', costPrice: 750, sellingPrice: 950, quantity: 24, unit: 'boîte', lowStockAlert: 5, isActive: true },
+      { id: 'p-4', name: 'Lait en poudre Nido 400g', costPrice: 2200, sellingPrice: 2800, quantity: 2, unit: 'boîte', lowStockAlert: 5, isActive: true },
+      { id: 'p-5', name: 'Spaghetti Mambo 500g', costPrice: 380, sellingPrice: 500, quantity: 45, unit: 'paquet', lowStockAlert: 5, isActive: true },
+    ];
+    localStorage.setItem('commercia_products', JSON.stringify(defaultProds));
+    return defaultProds;
+  };
+
   // 11. SALES (GET & POST)
   if (endpoint.startsWith('/sales')) {
     if (method === 'POST') {
       const raw = localStorage.getItem('commercia_sales') || localStorage.getItem('rsbizz_sales');
       const sales = raw ? JSON.parse(raw) : [];
+      const newItems = body?.items || [{ name: 'Vente directe comptoir' }];
+
+      // Decrement stock for linked products in mock mode
+      const products = getStoredProducts();
+      let stockChanged = false;
+      newItems.forEach((item: any) => {
+        const prod = products.find((p: any) => p.id === item.productId || p.name.toLowerCase() === item.name.toLowerCase());
+        if (prod) {
+          prod.quantity = Math.max(0, (prod.quantity || 0) - (Number(item.quantity) || 1));
+          stockChanged = true;
+          if (!item.costPrice || item.costPrice === 0) {
+            item.costPrice = prod.costPrice;
+          }
+        }
+      });
+      if (stockChanged) {
+        localStorage.setItem('commercia_products', JSON.stringify(products));
+      }
+
       const newSale = {
         id: 's-' + Date.now(),
         totalAmount: Number(body?.totalAmount || 0),
         paidAmount: Number(body?.paidAmount || body?.totalAmount || 0),
         paymentMethod: body?.paymentMethod || 'cash',
         saleDate: new Date().toISOString(),
-        items: body?.items || [{ name: 'Vente directe comptoir' }],
+        items: newItems,
       };
       sales.unshift(newSale);
       localStorage.setItem('commercia_sales', JSON.stringify(sales));
@@ -370,16 +438,38 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     ];
   }
 
-  // 14. PRODUCTS
+  // 14. PRODUCTS (GET, POST & ADJUST)
   if (endpoint.startsWith('/products')) {
-    return [
-      { id: 'p-1', name: 'Riz Blanc Mémé Cassé 5kg', costPrice: 2400, sellingPrice: 3000, quantity: 18, unit: 'sac' },
-      { id: 'p-2', name: 'Huile de palme raffinée Mayor 1L', costPrice: 1200, sellingPrice: 1500, quantity: 3, unit: 'bouteille' },
-      { id: 'p-3', name: 'Sucre en morceaux SOSUCAM 1kg', costPrice: 750, sellingPrice: 950, quantity: 24, unit: 'boîte' },
-      { id: 'p-4', name: 'Lait en poudre Nido 400g', costPrice: 2200, sellingPrice: 2800, quantity: 2, unit: 'boîte' },
-      { id: 'p-5', name: 'Spaghetti Mambo 500g', costPrice: 380, sellingPrice: 500, quantity: 45, unit: 'paquet' },
-    ];
+    const prods = getStoredProducts();
+    if (endpoint.includes('/adjust') && method === 'POST') {
+      const prodId = endpoint.split('/')[2];
+      const prod = prods.find((p: any) => p.id === prodId);
+      if (prod) {
+        if (body?.type === 'in') prod.quantity += Number(body?.quantity || 0);
+        else if (body?.type === 'out') prod.quantity = Math.max(0, prod.quantity - Number(body?.quantity || 0));
+        else if (body?.type === 'adjustment') prod.quantity = Number(body?.quantity || 0);
+        localStorage.setItem('commercia_products', JSON.stringify(prods));
+        return { message: 'Stock mis à jour avec succès.', product: prod };
+      }
+    }
+    if (method === 'POST') {
+      const newProd = {
+        id: 'p-' + Date.now(),
+        name: body?.name || 'Nouveau produit',
+        costPrice: Number(body?.costPrice || 0),
+        sellingPrice: Number(body?.sellingPrice || 0),
+        quantity: Number(body?.quantity || 0),
+        unit: body?.unit || 'unité',
+        lowStockAlert: Number(body?.lowStockAlert || 5),
+        isActive: true,
+      };
+      prods.unshift(newProd);
+      localStorage.setItem('commercia_products', JSON.stringify(prods));
+      return newProd;
+    }
+    return prods;
   }
+
 
   // 15. NOTIFICATIONS
   if (endpoint.startsWith('/notifications')) {

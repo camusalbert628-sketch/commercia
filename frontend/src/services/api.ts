@@ -22,6 +22,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  const activeBusinessId = localStorage.getItem('activeBusinessId') || localStorage.getItem('commercia_active_business_id');
+  if (activeBusinessId) {
+    headers['x-business-id'] = activeBusinessId;
+  }
+
+
   const method = options.method || 'GET';
   const parsedBody = options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : undefined;
 

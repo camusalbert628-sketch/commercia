@@ -1,23 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
 router.use(authenticate);
 
-async function getBusinessId(req: AuthRequest): Promise<string> {
-  const member = await req.prisma.businessMember.findFirst({
-    where: { userId: req.userId, isActive: true },
-  });
-  if (!member) throw new AppError('Aucune activité trouvée.', 404);
-  return member.businessId;
-}
 
 // GET /api/expenses/categories — Catégories de dépenses
 router.get('/categories', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const categories = await req.prisma.expenseCategory.findMany({
       where: { businessId },
       orderBy: { name: 'asc' },
@@ -31,7 +24,7 @@ router.get('/categories', async (req: AuthRequest, res, next) => {
 // POST /api/expenses/categories — Créer une catégorie personnalisée
 router.post('/categories', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const schema = z.object({
       name: z.string().min(1, 'Nom de la catégorie requis'),
       icon: z.string().optional(),
@@ -58,7 +51,7 @@ router.post('/categories', async (req: AuthRequest, res, next) => {
 // POST /api/expenses — Enregistrer une dépense
 router.post('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const schema = z.object({
       amount: z.number().positive('Le montant doit être supérieur à zéro'),
       category: z.string().default('autre'),
@@ -107,7 +100,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
 // GET /api/expenses — Liste des dépenses
 router.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const { page = '1', limit = '20', category, startDate, endDate } = req.query as any;
 
     const where: any = { businessId };
@@ -146,7 +139,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
 // DELETE /api/expenses/:id — Supprimer une dépense
 router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const expense = await req.prisma.expense.findFirst({
       where: { id: req.params.id, businessId },
     });

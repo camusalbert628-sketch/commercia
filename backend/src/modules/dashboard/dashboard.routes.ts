@@ -1,22 +1,14 @@
 import { Router } from 'express';
-import { AuthRequest, authenticate } from '../../middleware/auth';
-import { AppError } from '../../middleware/errorHandler';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
+import { calculateFinancialMetrics } from '../../utils/finance';
 
 const router = Router();
 router.use(authenticate);
 
-async function getBusinessId(req: AuthRequest): Promise<string> {
-  const member = await req.prisma.businessMember.findFirst({
-    where: { userId: req.userId, isActive: true },
-  });
-  if (!member) throw new AppError('Aucune activité trouvée.', 404);
-  return member.businessId;
-}
-
-// GET /api/dashboard — Synthèse complète du tableau de bord
+// GET /api/dashboard — Synthèse financière et commerciale
 router.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -27,51 +19,53 @@ router.get('/', async (req: AuthRequest, res, next) => {
     startOfWeek.setHours(0, 0, 0, 0);
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    startOfMonth.setHours(0, 0, 0, 0);
 
     // Queries in parallel
     const [
-      todaySales,
-      todayExpenses,
-      weekSales,
-      weekExpenses,
-      monthSales,
-      monthExpenses,
+      todaySalesList,
+      todayExpensesList,
+      todayCustomerPayments,
+      weekSalesList,
+      weekExpensesList,
+      monthSalesList,
+      monthExpensesList,
       recentSales,
       recentExpenses,
       customersWithDebt,
       lowStockProducts,
       insights,
     ] = await Promise.all([
-      // Today sales
-      req.prisma.sale.aggregate({
+      // Today sales with items
+      req.prisma.sale.findMany({
         where: { businessId, saleDate: { gte: startOfToday, lte: endOfToday } },
-        _sum: { totalAmount: true, paidAmount: true },
-        _count: { id: true },
+        include: { items: true, customer: true },
       }),
       // Today expenses
-      req.prisma.expense.aggregate({
+      req.prisma.expense.findMany({
         where: { businessId, expenseDate: { gte: startOfToday, lte: endOfToday } },
-        _sum: { amount: true },
+      }),
+      // Today customer debt payments (cash entering from credit recovery)
+      req.prisma.customerPayment.findMany({
+        where: { customer: { businessId }, paidAt: { gte: startOfToday, lte: endOfToday } },
       }),
       // Week sales
-      req.prisma.sale.aggregate({
+      req.prisma.sale.findMany({
         where: { businessId, saleDate: { gte: startOfWeek } },
-        _sum: { totalAmount: true },
+        include: { items: true },
       }),
       // Week expenses
-      req.prisma.expense.aggregate({
+      req.prisma.expense.findMany({
         where: { businessId, expenseDate: { gte: startOfWeek } },
-        _sum: { amount: true },
       }),
       // Month sales
-      req.prisma.sale.aggregate({
+      req.prisma.sale.findMany({
         where: { businessId, saleDate: { gte: startOfMonth } },
-        _sum: { totalAmount: true },
+        include: { items: true },
       }),
       // Month expenses
-      req.prisma.expense.aggregate({
+      req.prisma.expense.findMany({
         where: { businessId, expenseDate: { gte: startOfMonth } },
-        _sum: { amount: true },
       }),
       // Recent sales (last 5)
       req.prisma.sale.findMany({
@@ -109,34 +103,51 @@ router.get('/', async (req: AuthRequest, res, next) => {
       }) : Promise.resolve([])),
     ]);
 
-    const salesTodayVal = todaySales._sum.totalAmount || 0;
-    const expensesTodayVal = todayExpenses._sum.amount || 0;
-    const profitTodayVal = salesTodayVal - expensesTodayVal;
+    // Financial calculations using single source of truth
+    const metricsToday = calculateFinancialMetrics({
+      sales: todaySalesList,
+      expenses: todayExpensesList,
+      customerPayments: todayCustomerPayments,
+    });
 
-    const salesWeekVal = weekSales._sum.totalAmount || 0;
-    const expensesWeekVal = weekExpenses._sum.amount || 0;
-    const profitWeekVal = salesWeekVal - expensesWeekVal;
+    const metricsWeek = calculateFinancialMetrics({
+      sales: weekSalesList,
+      expenses: weekExpensesList,
+    });
 
-    const salesMonthVal = monthSales._sum.totalAmount || 0;
-    const expensesMonthVal = monthExpenses._sum.amount || 0;
-    const profitMonthVal = salesMonthVal - expensesMonthVal;
+    const metricsMonth = calculateFinancialMetrics({
+      sales: monthSalesList,
+      expenses: monthExpensesList,
+    });
 
     // Build smart actionable advice
     const dynamicInsights = [...insights];
     if (dynamicInsights.length === 0) {
-      if (salesTodayVal > 0 && profitTodayVal > 0) {
+      if (metricsToday.creditSales > 0 && metricsToday.cashCollected < metricsToday.creditSales) {
+        dynamicInsights.push({
+          id: 'auto-credit-alert',
+          businessId,
+          type: 'credit',
+          title: 'Ventes à crédit détectées',
+          message: `Vous avez ${metricsToday.creditSales.toLocaleString('fr-FR')} FCFA de ventes à crédit aujourd'hui non encore encaissées. Votre trésorerie réelle encaissée est de ${metricsToday.cashCollected.toLocaleString('fr-FR')} FCFA.`,
+          severity: 'warning',
+          isRead: false,
+          createdAt: new Date(),
+          expiresAt: null,
+        });
+      } else if (metricsToday.revenue > 0 && metricsToday.estimatedNetProfit > 0) {
         dynamicInsights.push({
           id: 'auto-1',
           businessId,
           type: 'profitability',
           title: 'Journée profitable',
-          message: `Bravo ! Vous dégagez un bénéfice net estimé de ${profitTodayVal.toLocaleString('fr-FR')} FCFA aujourd'hui.`,
+          message: `Bravo ! Vous dégagez un bénéfice net estimé de ${metricsToday.estimatedNetProfit.toLocaleString('fr-FR')} FCFA aujourd'hui (Marge brute : ${metricsToday.grossMarginPercent}%).`,
           severity: 'success',
           isRead: false,
           createdAt: new Date(),
           expiresAt: null,
         });
-      } else if (salesTodayVal === 0) {
+      } else if (metricsToday.revenue === 0) {
         dynamicInsights.push({
           id: 'auto-2',
           businessId,
@@ -167,20 +178,39 @@ router.get('/', async (req: AuthRequest, res, next) => {
 
     res.json({
       today: {
-        sales: salesTodayVal,
-        salesCount: todaySales._count.id,
-        expenses: expensesTodayVal,
-        profit: profitTodayVal,
+        revenue: metricsToday.revenue,
+        sales: metricsToday.revenue, // rétrocompatibilité
+        salesCount: todaySalesList.length,
+        cashCollected: metricsToday.cashCollected,
+        creditSales: metricsToday.creditSales,
+        cogs: metricsToday.cogs,
+        grossProfit: metricsToday.grossProfit,
+        grossMarginPercent: metricsToday.grossMarginPercent,
+        operatingExpenses: metricsToday.operatingExpenses,
+        inventoryExpenses: metricsToday.inventoryExpenses,
+        personalWithdrawals: metricsToday.personalWithdrawals,
+        expenses: metricsToday.operatingExpenses + metricsToday.inventoryExpenses,
+        profit: metricsToday.estimatedNetProfit,
+        netCashFlow: metricsToday.netCashFlow,
+        whyExplanation: metricsToday.whyExplanation,
       },
       week: {
-        sales: salesWeekVal,
-        expenses: expensesWeekVal,
-        profit: profitWeekVal,
+        revenue: metricsWeek.revenue,
+        sales: metricsWeek.revenue,
+        cashCollected: metricsWeek.cashCollected,
+        expenses: metricsWeek.operatingExpenses + metricsWeek.inventoryExpenses,
+        profit: metricsWeek.estimatedNetProfit,
+        netCashFlow: metricsWeek.netCashFlow,
+        whyExplanation: metricsWeek.whyExplanation,
       },
       month: {
-        sales: salesMonthVal,
-        expenses: expensesMonthVal,
-        profit: profitMonthVal,
+        revenue: metricsMonth.revenue,
+        sales: metricsMonth.revenue,
+        cashCollected: metricsMonth.cashCollected,
+        expenses: metricsMonth.operatingExpenses + metricsMonth.inventoryExpenses,
+        profit: metricsMonth.estimatedNetProfit,
+        netCashFlow: metricsMonth.netCashFlow,
+        whyExplanation: metricsMonth.whyExplanation,
       },
       debt: {
         total: customersWithDebt._sum.totalOwed || 0,

@@ -1,23 +1,16 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
 router.use(authenticate);
 
-async function getBusinessId(req: AuthRequest): Promise<string> {
-  const member = await req.prisma.businessMember.findFirst({
-    where: { userId: req.userId, isActive: true },
-  });
-  if (!member) throw new AppError('Aucune activité trouvée.', 404);
-  return member.businessId;
-}
 
 // GET /api/customers — Liste des clients
 router.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const { search, onlyDebtors } = req.query as any;
 
     const where: any = { businessId };
@@ -48,7 +41,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
 // POST /api/customers — Créer un client
 router.post('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const schema = z.object({
       name: z.string().min(1, 'Nom du client requis'),
       phone: z.string().optional(),
@@ -77,7 +70,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
 // GET /api/customers/:id — Détail du client
 router.get('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const customer = await req.prisma.customer.findFirst({
       where: { id: req.params.id, businessId },
       include: {
@@ -105,7 +98,7 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 // POST /api/customers/:id/payments — Enregistrer un remboursement de dette
 router.post('/:id/payments', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const customer = await req.prisma.customer.findFirst({
       where: { id: req.params.id, businessId },
     });
@@ -169,7 +162,7 @@ router.post('/:id/payments', async (req: AuthRequest, res, next) => {
 // DELETE /api/customers/:id — Supprimer un client
 router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const customer = await req.prisma.customer.findFirst({
       where: { id: req.params.id, businessId },
     });

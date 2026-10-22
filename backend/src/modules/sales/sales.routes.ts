@@ -1,24 +1,15 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
 router.use(authenticate);
 
-// Helper: get user's active business
-async function getBusinessId(req: AuthRequest): Promise<string> {
-  const member = await req.prisma.businessMember.findFirst({
-    where: { userId: req.userId, isActive: true },
-  });
-  if (!member) throw new AppError('Aucune activité trouvée. Créez d\'abord votre activité.', 404);
-  return member.businessId;
-}
-
 // POST /api/sales — Enregistrer une vente
 router.post('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     
     const saleSchema = z.object({
       items: z.array(z.object({
@@ -34,7 +25,28 @@ router.post('/', async (req: AuthRequest, res, next) => {
     });
     
     const data = saleSchema.parse(req.body);
-    const totalAmount = data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+
+    // Si le prix de revient n'est pas fourni, le récupérer du catalogue produit
+    const enrichedItems = await Promise.all(
+      data.items.map(async item => {
+        let costPrice = item.costPrice;
+        if ((!costPrice || costPrice === 0) && item.productId) {
+          const product = await req.prisma.product.findUnique({
+            where: { id: item.productId },
+            select: { costPrice: true },
+          });
+          if (product && product.costPrice > 0) {
+            costPrice = product.costPrice;
+          }
+        }
+        return {
+          ...item,
+          costPrice: costPrice || 0,
+        };
+      })
+    );
+
+    const totalAmount = enrichedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     const paidAmount = data.paymentMethod === 'credit' ? 0 : totalAmount;
 
     const sale = await req.prisma.sale.create({
@@ -47,7 +59,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         status: 'completed',
         notes: data.notes || null,
         items: {
-          create: data.items.map(item => ({
+          create: enrichedItems.map(item => ({
             name: item.name,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -59,6 +71,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
       },
       include: { items: true, customer: true },
     });
+
 
     // Update stock if products are linked
     for (const item of data.items) {
@@ -126,7 +139,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
 // GET /api/sales — Lister les ventes
 router.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const { page = '1', limit = '20', startDate, endDate, search } = req.query as any;
     
     const where: any = { businessId };
@@ -164,7 +177,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
 // GET /api/sales/:id
 router.get('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const sale = await req.prisma.sale.findFirst({
       where: { id: req.params.id, businessId },
       include: { items: true, customer: true },
@@ -179,7 +192,7 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 // DELETE /api/sales/:id
 router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
-    const businessId = await getBusinessId(req);
+    const businessId = await getTenantBusinessId(req);
     const sale = await req.prisma.sale.findFirst({
       where: { id: req.params.id, businessId },
       include: { items: true },

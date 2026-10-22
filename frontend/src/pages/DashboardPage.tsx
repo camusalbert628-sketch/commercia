@@ -11,6 +11,8 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
+  X,
+  HelpCircle,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -33,6 +35,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
   const [data, setData] = useState<DashboardData | null>(null);
   const [trends, setTrends] = useState<Array<{ date: string; sales: number; expenses: number; profit: number }>>([]);
   const [loading, setLoading] = useState(true);
+  const [showWhyModal, setShowWhyModal] = useState(false);
 
   const fetchDashboard = async () => {
     try {
@@ -145,18 +148,35 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
         </div>
       )}
 
-      {/* Stat Cards Grid */}
-      <div className="stat-grid">
-        {/* Estimated Profit */}
-        <div className="stat-card profit">
+      {/* Stat Cards Grid - Distinctions financières rigoureuses */}
+      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        {/* Bénéfice Net Estimé */}
+        <div className="stat-card profit" style={{ position: 'relative' }}>
           <div>
-            <div className="stat-label">Bénéfice estimé aujourd'hui</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <div className="stat-label">Bénéfice net estimé</div>
+              <button
+                onClick={() => setShowWhyModal(true)}
+                style={{
+                  background: '#ECFDF5',
+                  border: '1px solid #A7F3D0',
+                  color: '#065F46',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                Pourquoi ?
+              </button>
+            </div>
             <div className="stat-value" style={{ color: today.profit >= 0 ? '#10B981' : '#EF4444' }}>
               {today.profit > 0 ? '+' : ''}
               {today.profit.toLocaleString('fr-FR')} FCFA
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
-              Recettes nettes après déduction des dépenses
+              {today.grossMarginPercent !== undefined ? `Marge brute : ${today.grossMarginPercent}%` : 'Recettes nettes après coûts & charges'}
             </div>
           </div>
           <div className="stat-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
@@ -164,13 +184,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
           </div>
         </div>
 
-        {/* Today Sales */}
+        {/* Chiffre d'Affaires du jour */}
         <div className="stat-card sales">
           <div>
-            <div className="stat-label">Ventes du jour</div>
-            <div className="stat-value">{today.sales.toLocaleString('fr-FR')} FCFA</div>
+            <div className="stat-label">Chiffre d'affaires</div>
+            <div className="stat-value">{(today.revenue || today.sales).toLocaleString('fr-FR')} FCFA</div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
-              {today.salesCount} vente(s) enregistrée(s)
+              {today.salesCount} vente(s) facturée(s)
             </div>
           </div>
           <div className="stat-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
@@ -178,21 +198,45 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
           </div>
         </div>
 
-        {/* Today Expenses */}
+        {/* Encaissements Réels (Cash en main) */}
+        <div className="stat-card" style={{ borderLeft: '4px solid #2563EB' }}>
+          <div>
+            <div className="stat-label">Encaissements réels</div>
+            <div className="stat-value" style={{ color: '#2563EB' }}>
+              {(today.cashCollected !== undefined ? today.cashCollected : today.sales).toLocaleString('fr-FR')} FCFA
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
+              {today.creditSales && today.creditSales > 0 ? (
+                <span style={{ color: '#DC2626' }}>⚠️ {today.creditSales.toLocaleString('fr-FR')} FCFA à crédit</span>
+              ) : (
+                'Espèces & Mobile Money entrés'
+              )}
+            </div>
+          </div>
+          <div className="stat-icon" style={{ background: '#EFF6FF', color: '#2563EB' }}>
+            <DollarSign size={24} />
+          </div>
+        </div>
+
+        {/* Dépenses d'exploitation */}
         <div className="stat-card expenses">
           <div>
-            <div className="stat-label">Dépenses du jour</div>
+            <div className="stat-label">Charges d'exploitation</div>
             <div className="stat-value" style={{ color: '#D97706' }}>
-              {today.expenses.toLocaleString('fr-FR')} FCFA
+              {(today.operatingExpenses !== undefined ? today.operatingExpenses : today.expenses).toLocaleString('fr-FR')} FCFA
             </div>
-            <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>Sorties d'argent déclarées</div>
+            <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
+              {today.personalWithdrawals && today.personalWithdrawals > 0
+                ? `Dont ${today.personalWithdrawals.toLocaleString('fr-FR')} F retirés perso`
+                : 'Frais de fonctionnement boutique'}
+            </div>
           </div>
           <div className="stat-icon" style={{ background: '#FEF3C7', color: '#D97706' }}>
             <ArrowDownRight size={24} />
           </div>
         </div>
 
-        {/* Pending Debts */}
+        {/* Crédits clients en attente */}
         <div className="stat-card debt">
           <div>
             <div className="stat-label">Crédits clients en attente</div>
@@ -200,7 +244,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
               {debt.total.toLocaleString('fr-FR')} FCFA
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
-              {debt.customerCount} client(s) débiteur(s)
+              {debt.customerCount} client(s) à relancer
             </div>
           </div>
           <div className="stat-icon" style={{ background: '#FEE2E2', color: '#EF4444' }}>
@@ -208,6 +252,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
           </div>
         </div>
       </div>
+
 
       {/* Chart & Stock Alert Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '24px' }}>
@@ -414,6 +459,119 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenSaleModal, o
           </table>
         </div>
       </div>
+
+      {/* Modal Pédagogique : Pourquoi ce résultat ? */}
+      {showWhyModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    background: '#ECFDF5',
+                    color: '#059669',
+                    padding: '8px',
+                    borderRadius: '10px',
+                    display: 'flex',
+                  }}
+                >
+                  <HelpCircle size={22} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', margin: 0 }}>Détail de votre résultat financier</h3>
+                  <p style={{ fontSize: '0.82rem', color: '#64748B', margin: 0 }}>
+                    Explication claire et sans jargon de votre bénéfice du jour
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWhyModal(false)}
+                style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Explication en langage humain */}
+              <div
+                style={{
+                  background: '#F0FDF4',
+                  border: '1px solid #BBF7D0',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  fontSize: '0.9rem',
+                  lineHeight: '1.5',
+                  color: '#166534',
+                }}
+              >
+                {today.whyExplanation || (
+                  `Sur un chiffre d'affaires de ${(today.revenue || today.sales).toLocaleString('fr-FR')} FCFA, vos charges d'exploitation s'élèvent à ${(today.operatingExpenses || today.expenses).toLocaleString('fr-FR')} FCFA. Votre bénéfice estimé est de ${today.profit.toLocaleString('fr-FR')} FCFA.`
+                )}
+              </div>
+
+              {/* Tableau de décomposition financière */}
+              <div style={{ background: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '0.9rem' }}>
+                  <span style={{ color: '#475569' }}>1. Ventes totales (CA) :</span>
+                  <strong style={{ color: '#0F172A' }}>+{(today.revenue || today.sales).toLocaleString('fr-FR')} FCFA</strong>
+                </div>
+
+                {today.cogs !== undefined && today.cogs > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '0.9rem', borderTop: '1px dashed #E2E8F0' }}>
+                    <span style={{ color: '#475569' }}>2. Coût des marchandises vendues (achat) :</span>
+                    <strong style={{ color: '#D97706' }}>-{today.cogs.toLocaleString('fr-FR')} FCFA</strong>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '0.9rem', borderTop: '1px dashed #E2E8F0' }}>
+                  <span style={{ color: '#475569' }}>3. Charges de fonctionnement (loyer, transport...) :</span>
+                  <strong style={{ color: '#DC2626' }}>-{(today.operatingExpenses || today.expenses).toLocaleString('fr-FR')} FCFA</strong>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '10px 0 4px',
+                    fontSize: '1rem',
+                    borderTop: '2px solid #E2E8F0',
+                    fontWeight: 700,
+                  }}
+                >
+                  <span style={{ color: '#0F172A' }}>= Bénéfice Net Estimé :</span>
+                  <span style={{ color: today.profit >= 0 ? '#10B981' : '#EF4444' }}>
+                    {today.profit >= 0 ? '+' : ''}{today.profit.toLocaleString('fr-FR')} FCFA
+                  </span>
+                </div>
+              </div>
+
+              {/* Rapprochement de Trésorerie Cash / MoMo */}
+              <div style={{ background: '#EFF6FF', borderRadius: '12px', padding: '14px', border: '1px solid #BFDBFE' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1E40AF', marginBottom: '6px' }}>
+                  Point Trésorerie Réelle (Cash & Mobile Money) :
+                </div>
+                <div style={{ fontSize: '0.85rem', color: '#1E3A8A', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div>• Encaissements réels entrés : <strong>{(today.cashCollected !== undefined ? today.cashCollected : today.sales).toLocaleString('fr-FR')} FCFA</strong></div>
+                  {today.creditSales && today.creditSales > 0 ? (
+                    <div>• Ventes à crédit (argent chez les clients) : <strong style={{ color: '#DC2626' }}>{today.creditSales.toLocaleString('fr-FR')} FCFA</strong></div>
+                  ) : null}
+                  {today.personalWithdrawals && today.personalWithdrawals > 0 ? (
+                    <div>• Retraits personnels prélevés : <strong style={{ color: '#D97706' }}>{today.personalWithdrawals.toLocaleString('fr-FR')} FCFA</strong></div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn btn-primary" onClick={() => setShowWhyModal(false)} style={{ width: '100%' }}>
+                Compris, merci !
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

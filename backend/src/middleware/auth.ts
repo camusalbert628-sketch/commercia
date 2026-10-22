@@ -4,6 +4,7 @@ import { AppError } from './errorHandler';
 
 export interface AuthRequest extends Request {
   userId?: string;
+  businessId?: string;
   prisma?: any;
   body: any;
   headers: any;
@@ -30,6 +31,49 @@ export const authenticate = (req: AuthRequest, _res: Response, next: NextFunctio
   }
 };
 
+/**
+ * Récupère et valide rigoureusement l'entreprise active pour la requête
+ * Empêche toute fuite de données entre entreprises (Multi-tenancy isolation)
+ */
+export const getTenantBusinessId = async (req: AuthRequest): Promise<string> => {
+  if (!req.userId) {
+    throw new AppError('Non authentifié.', 401);
+  }
+
+  // 1. Si un ID d'entreprise spécifique est fourni dans les en-têtes (ex: 'x-business-id')
+  const requestedBusinessId = (req.headers['x-business-id'] as string) || (req.query.businessId as string);
+
+  if (requestedBusinessId) {
+    const member = await req.prisma.businessMember.findFirst({
+      where: {
+        userId: req.userId,
+        businessId: requestedBusinessId,
+        isActive: true,
+      },
+    });
+
+    if (!member) {
+      throw new AppError('Accès non autorisé aux données de cette entreprise.', 403);
+    }
+
+    req.businessId = member.businessId;
+    return member.businessId;
+  }
+
+  // 2. Fallback sécurisé : première entreprise active de l'utilisateur
+  const member = await req.prisma.businessMember.findFirst({
+    where: { userId: req.userId, isActive: true },
+    orderBy: { joinedAt: 'asc' },
+  });
+
+  if (!member) {
+    throw new AppError('Aucune entreprise active trouvée. Veuillez d\'abord configurer votre activité.', 404);
+  }
+
+  req.businessId = member.businessId;
+  return member.businessId;
+};
+
 export const requireAdmin = async (req: AuthRequest, _res: Response, next: NextFunction) => {
   try {
     if (!req.userId) {
@@ -49,3 +93,4 @@ export const requireAdmin = async (req: AuthRequest, _res: Response, next: NextF
     next(error);
   }
 };
+
