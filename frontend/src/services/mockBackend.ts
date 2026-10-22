@@ -611,8 +611,21 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
       return { message: 'Vente enregistrée avec succès ! 🎉', sale: newSale };
     }
+
+    if (method === 'DELETE') {
+      const parts = endpoint.split('?')[0].split('/');
+      const saleId = parts[2];
+      const raw = localStorage.getItem(saleKey) || localStorage.getItem('commercia_sales');
+      let sales = raw ? JSON.parse(raw) : [];
+      sales = sales.filter((s: any) => s.id !== saleId);
+      localStorage.setItem(saleKey, JSON.stringify(sales));
+      localStorage.setItem('commercia_sales', JSON.stringify(sales));
+      return { message: 'Vente annulée avec succès.' };
+    }
+
     const raw = localStorage.getItem(saleKey) || localStorage.getItem('commercia_sales');
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    return { sales: list, pagination: { total: list.length } };
   }
 
   // 12. EXPENSES (GET & POST)
@@ -665,8 +678,21 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
       return { message: 'Dépense enregistrée avec succès ! 🎉', expense: newExpense };
     }
+
+    if (method === 'DELETE') {
+      const parts = endpoint.split('?')[0].split('/');
+      const expId = parts[2];
+      const raw = localStorage.getItem(expKey) || localStorage.getItem('commercia_expenses');
+      let expenses = raw ? JSON.parse(raw) : [];
+      expenses = expenses.filter((e: any) => e.id !== expId);
+      localStorage.setItem(expKey, JSON.stringify(expenses));
+      localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
+      return { message: 'Dépense supprimée avec succès.' };
+    }
+
     const raw = localStorage.getItem(expKey) || localStorage.getItem('commercia_expenses');
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    return { expenses: list, pagination: { total: list.length } };
   }
 
   // 13. CUSTOMERS (GET, POST & PAYMENTS)
@@ -761,6 +787,40 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
   // 16. PLANS
   if (endpoint.startsWith('/plans')) {
+    if (endpoint === '/plans/my-subscription') {
+      const rawUser = localStorage.getItem('commercia_user');
+      const u = rawUser ? JSON.parse(rawUser) : currentUser;
+      return u?.subscription || {
+        planName: 'pro',
+        planDisplayName: 'Plan Pro (Croissance)',
+        status: 'active',
+      };
+    }
+    if (endpoint === '/plans/subscribe' && method === 'POST') {
+      const pName = body?.planName || 'pro';
+      const dispName = pName === 'business' ? 'Plan Business (Multi-boutiques)' : (pName === 'pro' ? 'Plan Pro (Croissance)' : 'Plan Gratuit');
+      const rawUser = localStorage.getItem('commercia_user');
+      const u = rawUser ? JSON.parse(rawUser) : currentUser;
+      if (u) {
+        u.subscription = {
+          planName: pName,
+          planDisplayName: dispName,
+          status: 'active',
+          features: ['Ventes & Dépenses illimitées', 'Stock temps réel', 'Copilote IA illimité'],
+        };
+        localStorage.setItem('commercia_user', JSON.stringify(u));
+        const users = getUsersDb();
+        const idx = users.findIndex(x => x.id === u.id);
+        if (idx !== -1) {
+          users[idx] = u;
+          saveUsersDb(users);
+        }
+      }
+      return {
+        message: `Félicitations ! Votre souscription au ${dispName} a été confirmée avec succès. 🚀`,
+        subscription: u?.subscription,
+      };
+    }
     return [
       {
         id: 'plan-free',
@@ -791,17 +851,30 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
   // 17. ADMIN
   if (endpoint.startsWith('/admin')) {
+    if (endpoint.includes('/toggle') && method === 'PUT') {
+      return { message: 'Statut du compte utilisateur mis à jour avec succès.' };
+    }
+    const allUsers = getUsersDb();
     return {
       metrics: {
-        totalUsers: 142,
-        activeBusinesses: 189,
-        monthlyRecurringRevenue: 486000,
-        annualRunRate: 5832000,
+        totalUsers: allUsers.length + 140,
+        totalBusinesses: allUsers.reduce((s, u) => s + (u.businesses?.length || 1), 0) + 185,
+        totalSalesVolume: 4860000,
+        totalSalesCount: 320,
+        activeSubscriptionsCount: 14,
+        estimatedMRR: 63000,
       },
-      recentUsers: [
-        { id: 'u-1', name: 'Moussa Ibrahim', email: 'moussa@boutique.cm', plan: 'Plan Pro', createdAt: '2026-10-20' },
-        { id: 'u-2', name: 'Reine Ngono', email: 'reine@salon.cm', plan: 'Plan Business', createdAt: '2026-10-18' },
-      ],
+      recentUsers: allUsers.map(u => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName || '',
+        email: u.email,
+        phone: u.phone || '+237 600 000 000',
+        createdAt: '2026-10-22',
+        isActive: true,
+        businesses: u.businesses || [{ name: 'Boutique' }],
+        subscription: u.subscription ? { plan: { displayName: u.subscription.planDisplayName || 'Pro' } } : { plan: { displayName: 'Gratuit' } },
+      })),
     };
   }
 

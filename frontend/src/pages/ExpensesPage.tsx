@@ -19,8 +19,9 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
   const fetchExpenses = async () => {
     try {
       setLoading(true);
-      const res = await api.get<{ expenses: Expense[] }>('/expenses?limit=50');
-      setExpenses(res.expenses || []);
+      const res = await api.get<any>('/expenses?limit=50');
+      const list = Array.isArray(res) ? res : (res?.expenses || []);
+      setExpenses(list);
     } catch (e) {
       console.error(e);
     } finally {

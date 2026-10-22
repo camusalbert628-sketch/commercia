@@ -21,8 +21,9 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
   const fetchSales = async () => {
     try {
       setLoading(true);
-      const res = await api.get<{ sales: Sale[] }>('/sales?limit=50');
-      setSales(res.sales || []);
+      const res = await api.get<any>('/sales?limit=50');
+      const list = Array.isArray(res) ? res : (res?.sales || []);
+      setSales(list);
     } catch (e) {
       console.error(e);
     } finally {
