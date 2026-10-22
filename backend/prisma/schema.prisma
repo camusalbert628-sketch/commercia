@@ -1,0 +1,420 @@
+// RS-BIZZ Prisma Schema — Modèle de données complet
+// Copilote financier pour micro-entrepreneurs africains
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== UTILISATEURS =====================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  phone         String?
+  avatarUrl     String?
+  locale        String   @default("fr")
+  currency      String   @default("XAF")
+  isAdmin       Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  businesses     BusinessMember[]
+  refreshTokens  RefreshToken[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  aiConversations AIConversation[]
+  subscription   Subscription?
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ===================== ENTREPRISES =====================
+
+model Business {
+  id          String   @id @default(uuid())
+  name        String
+  sector      String   // commerce, restaurant, beaute, artisanat, services, vente_en_ligne, autre
+  trackingMode String  @default("simple") // simple, avec_stock, avec_credit, complet
+  dailySalesEstimate String? // fourchette estimée
+  logoUrl     String?
+  address     String?
+  phone       String?
+  currency    String   @default("XAF")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members           BusinessMember[]
+  settings          BusinessSettings?
+  sales             Sale[]
+  expenses          Expense[]
+  customers         Customer[]
+  products          Product[]
+  expenseCategories ExpenseCategory[]
+  dashboardSnapshots DashboardSnapshot[]
+  analyticsEvents   AnalyticsEvent[]
+  aiInsights        AIInsight[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+}
+
+model BusinessMember {
+  id         String   @id @default(uuid())
+  userId     String
+  businessId String
+  role       String   @default("owner") // owner, manager, employee
+  isActive   Boolean  @default(true)
+  joinedAt   DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+}
+
+model BusinessSettings {
+  id                String   @id @default(uuid())
+  businessId        String   @unique
+  enableStock       Boolean  @default(false)
+  enableCredits     Boolean  @default(false)
+  enableNotifications Boolean @default(true)
+  lowStockThreshold Int      @default(5)
+  weeklyReportDay   Int      @default(1) // 1=Monday
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+// ===================== VENTES =====================
+
+model Sale {
+  id            String   @id @default(uuid())
+  businessId    String
+  customerId    String?
+  totalAmount   Float
+  paidAmount    Float
+  paymentMethod String   @default("cash") // cash, mobile_money, bank_transfer, credit
+  status        String   @default("completed") // completed, pending, cancelled
+  notes         String?
+  saleDate      DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+  items    SaleItem[]
+}
+
+model SaleItem {
+  id         String @id @default(uuid())
+  saleId     String
+  productId  String?
+  name       String
+  quantity   Int    @default(1)
+  unitPrice  Float
+  costPrice  Float  @default(0)
+  totalPrice Float
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+}
+
+// ===================== DÉPENSES =====================
+
+model Expense {
+  id          String   @id @default(uuid())
+  businessId  String
+  categoryId  String?
+  amount      Float
+  description String?
+  category    String   @default("autre") // marchandise, transport, loyer, electricite, telephone, salaires, livraison, autre
+  expenseDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business        Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  expenseCategory ExpenseCategory? @relation(fields: [categoryId], references: [id])
+}
+
+model ExpenseCategory {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  icon       String?
+  color      String?
+  createdAt  DateTime @default(now())
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+}
+
+// ===================== CLIENTS =====================
+
+model Customer {
+  id          String   @id @default(uuid())
+  businessId  String
+  name        String
+  phone       String?
+  email       String?
+  notes       String?
+  totalBought Float    @default(0)
+  totalOwed   Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sales    Sale[]
+  debts    CustomerDebt[]
+  payments CustomerPayment[]
+}
+
+model CustomerDebt {
+  id          String   @id @default(uuid())
+  customerId  String
+  amount      Float
+  description String?
+  dueDate     DateTime?
+  isPaid      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  payments CustomerPayment[]
+}
+
+model CustomerPayment {
+  id         String   @id @default(uuid())
+  customerId String
+  debtId     String?
+  amount     Float
+  method     String   @default("cash")
+  notes      String?
+  paidAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  customer Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  debt     CustomerDebt? @relation(fields: [debtId], references: [id])
+}
+
+// ===================== STOCK / PRODUITS =====================
+
+model Product {
+  id              String   @id @default(uuid())
+  businessId      String
+  name            String
+  description     String?
+  costPrice       Float    @default(0)
+  sellingPrice    Float    @default(0)
+  quantity        Int      @default(0)
+  unit            String   @default("unité")
+  lowStockAlert   Int      @default(5)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  business          Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  saleItems         SaleItem[]
+  inventoryMovements InventoryMovement[]
+}
+
+model InventoryMovement {
+  id          String   @id @default(uuid())
+  productId   String
+  type        String   // in, out, adjustment
+  quantity    Int
+  unitCost    Float?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// ===================== ANALYTICS =====================
+
+model DashboardSnapshot {
+  id              String   @id @default(uuid())
+  businessId      String
+  date            DateTime
+  totalSales      Float    @default(0)
+  totalExpenses   Float    @default(0)
+  estimatedProfit Float    @default(0)
+  totalDebt       Float    @default(0)
+  salesCount      Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, date])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  businessId String
+  eventType  String
+  eventData  String?  // JSON string
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+// ===================== IA =====================
+
+model AIConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AIMessage[]
+}
+
+model AIMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  role           String   // user, assistant
+  content        String
+  createdAt      DateTime @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model AIInsight {
+  id         String   @id @default(uuid())
+  businessId String
+  type       String   // anomaly, opportunity, stock, profitability, credit
+  title      String
+  message    String
+  severity   String   @default("info") // info, warning, success, danger
+  isRead     Boolean  @default(false)
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+// ===================== ABONNEMENTS =====================
+
+model Plan {
+  id          String   @id @default(uuid())
+  name        String   @unique // free, pro, business
+  displayName String
+  description String?
+  priceMonthly Float   @default(0)
+  priceYearly  Float   @default(0)
+  currency     String  @default("XAF")
+  features    String   // JSON array of features
+  limits      String   // JSON object of limits
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  planId      String
+  status      String   @default("active") // active, cancelled, expired, trial
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+  trialEndsAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan   Plan @relation(fields: [planId], references: [id])
+  events SubscriptionEvent[]
+}
+
+model SubscriptionEvent {
+  id             String   @id @default(uuid())
+  subscriptionId String
+  eventType      String   // created, renewed, cancelled, upgraded, downgraded
+  metadata       String?  // JSON
+  createdAt      DateTime @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  userId        String
+  amount        Float
+  currency      String   @default("XAF")
+  method        String   // mobile_money, card, bank_transfer
+  status        String   @default("pending") // pending, completed, failed, refunded
+  reference     String?
+  metadata      String?  // JSON
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Invoice {
+  id        String   @id @default(uuid())
+  userId    String
+  amount    Float
+  currency  String   @default("XAF")
+  status    String   @default("pending") // pending, paid, overdue
+  dueDate   DateTime
+  paidAt    DateTime?
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+}
+
+// ===================== NOTIFICATIONS =====================
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  businessId String?
+  type       String   // stock_low, debt_reminder, sales_up, expenses_high, report_ready
+  title      String
+  message    String
+  icon       String?
+  isRead     Boolean  @default(false)
+  actionUrl  String?
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business? @relation(fields: [businessId], references: [id])
+}
+
+// ===================== AUDIT =====================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  businessId String?
+  action     String   // create, update, delete, login, logout
+  entity     String   // sale, expense, customer, product, etc.
+  entityId   String?
+  details    String?  // JSON
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business? @relation(fields: [businessId], references: [id])
+}

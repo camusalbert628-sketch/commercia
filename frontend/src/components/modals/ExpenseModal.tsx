@@ -1,0 +1,177 @@
+import React, { useState } from 'react';
+import { X, TrendingDown } from 'lucide-react';
+import { api } from '../../services/api';
+
+interface ExpenseModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onExpenseCreated: () => void;
+}
+
+const DEFAULT_CATEGORIES = [
+  { id: 'marchandise', name: 'Marchandise & Ravitaillement', icon: '🏬' },
+  { id: 'transport', name: 'Transport & Moto-taxi', icon: '🛵' },
+  { id: 'loyer', name: 'Loyer boutique', icon: '🏠' },
+  { id: 'electricite', name: 'Électricité & Eau', icon: '💡' },
+  { id: 'telephone', name: 'Téléphone & Internet', icon: '📱' },
+  { id: 'emballages', name: 'Emballages & Plastiques', icon: '📦' },
+  { id: 'salaires', name: 'Salaires & Aides', icon: '👥' },
+  { id: 'autre', name: 'Autre dépense', icon: '📋' },
+];
+
+export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onExpenseCreated }) => {
+  const [amount, setAmount] = useState<number | ''>('');
+  const [category, setCategory] = useState('marchandise');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amount || amount <= 0) {
+      setError('Veuillez saisir un montant valide.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      const selectedCategoryObj = DEFAULT_CATEGORIES.find(c => c.id === category);
+      const res = await api.post<{ message: string }>('/expenses', {
+        amount: Number(amount),
+        category: selectedCategoryObj?.name || category,
+        description: description || undefined,
+      });
+
+      setSuccessMsg(res.message);
+      setTimeout(() => {
+        onExpenseCreated();
+        onClose();
+        setAmount('');
+        setDescription('');
+      }, 1200);
+    } catch (err: any) {
+      setError(err.message || 'Erreur lors de l\'enregistrement de la dépense.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" style={{ maxWidth: '520px' }}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                background: '#FEF3C7',
+                color: '#D97706',
+                padding: '8px',
+                borderRadius: '8px',
+                display: 'flex',
+              }}
+            >
+              <TrendingDown size={20} />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '1.15rem' }}>Nouvelle Dépense</h3>
+              <p style={{ fontSize: '0.8rem', color: '#64748B' }}>
+                Enregistrez une sortie d'argent pour calculer votre bénéfice réel
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', color: '#94A3B8' }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {error && (
+              <div style={{ padding: '10px 14px', background: '#FEE2E2', color: '#DC2626', borderRadius: '8px', fontSize: '0.88rem' }}>
+                {error}
+              </div>
+            )}
+            {successMsg && (
+              <div style={{ padding: '12px 14px', background: '#DCFCE7', color: '#16A34A', borderRadius: '8px', fontSize: '0.95rem', fontWeight: 600, whiteSpace: 'pre-line' }}>
+                {successMsg}
+              </div>
+            )}
+
+            <div>
+              <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                Montant de la dépense (FCFA) *
+              </label>
+              <input
+                type="number"
+                placeholder="Ex: 5000"
+                min="50"
+                step="50"
+                value={amount}
+                onChange={e => setAmount(parseFloat(e.target.value) || '')}
+                style={{ fontSize: '1.25rem', fontWeight: 700, color: '#DC2626' }}
+                required
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '8px' }}>
+                Catégorie de la dépense
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                {DEFAULT_CATEGORIES.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCategory(c.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      textAlign: 'left',
+                      border: category === c.id ? '2px solid #D97706' : '1px solid #E2E8F0',
+                      background: category === c.id ? '#FEF3C7' : '#FFFFFF',
+                      color: category === c.id ? '#92400E' : '#334155',
+                    }}
+                  >
+                    <span style={{ fontSize: '1.1rem' }}>{c.icon}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                Description ou note (facultatif) :
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: Facture Eneo boutique, course moto Marché..."
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
+              Annuler
+            </button>
+            <button type="submit" className="btn" style={{ background: '#DC2626', color: 'white' }} disabled={loading || !amount}>
+              {loading ? 'Enregistrement...' : `Enregistrer la Dépense (-${Number(amount || 0).toLocaleString('fr-FR')} FCFA)`}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
