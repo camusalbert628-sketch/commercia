@@ -75,6 +75,9 @@ export const OnboardingPage: React.FC = () => {
       if (res?.business?.id) {
         localStorage.setItem('activeBusinessId', res.business.id);
       }
+      if (res?.user) {
+        localStorage.setItem('commercia_user', JSON.stringify(res.user));
+      }
 
       await fetchMe();
       navigate('/dashboard', { replace: true });

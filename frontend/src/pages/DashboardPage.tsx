@@ -26,6 +26,7 @@ import {
 import { api } from '../services/api';
 import { DashboardData } from '../types';
 import { useModals } from '../context/ModalContext';
+import { useAuthStore } from '../store/authStore';
 
 interface DashboardPageProps {
   onOpenSaleModal?: () => void;
@@ -36,6 +37,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onOpenSaleModal: propOpenSale,
   onOpenExpenseModal: propOpenExpense,
 }) => {
+  const { user, activeBusinessId } = useAuthStore();
   const { openSaleModal, openExpenseModal, refreshKey } = useModals();
   const onOpenSaleModal = propOpenSale || openSaleModal;
   const onOpenExpenseModal = propOpenExpense || openExpenseModal;
@@ -44,6 +46,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [trends, setTrends] = useState<Array<{ date: string; sales: number; expenses: number; profit: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [showWhyModal, setShowWhyModal] = useState(false);
+
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const businessName = activeBusiness?.name || (data as any)?.businessName || 'Votre Boutique';
+  const userName = user?.firstName || 'Commerçant';
 
   const fetchDashboard = async () => {
     try {
@@ -67,7 +73,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   useEffect(() => {
     fetchDashboard();
-  }, [refreshKey]);
+  }, [refreshKey, activeBusinessId]);
 
   if (loading) {
     return (
@@ -96,9 +102,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         }}
       >
         <div>
-          <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0' }}>Tableau de Bord</h1>
-          <p style={{ color: '#64748B', fontSize: '0.92rem', margin: 0 }}>
-            Situation financière en direct — Devise : <strong>FCFA</strong>
+          <h1 style={{ fontSize: '1.75rem', margin: '0 0 6px 0', fontWeight: 800, color: '#0F172A' }}>
+            Bonjour {userName} 👋
+          </h1>
+          <p style={{ color: '#475569', fontSize: '0.98rem', margin: 0 }}>
+            Voici comment va <span style={{ color: '#059669', fontWeight: 700, fontSize: '1.05rem' }}>{businessName}</span> aujourd'hui — Devise : <strong>{user?.currency || 'FCFA'}</strong>
           </p>
         </div>
 

@@ -77,6 +77,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       return handleMockRequest(endpoint, method, parsedBody);
     }
 
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      // Vercel SPA rewrites rewrite all /api routes to /index.html returning status 200 with HTML!
+      return handleMockRequest(endpoint, method, parsedBody);
+    }
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new ApiError(errorData.error || `Erreur serveur (${response.status})`, response.status);

@@ -90,8 +90,11 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
 
     try {
       setLoading(true);
+      const computedTotal = validItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice || 0), 0);
       const res = await api.post<{ message: string }>('/sales', {
         items: validItems,
+        totalAmount: computedTotal,
+        paidAmount: paymentMethod === 'credit' ? 0 : computedTotal,
         paymentMethod,
         customerId: customerId || undefined,
       });

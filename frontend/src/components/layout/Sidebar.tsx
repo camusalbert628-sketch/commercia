@@ -21,7 +21,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount = 0 }) => {
-  const { user, logout } = useAuthStore();
+  const { user, activeBusinessId, logout } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
 
   return (
     <aside className="sidebar">
@@ -32,7 +33,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             <span className="brand-title">COMMERCIA</span>
             <span className="brand-tag">PRO</span>
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Copilote Financier</div>
+          <div style={{ fontSize: '0.74rem', color: '#10B981', fontWeight: 600, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={activeBusiness?.name}>
+            {activeBusiness?.name || 'Copilote Financier'}
+          </div>
         </div>
       </div>
 
@@ -135,10 +138,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           </div>
           <div className="user-info">
             <div className="user-name">
-              {user?.firstName} {user?.lastName}
+              {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Commerçant'}
             </div>
-            <div className="user-role">
-              {user?.subscription?.planDisplayName || 'Plan Gratuit'}
+            <div className="user-role" title={activeBusiness?.name}>
+              {activeBusiness?.name || user?.subscription?.planDisplayName || 'Plan Gratuit'}
             </div>
           </div>
           <button

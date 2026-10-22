@@ -22,6 +22,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
       paymentMethod: z.enum(['cash', 'mobile_money', 'bank_transfer', 'credit']).default('cash'),
       customerId: z.string().optional(),
       notes: z.string().optional(),
+      totalAmount: z.number().optional(),
+      paidAmount: z.number().optional(),
     });
     
     const data = saleSchema.parse(req.body);

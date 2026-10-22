@@ -105,6 +105,15 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
         firstName: user.firstName,
         lastName: user.lastName,
         phone: user.phone,
+        locale: user.locale,
+        currency: user.currency,
+        isAdmin: user.isAdmin,
+        businesses: [],
+        subscription: {
+          planName: freePlan.name,
+          planDisplayName: freePlan.displayName,
+          status: 'active',
+        },
       },
       ...tokens,
     });
@@ -123,6 +132,15 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
     
     const user = await req.prisma.user.findUnique({
       where: { email: data.email },
+      include: {
+        businesses: {
+          include: { business: true },
+          where: { isActive: true },
+        },
+        subscription: {
+          include: { plan: true },
+        },
+      },
     });
     if (!user || !user.isActive) {
       throw new AppError('Email ou mot de passe incorrect.', 401);
@@ -167,6 +185,18 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
         locale: user.locale,
         currency: user.currency,
         isAdmin: user.isAdmin,
+        businesses: user.businesses.map((bm: any) => ({
+          id: bm.business.id,
+          name: bm.business.name,
+          sector: bm.business.sector,
+          role: bm.role,
+        })),
+        subscription: user.subscription ? {
+          planName: user.subscription.plan.name,
+          planDisplayName: user.subscription.plan.displayName,
+          status: user.subscription.status,
+          features: JSON.parse(user.subscription.plan.features || '[]'),
+        } : null,
       },
       ...tokens,
     });

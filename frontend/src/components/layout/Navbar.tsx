@@ -10,12 +10,12 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseModal }) => {
-  const { user } = useAuthStore();
+  const { user, activeBusinessId } = useAuthStore();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const activeBusiness = user?.businesses && user.businesses.length > 0 ? user.businesses[0] : null;
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0] || null;
 
   const fetchNotifications = async () => {
     try {

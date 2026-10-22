@@ -13,15 +13,25 @@ interface AuthState {
   setActiveBusinessId: (id: string) => void;
 }
 
+const getInitialUser = (): User | null => {
+  try {
+    const raw = localStorage.getItem('commercia_user') || localStorage.getItem('rsbizz_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
+  user: getInitialUser(),
   isAuthenticated: !!localStorage.getItem('accessToken'),
-  isLoading: true,
+  isLoading: false,
   activeBusinessId: localStorage.getItem('activeBusinessId') || null,
 
   login: (tokens, user) => {
     localStorage.setItem('accessToken', tokens.accessToken);
     localStorage.setItem('refreshToken', tokens.refreshToken);
+    localStorage.setItem('commercia_user', JSON.stringify(user));
     const businessId = user.businesses && user.businesses.length > 0 ? user.businesses[0].id : null;
     if (businessId) {
       localStorage.setItem('activeBusinessId', businessId);
@@ -38,6 +48,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('activeBusinessId');
+    localStorage.removeItem('commercia_user');
     set({
       user: null,
       isAuthenticated: false,
@@ -56,6 +67,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ isLoading: true });
       const user = await api.get<User>('/auth/me');
+      localStorage.setItem('commercia_user', JSON.stringify(user));
       let businessId = get().activeBusinessId;
       if (user.businesses && user.businesses.length > 0) {
         if (!businessId || !user.businesses.some((b: any) => b.id === businessId)) {
@@ -72,6 +84,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('commercia_user');
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
