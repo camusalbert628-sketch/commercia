@@ -24,10 +24,10 @@ export const QuickActionSheet: React.FC = () => {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0062FF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Enregistrement Express
             </span>
-            <h2 style={{ fontSize: '1.3rem', margin: '4px 0 0', color: '#0F172A' }}>
+            <h2 style={{ fontSize: '1.3rem', margin: '4px 0 0', color: '#0F172A', fontWeight: 800 }}>
               Qu'est-ce que tu veux enregistrer ?
             </h2>
           </div>
@@ -68,7 +68,7 @@ export const QuickActionSheet: React.FC = () => {
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#ECFDF5')}
+            onMouseEnter={e => (e.currentTarget.style.background = '#EFF6FF')}
             onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}
           >
             <div
@@ -76,8 +76,8 @@ export const QuickActionSheet: React.FC = () => {
                 width: '42px',
                 height: '42px',
                 borderRadius: '12px',
-                background: '#ECFDF5',
-                color: '#059669',
+                background: '#EFF6FF',
+                color: '#0062FF',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -109,7 +109,7 @@ export const QuickActionSheet: React.FC = () => {
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#FEF2F2')}
+            onMouseEnter={e => (e.currentTarget.style.background = '#FFF4ED')}
             onMouseLeave={e => (e.currentTarget.style.background = '#FFFFFF')}
           >
             <div
@@ -117,8 +117,8 @@ export const QuickActionSheet: React.FC = () => {
                 width: '42px',
                 height: '42px',
                 borderRadius: '12px',
-                background: '#FEF2F2',
-                color: '#DC2626',
+                background: '#FFF4ED',
+                color: '#FF6B00',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

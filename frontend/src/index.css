@@ -1,42 +1,52 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap');
 
 :root {
-  /* Brand FinTech Palette */
-  --primary: #059669;
-  --primary-hover: #047857;
-  --primary-light: #ECFDF5;
-  --primary-glow: rgba(5, 150, 105, 0.25);
+  /* Brand SaaS Palette from Official Logo */
+  --primary: #0062FF;
+  --primary-hover: #004BD6;
+  --primary-light: #EFF6FF;
+  --primary-glow: rgba(0, 98, 255, 0.22);
 
-  --secondary: #D97706;
-  --secondary-light: #FEF3C7;
+  --accent-orange: #FF6B00;
+  --accent-orange-hover: #E05E00;
+  --accent-orange-light: #FFF4ED;
+  --accent-orange-glow: rgba(255, 107, 0, 0.28);
 
-  --accent-blue: #2563EB;
-  --accent-purple: #7C3AED;
+  --secondary: #FF6B00;
+  --secondary-light: #FFF4ED;
+
+  --accent-blue: #0062FF;
+  --accent-navy: #08162B;
   --danger: #EF4444;
   --danger-light: #FEE2E2;
   --success: #10B981;
+  --success-light: #ECFDF5;
   --warning: #F59E0B;
+  --warning-light: #FEF3C7;
 
   /* Surfaces & Neutrals */
   --bg-main: #F8FAFC;
   --bg-card: #FFFFFF;
-  --bg-sidebar: #0F172A;
+  --bg-sidebar: #08162B;
+  --bg-sidebar-hover: #0E2442;
   --text-main: #0F172A;
   --text-muted: #64748B;
   --text-light: #94A3B8;
   --border-color: #E2E8F0;
-  --border-focus: #059669;
+  --border-focus: #0062FF;
 
   /* Shadows & Glassmorphism */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-  --shadow-glow: 0 0 20px rgba(5, 150, 105, 0.2);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 10px -1px rgba(8, 22, 43, 0.08), 0 2px 4px -2px rgba(8, 22, 43, 0.04);
+  --shadow-lg: 0 12px 24px -4px rgba(8, 22, 43, 0.1), 0 4px 6px -4px rgba(8, 22, 43, 0.04);
+  --shadow-xl: 0 20px 30px -5px rgba(8, 22, 43, 0.12), 0 8px 10px -6px rgba(8, 22, 43, 0.06);
+  --shadow-glow: 0 0 20px rgba(0, 98, 255, 0.25);
+  --shadow-orange-glow: 0 0 20px rgba(255, 107, 0, 0.3);
 
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
 
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
@@ -121,8 +131,8 @@ input:focus, select:focus, textarea:focus {
 
 .page-wrapper {
   flex: 1;
-  padding: 24px;
-  max-width: 1300px;
+  padding: 28px 32px;
+  max-width: 1360px;
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
@@ -138,7 +148,7 @@ input:focus, select:focus, textarea:focus {
 /* Sidebar Styles */
 .sidebar {
   width: 270px;
-  background: var(--bg-sidebar);
+  background: linear-gradient(180deg, #08162B 0%, #0A1E38 100%);
   color: #F8FAFC;
   display: flex;
   flex-direction: column;
@@ -146,48 +156,52 @@ input:focus, select:focus, textarea:focus {
   top: 0;
   height: 100vh;
   flex-shrink: 0;
-  border-right: 1px solid #1E293B;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 40;
 }
 
 .sidebar-header {
-  padding: 24px 20px;
+  padding: 20px 18px;
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid #1E293B;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .brand-badge {
-  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
-  color: #FFFFFF;
-  width: 38px;
-  height: 38px;
+  background: #FFFFFF;
+  color: #0062FF;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
   font-size: 1.15rem;
-  box-shadow: 0 4px 10px rgba(5, 150, 105, 0.4);
+  box-shadow: 0 4px 14px rgba(0, 98, 255, 0.35);
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .brand-title {
-  font-size: 1.25rem;
+  font-size: 1.22rem;
   font-weight: 800;
   color: #FFFFFF;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
 .brand-tag {
   font-size: 0.65rem;
-  background: rgba(16, 185, 129, 0.2);
-  color: #34D399;
-  padding: 2px 6px;
-  border-radius: 4px;
+  background: linear-gradient(135deg, #FF6B00 0%, #FFA500 100%);
+  color: #FFFFFF;
+  padding: 2px 7px;
+  border-radius: 9999px;
   text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  box-shadow: 0 2px 6px rgba(255, 107, 0, 0.35);
 }
 
 .sidebar-menu {
@@ -200,7 +214,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .menu-category {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #64748B;
@@ -212,24 +226,25 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 11px 14px;
   color: #94A3B8;
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 0.92rem;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 
 .nav-item:hover {
   color: #FFFFFF;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .nav-item.active {
   color: #FFFFFF;
-  background: linear-gradient(90deg, rgba(5, 150, 105, 0.25) 0%, rgba(5, 150, 105, 0.1) 100%);
-  border-left: 3px solid #10B981;
+  background: linear-gradient(90deg, rgba(0, 98, 255, 0.3) 0%, rgba(255, 107, 0, 0.12) 100%);
+  border-left: 3px solid #0062FF;
+  box-shadow: inset 0 0 12px rgba(0, 98, 255, 0.15);
 }
 
 .nav-item .badge {
@@ -343,20 +358,21 @@ input:focus, select:focus, textarea:focus {
 }
 
 .mobile-nav-item.active {
-  color: #10B981;
+  color: #0062FF;
 }
 
 .mobile-action-btn {
-  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  background: linear-gradient(135deg, #FF6B00 0%, #0062FF 100%);
   color: white;
-  width: 48px;
-  height: 48px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: -20px;
-  box-shadow: 0 4px 15px rgba(5, 150, 105, 0.4);
+  margin-top: -24px;
+  box-shadow: 0 6px 18px rgba(0, 98, 255, 0.4);
+  border: 3px solid #08162B;
 }
 
 /* Topbar / Header */
@@ -433,18 +449,30 @@ input:focus, select:focus, textarea:focus {
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 0.95rem;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+  background: linear-gradient(135deg, #0062FF 0%, #004BD6 100%);
   color: #FFFFFF;
-  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 98, 255, 0.25);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #047857 0%, #059669 100%);
-  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+  background: linear-gradient(135deg, #0052CC 0%, #003FB8 100%);
+  box-shadow: 0 6px 18px rgba(0, 98, 255, 0.38);
+  transform: translateY(-1px);
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #FF6B00 0%, #FF8A00 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(255, 107, 0, 0.28);
+}
+
+.btn-accent:hover {
+  background: linear-gradient(135deg, #E05E00 0%, #FF6B00 100%);
+  box-shadow: 0 6px 18px rgba(255, 107, 0, 0.4);
   transform: translateY(-1px);
 }
 
@@ -480,8 +508,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .btn-lg {
-  padding: 14px 24px;
-  font-size: 1.05rem;
+  padding: 13px 24px;
+  font-size: 1.02rem;
   border-radius: var(--radius-lg);
 }
 
@@ -504,6 +532,12 @@ input:focus, select:focus, textarea:focus {
   box-shadow: var(--shadow-sm);
   position: relative;
   overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .stat-card::after {
@@ -516,8 +550,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 .stat-card.profit::after { background: #10B981; }
-.stat-card.sales::after { background: #059669; }
-.stat-card.expenses::after { background: #F59E0B; }
+.stat-card.sales::after { background: #0062FF; }
+.stat-card.expenses::after { background: #FF6B00; }
 .stat-card.debt::after { background: #EF4444; }
 
 .stat-label {

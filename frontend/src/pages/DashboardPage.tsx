@@ -106,7 +106,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             Bonjour {userName} 👋
           </h1>
           <p style={{ color: '#475569', fontSize: '0.98rem', margin: 0 }}>
-            Voici comment va <span style={{ color: '#059669', fontWeight: 700, fontSize: '1.05rem' }}>{businessName}</span> aujourd'hui — Devise : <strong>{user?.currency || 'FCFA'}</strong>
+            Voici comment va <span style={{ color: '#0062FF', fontWeight: 800, fontSize: '1.05rem' }}>{businessName}</span> aujourd'hui — Devise : <strong>{user?.currency || 'FCFA'}</strong>
           </p>
         </div>
 
@@ -132,7 +132,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               color: '#1E293B',
             }}
           >
-            <Wallet size={18} color="#2563EB" />
+            <Wallet size={18} color="#0062FF" />
             <span>Caisse Journalière</span>
           </Link>
         </div>
@@ -142,8 +142,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {data?.insights && data.insights.length > 0 && (
         <div
           style={{
-            background: 'linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%)',
-            border: '1px solid #A7F3D0',
+            background: 'linear-gradient(135deg, #EFF6FF 0%, #FFF4ED 100%)',
+            border: '1px solid #BFDBFE',
             borderRadius: '16px',
             padding: '18px 22px',
             marginBottom: '24px',
@@ -151,32 +151,40 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '16px',
-            boxShadow: '0 4px 12px rgba(5, 150, 105, 0.08)',
+            boxShadow: '0 4px 14px rgba(0, 98, 255, 0.08)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-            <div
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <img
+              src="/commercia-logo.png"
+              alt="COMMERCIA"
               style={{
-                background: '#059669',
-                color: '#FFFFFF',
-                width: '40px',
-                height: '40px',
+                width: '42px',
+                height: '42px',
                 borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                background: '#FFFFFF',
+                padding: '2px',
+                boxShadow: '0 4px 10px rgba(0, 98, 255, 0.25)',
+                objectFit: 'contain',
                 flexShrink: 0,
+                border: '1px solid #E2E8F0',
               }}
-            >
-              <Sparkles size={22} />
-            </div>
+            />
             <div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#065F46', marginBottom: '2px' }}>
-                Copilote IA : {data.insights[0].title}
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#08162B', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Copilote IA : {data.insights[0].title}</span>
+                <span className="brand-tag">COMMERCIA</span>
               </div>
-              <div style={{ fontSize: '0.88rem', color: '#166534' }}>{data.insights[0].message}</div>
+              <div style={{ fontSize: '0.88rem', color: '#334155' }}>{data.insights[0].message}</div>
             </div>
           </div>
+          <Link
+            to="/copilot"
+            className="btn btn-primary"
+            style={{ padding: '8px 16px', fontSize: '0.85rem', flexShrink: 0, textDecoration: 'none' }}
+          >
+            Consulter le Copilote →
+          </Link>
         </div>
       )}
 
@@ -311,11 +319,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <p style={{ fontSize: '0.8rem', color: '#64748B' }}>Recettes vs Dépenses (FCFA)</p>
             </div>
             <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem', fontWeight: 600 }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#059669' }} /> Ventes
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0062FF' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#0062FF' }} /> Ventes
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#F59E0B' }}>
-                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#F59E0B' }} /> Dépenses
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#FF6B00' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#FF6B00' }} /> Dépenses
               </span>
             </div>
           </div>
@@ -325,12 +333,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <AreaChart data={trends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#059669" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#059669" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#0062FF" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#0062FF" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#FF6B00" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
@@ -353,8 +361,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} FCFA`}
                   contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
                 />
-                <Area type="monotone" dataKey="sales" name="Ventes" stroke="#059669" strokeWidth={2} fillOpacity={1} fill="url(#salesGrad)" />
-                <Area type="monotone" dataKey="expenses" name="Dépenses" stroke="#F59E0B" strokeWidth={2} fillOpacity={1} fill="url(#expGrad)" />
+                <Area type="monotone" dataKey="sales" name="Ventes" stroke="#0062FF" strokeWidth={2} fillOpacity={1} fill="url(#salesGrad)" />
+                <Area type="monotone" dataKey="expenses" name="Dépenses" stroke="#FF6B00" strokeWidth={2} fillOpacity={1} fill="url(#expGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

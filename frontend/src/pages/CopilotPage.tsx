@@ -53,25 +53,30 @@ export const CopilotPage: React.FC = () => {
   return (
     <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
       <div style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <img
+            src="/commercia-logo.png"
+            alt="Copilote COMMERCIA"
             style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: '#059669',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              width: '44px',
+              height: '44px',
+              borderRadius: '12px',
+              background: '#FFFFFF',
+              padding: '3px',
+              boxShadow: '0 4px 14px rgba(0, 98, 255, 0.25)',
+              objectFit: 'contain',
+              border: '1px solid #E2E8F0',
             }}
-          >
-            <Bot size={22} />
-          </div>
+          />
           <div>
-            <h1 style={{ fontSize: '1.5rem', margin: 0 }}>Copilote Financier IA</h1>
-            <p style={{ color: '#64748B', fontSize: '0.85rem', margin: 0 }}>
-              Conseils stratégiques & analyse instantanée de votre trésorerie
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: 800 }}>
+                Copilote Financier <span style={{ color: '#FF7A00' }}>IA</span>
+              </h1>
+              <span className="brand-tag">COMMERCIA</span>
+            </div>
+            <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+              Conseils stratégiques, rentabilité & analyse instantanée de votre trésorerie
             </p>
           </div>
         </div>
@@ -103,27 +108,27 @@ export const CopilotPage: React.FC = () => {
             }}
           >
             {m.role === 'assistant' && (
-              <div
+              <img
+                src="/commercia-logo.png"
+                alt="COMMERCIA"
                 style={{
                   width: '32px',
                   height: '32px',
-                  borderRadius: '50%',
-                  background: '#ECFDF5',
-                  color: '#059669',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  borderRadius: '8px',
+                  background: '#FFFFFF',
+                  padding: '2px',
+                  border: '1px solid #CBD5E1',
+                  objectFit: 'contain',
                   flexShrink: 0,
                   marginTop: '2px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
                 }}
-              >
-                <Sparkles size={16} />
-              </div>
+              />
             )}
 
             <div
               style={{
-                background: m.role === 'user' ? '#059669' : '#F8FAFC',
+                background: m.role === 'user' ? 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)' : '#F8FAFC',
                 color: m.role === 'user' ? '#FFFFFF' : '#1E293B',
                 padding: '14px 18px',
                 borderRadius: '16px',
@@ -133,7 +138,7 @@ export const CopilotPage: React.FC = () => {
                 fontSize: '0.92rem',
                 lineHeight: 1.6,
                 whiteSpace: 'pre-line',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.03)',
+                boxShadow: m.role === 'user' ? '0 4px 12px rgba(0, 98, 255, 0.25)' : '0 2px 4px rgba(0,0,0,0.03)',
               }}
             >
               {m.content}

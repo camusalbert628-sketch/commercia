@@ -46,7 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
   return (
     <header className="topbar">
       <div className="topbar-business">
-        <div className="business-avatar">
+        <div className="business-avatar" style={{ background: '#EFF6FF', color: '#0062FF', border: '1px solid #DBEAFE' }}>
           <Store size={20} />
         </div>
         <div>
@@ -59,16 +59,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
 
       <div className="topbar-actions">
         {onOpenSaleModal && (
-          <button className="btn btn-primary" onClick={onOpenSaleModal} style={{ padding: '8px 14px', fontSize: '0.88rem' }}>
+          <button className="btn btn-primary" onClick={onOpenSaleModal} style={{ padding: '8px 16px', fontSize: '0.88rem', fontWeight: 700 }}>
             <Plus size={16} />
-            <span>Vente</span>
+            <span>+ Vente</span>
           </button>
         )}
 
         {onOpenExpenseModal && (
-          <button className="btn btn-secondary" onClick={onOpenExpenseModal} style={{ padding: '8px 14px', fontSize: '0.88rem' }}>
+          <button className="btn btn-secondary" onClick={onOpenExpenseModal} style={{ padding: '8px 14px', fontSize: '0.88rem', fontWeight: 600 }}>
             <Minus size={16} />
-            <span>Dépense</span>
+            <span>- Dépense</span>
           </button>
         )}
 
@@ -92,7 +92,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
                   position: 'absolute',
                   top: '-4px',
                   right: '-4px',
-                  background: '#EF4444',
+                  background: 'linear-gradient(135deg, #FF6B00 0%, #FF8A00 100%)',
                   color: 'white',
                   borderRadius: '9999px',
                   fontSize: '0.68rem',
@@ -102,6 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  boxShadow: '0 2px 6px rgba(255, 107, 0, 0.4)',
                 }}
               >
                 {unreadCount}

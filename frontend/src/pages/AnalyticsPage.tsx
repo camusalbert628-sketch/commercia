@@ -78,36 +78,38 @@ export const AnalyticsPage: React.FC = () => {
       {report?.recommendation && (
         <div
           style={{
-            background: 'linear-gradient(135deg, #ECFDF5 0%, #EFF6FF 100%)',
-            border: '1px solid #A7F3D0',
+            background: 'linear-gradient(135deg, #EFF6FF 0%, #FFF4ED 100%)',
+            border: '1px solid #BFDBFE',
             borderRadius: '16px',
             padding: '20px',
             marginBottom: '24px',
             display: 'flex',
             alignItems: 'center',
             gap: '16px',
+            boxShadow: '0 4px 14px rgba(0, 98, 255, 0.08)',
           }}
         >
-          <div
+          <img
+            src="/commercia-logo.png"
+            alt="COMMERCIA"
             style={{
-              width: '42px',
-              height: '42px',
+              width: '44px',
+              height: '44px',
               borderRadius: '12px',
-              background: '#059669',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              background: '#FFFFFF',
+              padding: '3px',
+              boxShadow: '0 4px 12px rgba(0, 98, 255, 0.25)',
+              objectFit: 'contain',
               flexShrink: 0,
+              border: '1px solid #E2E8F0',
             }}
-          >
-            <Sparkles size={22} />
-          </div>
+          />
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#065F46', marginBottom: '2px' }}>
-              Analyse automatique du Copilote
+            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#08162B', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>Analyse automatique du Copilote</span>
+              <span className="brand-tag">COMMERCIA</span>
             </div>
-            <div style={{ fontSize: '0.88rem', color: '#1E293B' }}>{report.recommendation}</div>
+            <div style={{ fontSize: '0.88rem', color: '#334155', lineHeight: 1.5 }}>{report.recommendation}</div>
           </div>
         </div>
       )}
@@ -122,7 +124,7 @@ export const AnalyticsPage: React.FC = () => {
               {metrics.salesCount} vente(s) réalisée(s)
             </div>
           </div>
-          <div className="stat-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
+          <div className="stat-icon" style={{ background: '#EFF6FF', color: '#0062FF' }}>
             <TrendingUp size={24} />
           </div>
         </div>
@@ -130,12 +132,12 @@ export const AnalyticsPage: React.FC = () => {
         <div className="stat-card expenses">
           <div>
             <div className="stat-label">Charges & Dépenses Hebdo</div>
-            <div className="stat-value" style={{ color: '#DC2626' }}>
+            <div className="stat-value" style={{ color: '#FF6B00' }}>
               {metrics.totalExpenses.toLocaleString('fr-FR')} FCFA
             </div>
             <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '4px' }}>Dépenses opérationnelles</div>
           </div>
-          <div className="stat-icon" style={{ background: '#FEE2E2', color: '#DC2626' }}>
+          <div className="stat-icon" style={{ background: '#FFF4ED', color: '#FF6B00' }}>
             <TrendingDown size={24} />
           </div>
         </div>
@@ -162,7 +164,7 @@ export const AnalyticsPage: React.FC = () => {
         {/* Daily Performance Bar Chart */}
         <div className="card" style={{ padding: '20px' }}>
           <h3 style={{ fontSize: '1.1rem', marginBottom: '4px' }}>Performance Journalière (14 jours)</h3>
-          <p style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: '16px' }}>Ventes (Vert) vs Dépenses (Rouge)</p>
+          <p style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: '16px' }}>Ventes (Bleu COMMERCIA) vs Dépenses (Orange)</p>
           <div style={{ width: '100%', height: '260px' }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={trends}>
@@ -182,8 +184,8 @@ export const AnalyticsPage: React.FC = () => {
                   formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} FCFA`}
                   contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
                 />
-                <Bar dataKey="sales" name="Ventes" fill="#059669" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expenses" name="Dépenses" fill="#DC2626" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="sales" name="Ventes" fill="#0062FF" radius={[5, 5, 0, 0]} />
+                <Bar dataKey="expenses" name="Dépenses" fill="#FF6B00" radius={[5, 5, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

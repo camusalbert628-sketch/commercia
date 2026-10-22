@@ -216,7 +216,20 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
             </div>
             <div className="modal-body">
               <div style={{ textAlign: 'center', paddingBottom: '16px', borderBottom: '1px dashed #CBD5E1' }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669' }}>COMMERCIA TICKET</div>
+                <img
+                  src="/commercia-logo.png"
+                  alt="COMMERCIA"
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    objectFit: 'contain',
+                    margin: '0 auto 8px',
+                    display: 'block',
+                  }}
+                />
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#08162B' }}>
+                  COMMERC<span style={{ color: '#FF7A00' }}>IA</span> TICKET
+                </div>
                 <div style={{ fontSize: '0.8rem', color: '#64748B' }}>
                   Date : {new Date(selectedSale.saleDate).toLocaleString('fr-FR')}
                 </div>
@@ -240,7 +253,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
 
               <div style={{ paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>TOTAL :</span>
-                <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#059669' }}>
+                <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0062FF' }}>
                   {selectedSale.totalAmount.toLocaleString('fr-FR')} FCFA
                 </span>
               </div>

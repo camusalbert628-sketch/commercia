@@ -70,7 +70,7 @@ export const AuthPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #064E3B 0%, #0F172A 100%)',
+        background: 'linear-gradient(135deg, #08162B 0%, #0F2A4A 50%, #08162B 100%)',
         padding: '20px',
       }}
     >
@@ -80,41 +80,41 @@ export const AuthPage: React.FC = () => {
           maxWidth: '480px',
           background: '#FFFFFF',
           borderRadius: '24px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+          boxShadow: '0 25px 50px -12px rgba(8, 22, 43, 0.5)',
           overflow: 'hidden',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
         {/* Header */}
         <div
           style={{
-            background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+            background: 'linear-gradient(135deg, #0A2540 0%, #004BD6 100%)',
             padding: '36px 32px 28px',
             color: '#FFFFFF',
             textAlign: 'center',
             position: 'relative',
           }}
         >
-          <div
+          <img
+            src="/commercia-logo.png"
+            alt="COMMERCIA"
             style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '16px',
-              background: 'rgba(255, 255, 255, 0.2)',
-              backdropFilter: 'blur(8px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              width: '74px',
+              height: '74px',
+              objectFit: 'contain',
+              borderRadius: '18px',
+              background: '#FFFFFF',
+              padding: '6px',
               margin: '0 auto 16px',
-              boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+              display: 'block',
+              boxShadow: '0 8px 24px rgba(0, 98, 255, 0.4)',
             }}
-          >
-            <Store size={28} color="#FFFFFF" />
-          </div>
-          <h1 style={{ fontSize: '1.75rem', color: '#FFFFFF', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
-            COMMERCIA
+          />
+          <h1 style={{ fontSize: '1.85rem', color: '#FFFFFF', margin: '0 0 6px 0', letterSpacing: '-0.02em', fontWeight: 800 }}>
+            COMMERC<span style={{ color: '#FF7A00' }}>IA</span>
           </h1>
-          <p style={{ fontSize: '0.95rem', color: '#D1FAE5', margin: 0 }}>
-            Le copilote financier des entrepreneurs africains
+          <p style={{ fontSize: '0.92rem', color: '#BFDBFE', margin: 0, fontWeight: 500 }}>
+            Le copilote financier & SaaS des entrepreneurs africains
           </p>
         </div>
 
@@ -126,11 +126,11 @@ export const AuthPage: React.FC = () => {
             style={{
               fontSize: '0.78rem',
               fontWeight: 700,
-              padding: '6px 12px',
+              padding: '6px 14px',
               borderRadius: '20px',
-              background: '#ECFDF5',
-              color: '#059669',
-              border: '1px solid #A7F3D0',
+              background: '#EFF6FF',
+              color: '#0062FF',
+              border: '1px solid #BFDBFE',
             }}
           >
             👉 Démo Commerçant (Moussa)
@@ -141,11 +141,11 @@ export const AuthPage: React.FC = () => {
             style={{
               fontSize: '0.78rem',
               fontWeight: 700,
-              padding: '6px 12px',
+              padding: '6px 14px',
               borderRadius: '20px',
-              background: '#EFF6FF',
-              color: '#2563EB',
-              border: '1px solid #BFDBFE',
+              background: '#FFF4ED',
+              color: '#FF6B00',
+              border: '1px solid #FFD8BE',
             }}
           >
             🛡️ Démo Admin

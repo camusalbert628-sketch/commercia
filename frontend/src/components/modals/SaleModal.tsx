@@ -118,8 +118,8 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                background: '#ECFDF5',
-                color: '#059669',
+                background: '#EFF6FF',
+                color: '#0062FF',
                 padding: '8px',
                 borderRadius: '8px',
                 display: 'flex',
@@ -128,7 +128,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
               <ShoppingBag size={20} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.15rem' }}>Nouvelle Vente</h3>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Nouvelle Vente</h3>
               <p style={{ fontSize: '0.8rem', color: '#64748B' }}>
                 Enregistrement instantané (Cash, Mobile Money ou Crédit)
               </p>
@@ -243,13 +243,13 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                     type="button"
                     onClick={() => setPaymentMethod(m.id as any)}
                     style={{
-                      padding: '10px',
+                      padding: '10px 4px',
                       borderRadius: '8px',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                      border: paymentMethod === m.id ? '2px solid #059669' : '1px solid #CBD5E1',
-                      background: paymentMethod === m.id ? '#ECFDF5' : '#FFFFFF',
-                      color: paymentMethod === m.id ? '#059669' : '#475569',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      border: paymentMethod === m.id ? '2px solid #0062FF' : '1px solid #CBD5E1',
+                      background: paymentMethod === m.id ? '#EFF6FF' : '#FFFFFF',
+                      color: paymentMethod === m.id ? '#0062FF' : '#475569',
                     }}
                   >
                     {m.label}
@@ -291,7 +291,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
               }}
             >
               <span style={{ fontWeight: 600, color: '#64748B' }}>Total à encaisser :</span>
-              <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#059669', fontFamily: 'Space Grotesk, sans-serif' }}>
+              <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0062FF', fontFamily: 'Space Grotesk, sans-serif' }}>
                 {totalAmount.toLocaleString('fr-FR')} FCFA
               </span>
             </div>

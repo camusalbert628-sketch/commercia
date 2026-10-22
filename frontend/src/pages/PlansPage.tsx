@@ -73,21 +73,22 @@ export const PlansPage: React.FC = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            background: '#ECFDF5',
-            color: '#059669',
-            padding: '6px 14px',
+            background: '#EFF6FF',
+            color: '#0062FF',
+            padding: '6px 16px',
             borderRadius: '20px',
             fontSize: '0.85rem',
             fontWeight: 700,
             marginBottom: '12px',
+            border: '1px solid #BFDBFE',
           }}
         >
           <Crown size={16} />
           <span>Tarifs Adaptés aux Réalités d'Afrique</span>
         </div>
-        <h1 style={{ fontSize: '2.2rem', marginBottom: '8px' }}>Passez à la Vitesse Supérieure</h1>
+        <h1 style={{ fontSize: '2.2rem', marginBottom: '8px', fontWeight: 800 }}>Passez à la Vitesse Supérieure</h1>
         <p style={{ color: '#64748B', fontSize: '1.05rem' }}>
-          Aucune carte bancaire requise. Réglez simplement par <strong>Orange Money</strong> ou <strong>MTN Mobile Money</strong>.
+          Aucune carte bancaire requise. Réglez simplement par <strong style={{ color: '#FF7900' }}>Orange Money</strong> ou <strong style={{ color: '#EAB308' }}>MTN Mobile Money</strong>.
         </p>
       </div>
 
@@ -125,8 +126,8 @@ export const PlansPage: React.FC = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   position: 'relative',
-                  border: isPro ? '2px solid #059669' : isCurrent ? '2px solid #3B82F6' : '1px solid #E2E8F0',
-                  boxShadow: isPro ? '0 10px 25px -5px rgba(5, 150, 105, 0.2)' : 'var(--shadow-sm)',
+                  border: isPro ? '2px solid #0062FF' : isCurrent ? '2px solid #FF6B00' : '1px solid #E2E8F0',
+                  boxShadow: isPro ? '0 12px 28px -5px rgba(0, 98, 255, 0.22)' : 'var(--shadow-sm)',
                 }}
               >
                 {isPro && (
@@ -136,7 +137,7 @@ export const PlansPage: React.FC = () => {
                       top: '-14px',
                       left: '50%',
                       transform: 'translateX(-50%)',
-                      background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                      background: 'linear-gradient(135deg, #FF6B00 0%, #FF8A00 100%)',
                       color: 'white',
                       fontSize: '0.75rem',
                       fontWeight: 800,
@@ -144,6 +145,7 @@ export const PlansPage: React.FC = () => {
                       borderRadius: '20px',
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
+                      boxShadow: '0 4px 10px rgba(255, 107, 0, 0.35)',
                     }}
                   >
                     Le plus populaire 🔥
@@ -157,13 +159,14 @@ export const PlansPage: React.FC = () => {
                       top: '-14px',
                       left: '50%',
                       transform: 'translateX(-50%)',
-                      background: '#2563EB',
+                      background: '#0062FF',
                       color: 'white',
                       fontSize: '0.75rem',
                       fontWeight: 800,
                       padding: '4px 14px',
                       borderRadius: '20px',
                       textTransform: 'uppercase',
+                      boxShadow: '0 4px 10px rgba(0, 98, 255, 0.35)',
                     }}
                   >
                     Votre Plan Actuel ✓
@@ -177,7 +180,7 @@ export const PlansPage: React.FC = () => {
 
                 <div style={{ marginBottom: '24px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                    <span style={{ fontSize: '2.2rem', fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
+                    <span style={{ fontSize: '2.2rem', fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif', color: '#08162B' }}>
                       {(p.priceMonthly || 0).toLocaleString('fr-FR')}
                     </span>
                     <span style={{ fontWeight: 700, color: '#64748B', fontSize: '1rem' }}>FCFA</span>
@@ -190,8 +193,8 @@ export const PlansPage: React.FC = () => {
                     <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.9rem' }}>
                       <div
                         style={{
-                          background: '#ECFDF5',
-                          color: '#059669',
+                          background: '#EFF6FF',
+                          color: '#0062FF',
                           borderRadius: '50%',
                           padding: '2px',
                           display: 'flex',
@@ -206,10 +209,10 @@ export const PlansPage: React.FC = () => {
                 </div>
 
                 <button
-                  className={`btn ${isPro ? 'btn-primary' : 'btn-outline'} btn-lg`}
+                  className={`btn ${isPro ? 'btn-accent' : isCurrent ? 'btn-outline' : 'btn-primary'} btn-lg`}
                   disabled={isCurrent}
                   onClick={() => setSelectedPlan(p)}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', fontWeight: 700 }}
                 >
                   {isCurrent ? 'Plan Actif' : p.priceMonthly === 0 ? 'Choisir ce plan' : `S'abonner (${(p.priceMonthly || 0).toLocaleString('fr-FR')} FCFA)`}
                 </button>

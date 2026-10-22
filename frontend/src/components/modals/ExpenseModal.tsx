@@ -67,8 +67,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div
               style={{
-                background: '#FEF3C7',
-                color: '#D97706',
+                background: '#FFF4ED',
+                color: '#FF6B00',
                 padding: '8px',
                 borderRadius: '8px',
                 display: 'flex',
@@ -77,7 +77,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
               <TrendingDown size={20} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.15rem' }}>Nouvelle Dépense</h3>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Nouvelle Dépense</h3>
               <p style={{ fontSize: '0.8rem', color: '#64748B' }}>
                 Enregistrez une sortie d'argent pour calculer votre bénéfice réel
               </p>
@@ -137,9 +137,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
                       fontSize: '0.82rem',
                       fontWeight: 600,
                       textAlign: 'left',
-                      border: category === c.id ? '2px solid #D97706' : '1px solid #E2E8F0',
-                      background: category === c.id ? '#FEF3C7' : '#FFFFFF',
-                      color: category === c.id ? '#92400E' : '#334155',
+                      border: category === c.id ? '2px solid #FF6B00' : '1px solid #E2E8F0',
+                      background: category === c.id ? '#FFF4ED' : '#FFFFFF',
+                      color: category === c.id ? '#FF6B00' : '#334155',
                     }}
                   >
                     <span style={{ fontSize: '1.1rem' }}>{c.icon}</span>

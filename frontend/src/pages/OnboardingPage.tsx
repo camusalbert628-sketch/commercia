@@ -101,6 +101,27 @@ export const OnboardingPage: React.FC = () => {
         padding: '24px 16px',
       }}
     >
+      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+        <img
+          src="/commercia-logo.png"
+          alt="COMMERCIA"
+          style={{
+            width: '60px',
+            height: '60px',
+            objectFit: 'contain',
+            borderRadius: '16px',
+            background: '#FFFFFF',
+            padding: '4px',
+            margin: '0 auto 8px',
+            display: 'block',
+            boxShadow: '0 8px 20px rgba(0, 98, 255, 0.25)',
+          }}
+        />
+        <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#08162B', margin: 0 }}>
+          COMMERC<span style={{ color: '#FF7A00' }}>IA</span>
+        </h2>
+      </div>
+
       <div
         style={{
           width: '100%',
@@ -118,7 +139,7 @@ export const OnboardingPage: React.FC = () => {
             style={{
               height: '100%',
               width: `${(step / 4) * 100}%`,
-              background: 'linear-gradient(90deg, #059669 0%, #10B981 100%)',
+              background: 'linear-gradient(90deg, #0062FF 0%, #FF6B00 100%)',
               transition: 'width 0.3s ease',
             }}
           />
@@ -126,7 +147,7 @@ export const OnboardingPage: React.FC = () => {
 
         <div style={{ padding: '36px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0062FF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               {`Étape ${step} sur 4`}
             </span>
             <span style={{ fontSize: '0.8rem', color: '#94A3B8' }}>Configuration en 1 minute</span>
@@ -180,12 +201,13 @@ export const OnboardingPage: React.FC = () => {
                       gap: '12px',
                       padding: '14px 16px',
                       borderRadius: '12px',
-                      border: sector === s.id ? '2px solid #059669' : '1px solid #E2E8F0',
-                      background: sector === s.id ? '#ECFDF5' : '#FFFFFF',
+                      border: sector === s.id ? '2px solid #0062FF' : '1px solid #E2E8F0',
+                      background: sector === s.id ? '#EFF6FF' : '#FFFFFF',
                       textAlign: 'left',
                       fontSize: '0.95rem',
                       fontWeight: 600,
-                      color: sector === s.id ? '#065F46' : '#1E293B',
+                      color: sector === s.id ? '#0062FF' : '#1E293B',
+                      boxShadow: sector === s.id ? '0 4px 12px rgba(0, 98, 255, 0.12)' : 'none',
                     }}
                   >
                     <span style={{ fontSize: '1.3rem' }}>{s.icon}</span>
@@ -212,13 +234,14 @@ export const OnboardingPage: React.FC = () => {
                     style={{
                       padding: '16px',
                       borderRadius: '12px',
-                      border: trackingMode === m.id ? '2px solid #059669' : '1px solid #E2E8F0',
-                      background: trackingMode === m.id ? '#ECFDF5' : '#FFFFFF',
+                      border: trackingMode === m.id ? '2px solid #0062FF' : '1px solid #E2E8F0',
+                      background: trackingMode === m.id ? '#EFF6FF' : '#FFFFFF',
                       textAlign: 'left',
+                      boxShadow: trackingMode === m.id ? '0 4px 12px rgba(0, 98, 255, 0.12)' : 'none',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '1rem', color: trackingMode === m.id ? '#065F46' : '#0F172A' }}>
+                      <span style={{ fontWeight: 700, fontSize: '1rem', color: trackingMode === m.id ? '#0062FF' : '#0F172A' }}>
                         {m.title}
                       </span>
                       <span
@@ -227,7 +250,7 @@ export const OnboardingPage: React.FC = () => {
                           fontWeight: 700,
                           padding: '3px 8px',
                           borderRadius: '20px',
-                          background: trackingMode === m.id ? '#10B981' : '#F1F5F9',
+                          background: trackingMode === m.id ? '#0062FF' : '#F1F5F9',
                           color: trackingMode === m.id ? '#FFFFFF' : '#64748B',
                         }}
                       >
@@ -257,11 +280,12 @@ export const OnboardingPage: React.FC = () => {
                     style={{
                       padding: '16px',
                       borderRadius: '12px',
-                      border: dailySalesEstimate === rev ? '2px solid #059669' : '1px solid #E2E8F0',
-                      background: dailySalesEstimate === rev ? '#ECFDF5' : '#FFFFFF',
+                      border: dailySalesEstimate === rev ? '2px solid #0062FF' : '1px solid #E2E8F0',
+                      background: dailySalesEstimate === rev ? '#EFF6FF' : '#FFFFFF',
                       textAlign: 'left',
                       fontWeight: 600,
-                      color: dailySalesEstimate === rev ? '#065F46' : '#1E293B',
+                      color: dailySalesEstimate === rev ? '#0062FF' : '#1E293B',
+                      boxShadow: dailySalesEstimate === rev ? '0 4px 12px rgba(0, 98, 255, 0.12)' : 'none',
                     }}
                   >
                     {rev}

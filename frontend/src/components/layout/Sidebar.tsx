@@ -27,13 +27,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <div className="brand-badge">CM</div>
-        <div>
+        <img
+          src="/commercia-logo.png"
+          alt="COMMERCIA"
+          style={{
+            width: '42px',
+            height: '42px',
+            objectFit: 'contain',
+            borderRadius: '12px',
+            background: '#FFFFFF',
+            padding: '2px',
+            boxShadow: '0 4px 14px rgba(0, 98, 255, 0.35)',
+            flexShrink: 0,
+          }}
+        />
+        <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span className="brand-title">COMMERCIA</span>
+            <span style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#FFFFFF', lineHeight: 1.2 }}>
+              COMMERC<span style={{ background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>IA</span>
+            </span>
             <span className="brand-tag">PRO</span>
           </div>
-          <div style={{ fontSize: '0.74rem', color: '#10B981', fontWeight: 600, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={activeBusiness?.name}>
+          <div style={{ fontSize: '0.74rem', color: '#60A5FA', fontWeight: 600, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }} title={activeBusiness?.name}>
             {activeBusiness?.name || 'Copilote Financier'}
           </div>
         </div>
