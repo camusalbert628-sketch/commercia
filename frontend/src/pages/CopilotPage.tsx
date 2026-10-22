@@ -12,7 +12,7 @@ export const CopilotPage: React.FC = () => {
     {
       role: 'assistant',
       content:
-        'Bonjour ! Je suis votre Copilote Financier RS-BIZZ 🤖.\nJe surveille vos ventes, vos dépenses et vos crédits clients en temps réel pour vous aider à maximiser votre bénéfice.\n\nPosez-moi une question ou cliquez sur une suggestion ci-dessous !',
+        'Bonjour ! Je suis votre Copilote Financier COMMERCIA 🤖.\nJe surveille vos ventes, vos dépenses et vos crédits clients en temps réel pour vous aider à maximiser votre bénéfice.\n\nPosez-moi une question ou cliquez sur une suggestion ci-dessous !',
     },
   ]);
   const [input, setInput] = useState('');

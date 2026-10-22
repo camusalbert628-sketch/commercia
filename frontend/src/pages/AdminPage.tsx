@@ -40,7 +40,7 @@ export const AdminPage: React.FC = () => {
       <div className="page-wrapper" style={{ textAlign: 'center', padding: '60px 20px' }}>
         <div style={{ color: '#DC2626', fontSize: '2rem', marginBottom: '16px' }}>⛔</div>
         <h2>Accès Réservé aux Administrateurs</h2>
-        <p style={{ color: '#64748B' }}>Cette section requiert un compte administrateur RS-BIZZ.</p>
+        <p style={{ color: '#64748B' }}>Cette section requiert un compte administrateur COMMERCIA.</p>
       </div>
     );
   }
@@ -79,7 +79,7 @@ export const AdminPage: React.FC = () => {
         <div>
           <h1 style={{ fontSize: '1.75rem', margin: 0 }}>Console d'Administration SaaS</h1>
           <p style={{ color: '#64748B', fontSize: '0.9rem', margin: 0 }}>
-            Supervision globale de la plateforme RS-BIZZ
+            Supervision globale de la plateforme COMMERCIA
           </p>
         </div>
       </div>

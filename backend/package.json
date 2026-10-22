@@ -1,7 +1,7 @@
 {
-  "name": "rs-bizz-backend",
+  "name": "commercia-backend",
   "version": "1.0.0",
-  "description": "RS-BIZZ Backend - Copilote financier pour micro-entrepreneurs",
+  "description": "COMMERCIA Backend - Copilote financier pour micro-entrepreneurs",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",

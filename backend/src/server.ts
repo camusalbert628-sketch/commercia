@@ -77,7 +77,7 @@ const startServer = async () => {
     console.log('✅ Base de données connectée');
     
     app.listen(PORT, () => {
-      console.log(`🚀 RS-BIZZ Backend démarré sur le port ${PORT}`);
+      console.log(`🚀 COMMERCIA Backend démarré sur le port ${PORT}`);
       console.log(`📊 API disponible sur http://localhost:${PORT}/api`);
     });
   } catch (error) {

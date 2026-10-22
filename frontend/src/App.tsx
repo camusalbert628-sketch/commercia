@@ -66,7 +66,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#F8FAFC' }}>
         <div style={{ color: '#059669', fontWeight: 700, fontSize: '1.1rem' }}>
-          Initialisation de RS-BIZZ...
+          Initialisation de COMMERCIA...
         </div>
       </div>
     );

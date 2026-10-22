@@ -25,11 +25,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <div className="brand-badge">RS</div>
+        <div className="brand-badge">CM</div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span className="brand-title">RS-BIZZ</span>
-            <span className="brand-tag">MVP</span>
+            <span className="brand-title">COMMERCIA</span>
+            <span className="brand-tag">PRO</span>
           </div>
           <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Copilote Financier</div>
         </div>
@@ -94,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <Bot size={18} />
-          <span>Copilote IA RS-BIZZ</span>
+          <span>Copilote IA COMMERCIA</span>
         </NavLink>
 
         <NavLink

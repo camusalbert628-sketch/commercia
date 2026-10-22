@@ -225,7 +225,7 @@ router.post('/ai/chat', async (req: AuthRequest, res, next) => {
     } else if (lower.includes('conseil') || lower.includes('améliorer') || lower.includes('stratégie')) {
       reply = `Voici 3 conseils personnalisés pour votre activité :\n1. **Encaissez vite** : Privilégiez le cash ou Mobile Money et limitez les crédits non garantis.\n2. **Suivez vos stocks** : Réapprovisionnez vos 3 produits les plus demandés avant la rupture.\n3. **Clôture quotidienne** : Vérifiez chaque soir votre bénéfice journalier pour éviter les fuites de caisse.`;
     } else {
-      reply = `Bonjour ! Je suis votre Copilote RS-BIZZ. Votre solde estimé est de **${netProfit.toLocaleString('fr-FR')} FCFA**. Comment puis-je vous aider aujourd'hui ? (Exemples : "Quel est mon bénéfice ?", "Qui me doit de l'argent ?", "Conseils pour augmenter mes ventes")`;
+      reply = `Bonjour ! Je suis votre Copilote COMMERCIA. Votre solde estimé est de **${netProfit.toLocaleString('fr-FR')} FCFA**. Comment puis-je vous aider aujourd'hui ? (Exemples : "Quel est mon bénéfice ?", "Qui me doit de l'argent ?", "Conseils pour augmenter mes ventes")`;
     }
 
     res.json({ reply });

@@ -1,8 +1,8 @@
-// RS-BIZZ In-Memory & LocalStorage Mock Backend
+// COMMERCIA In-Memory & LocalStorage Mock Backend
 // Ensures zero-downtime demonstration on static cloud deployments (Vercel)
 
 export function handleMockRequest(endpoint: string, method: string, body?: any): any {
-  const storedUser = localStorage.getItem('rsbizz_user');
+  const storedUser = localStorage.getItem('commercia_user') || localStorage.getItem('rsbizz_user');
   let currentUser = storedUser ? JSON.parse(storedUser) : null;
 
   // 1. AUTH / LOGIN
@@ -11,9 +11,9 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     const isAdmin = email.includes('admin');
     const user = {
       id: isAdmin ? 'admin-1' : 'user-moussa',
-      email: email || (isAdmin ? 'admin@rsbizz.com' : 'moussa@boutique.cm'),
+      email: email || (isAdmin ? 'admin@commercia.cm' : 'moussa@boutique.cm'),
       firstName: isAdmin ? 'Admin' : 'Moussa',
-      lastName: isAdmin ? 'RS-BIZZ' : 'Ibrahim',
+      lastName: isAdmin ? 'COMMERCIA' : 'Ibrahim',
       phone: isAdmin ? '+237 690 000 000' : '+237 670 123 456',
       locale: 'fr',
       currency: 'XAF',
@@ -34,7 +34,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       },
     };
 
-    localStorage.setItem('rsbizz_user', JSON.stringify(user));
+    localStorage.setItem('commercia_user', JSON.stringify(user));
     localStorage.setItem('activeBusinessId', user.businesses[0].id);
 
     return {
@@ -49,7 +49,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
   if (endpoint.startsWith('/auth/register') && method === 'POST') {
     const user = {
       id: 'user-' + Date.now(),
-      email: body?.email || 'nouveau@rsbizz.com',
+      email: body?.email || 'nouveau@commercia.com',
       firstName: body?.firstName || 'Commerçant',
       lastName: body?.lastName || 'Partenaire',
       phone: body?.phone || '+237 600 000 000',
@@ -64,7 +64,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         features: ['Jusqu\'à 15 ventes/jour', 'Calcul bénéfice'],
       },
     };
-    localStorage.setItem('rsbizz_user', JSON.stringify(user));
+    localStorage.setItem('commercia_user', JSON.stringify(user));
     return {
       message: 'Compte créé avec succès ! 🎉',
       accessToken: 'demo-jwt-access-token',
@@ -99,7 +99,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
           status: 'active',
         },
       };
-      localStorage.setItem('rsbizz_user', JSON.stringify(currentUser));
+      localStorage.setItem('commercia_user', JSON.stringify(currentUser));
     }
     return currentUser;
   }
@@ -116,7 +116,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
     if (currentUser) {
       currentUser.businesses = [newBizz, ...(currentUser.businesses || [])];
-      localStorage.setItem('rsbizz_user', JSON.stringify(currentUser));
+      localStorage.setItem('commercia_user', JSON.stringify(currentUser));
     }
     localStorage.setItem('activeBusinessId', newBizz.id);
 
@@ -128,9 +128,9 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
   // 5. DASHBOARD
   if (endpoint === '/dashboard' && method === 'GET') {
-    const rawSales = localStorage.getItem('rsbizz_sales');
+    const rawSales = localStorage.getItem('commercia_sales') || localStorage.getItem('rsbizz_sales');
     const localSales = rawSales ? JSON.parse(rawSales) : [];
-    const rawExpenses = localStorage.getItem('rsbizz_expenses');
+    const rawExpenses = localStorage.getItem('commercia_expenses') || localStorage.getItem('rsbizz_expenses');
     const localExpenses = rawExpenses ? JSON.parse(rawExpenses) : [];
 
     const defaultSales = [
@@ -315,14 +315,14 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       };
     }
     return {
-      reply: 'Bonjour ! Je suis votre Copilote Financier RS-BIZZ. Votre solde estimé est au vert. Posez-moi des questions sur vos marges, vos stocks ou vos clients débiteurs ! 🚀',
+      reply: 'Bonjour ! Je suis votre Copilote Financier COMMERCIA. Votre solde estimé est au vert. Posez-moi des questions sur vos marges, vos stocks ou vos clients débiteurs ! 🚀',
     };
   }
 
   // 11. SALES (GET & POST)
   if (endpoint.startsWith('/sales')) {
     if (method === 'POST') {
-      const raw = localStorage.getItem('rsbizz_sales');
+      const raw = localStorage.getItem('commercia_sales') || localStorage.getItem('rsbizz_sales');
       const sales = raw ? JSON.parse(raw) : [];
       const newSale = {
         id: 's-' + Date.now(),
@@ -333,17 +333,17 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         items: body?.items || [{ name: 'Vente directe comptoir' }],
       };
       sales.unshift(newSale);
-      localStorage.setItem('rsbizz_sales', JSON.stringify(sales));
+      localStorage.setItem('commercia_sales', JSON.stringify(sales));
       return { message: 'Vente enregistrée avec succès ! 🎉', sale: newSale };
     }
-    const raw = localStorage.getItem('rsbizz_sales');
+    const raw = localStorage.getItem('commercia_sales') || localStorage.getItem('rsbizz_sales');
     return raw ? JSON.parse(raw) : [];
   }
 
   // 12. EXPENSES (GET & POST)
   if (endpoint.startsWith('/expenses')) {
     if (method === 'POST') {
-      const raw = localStorage.getItem('rsbizz_expenses');
+      const raw = localStorage.getItem('commercia_expenses') || localStorage.getItem('rsbizz_expenses');
       const expenses = raw ? JSON.parse(raw) : [];
       const newExpense = {
         id: 'e-' + Date.now(),
@@ -353,10 +353,10 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         expenseDate: new Date().toISOString(),
       };
       expenses.unshift(newExpense);
-      localStorage.setItem('rsbizz_expenses', JSON.stringify(expenses));
+      localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
       return { message: 'Dépense enregistrée !', expense: newExpense };
     }
-    const raw = localStorage.getItem('rsbizz_expenses');
+    const raw = localStorage.getItem('commercia_expenses') || localStorage.getItem('rsbizz_expenses');
     return raw ? JSON.parse(raw) : [];
   }
 
@@ -409,7 +409,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         displayName: 'Pro Croissance',
         priceMonthly: 4500,
         currency: 'XAF',
-        features: JSON.stringify(['Ventes illimitées', 'Gestion de stock & alertes', 'Carnet dettes clients', 'Copilote IA RS-BIZZ']),
+        features: JSON.stringify(['Ventes illimitées', 'Gestion de stock & alertes', 'Carnet dettes clients', 'Copilote IA COMMERCIA']),
       },
       {
         id: 'plan-business',

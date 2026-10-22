@@ -57,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
               Une difficulté est survenue
             </h2>
             <p style={{ color: '#64748B', fontSize: '0.9rem', marginBottom: '20px' }}>
-              RS-BIZZ a rencontré un imprévu lors de l'affichage de cet écran.
+              COMMERCIA a rencontré un imprévu lors de l'affichage de cet écran.
             </p>
             <button
               className="btn btn-primary"

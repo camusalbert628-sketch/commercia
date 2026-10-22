@@ -1,4 +1,4 @@
-// RS-BIZZ Prisma Schema — Modèle de données complet
+// COMMERCIA Prisma Schema — Modèle de données complet
 // Copilote financier pour micro-entrepreneurs africains
 
 generator client {

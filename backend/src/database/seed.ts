@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Amorçage de la base de données RS-BIZZ...');
+  console.log('🌱 Amorçage de la base de données COMMERCIA...');
 
   // 1. Plans d'abonnement
   const plans = [
@@ -34,7 +34,7 @@ async function main() {
         'Gestion complète des crédits clients',
         'Relances automatiques de dettes',
         'Gestion de stock & alertes ruptures',
-        'Copilote IA RS-BIZZ (illimité)',
+        'Copilote IA COMMERCIA (illimité)',
         'Historique illimité et export PDF/Excel',
       ]),
       limits: JSON.stringify({ salesPerMonth: -1, aiQueries: -1, historyDays: -1, stockEnabled: true }),
@@ -70,10 +70,10 @@ async function main() {
   // 2. Administrateur
   const adminPassword = await bcrypt.hash('admin1234', 12);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@rsbizz.com' },
+    where: { email: 'admin@commercia.com' },
     update: {},
     create: {
-      email: 'admin@rsbizz.com',
+      email: 'admin@commercia.com',
       passwordHash: adminPassword,
       firstName: 'Super',
       lastName: 'Admin',
@@ -329,7 +329,7 @@ async function main() {
 
   console.log('✅ Base de données initialisée avec succès !');
   console.log('👉 Utilisateur Test : moussa@boutique.cm / bizz1234');
-  console.log('👉 Administrateur   : admin@rsbizz.com / admin1234');
+  console.log('👉 Administrateur   : admin@commercia.com / admin1234');
 }
 
 main()

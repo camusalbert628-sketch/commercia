@@ -42,7 +42,7 @@ router.get('/', async (req: any, res, next) => {
             'Gestion complète des crédits clients',
             'Relances automatiques de dettes',
             'Gestion de stock & alertes ruptures',
-            'Copilote IA RS-BIZZ (illimité)',
+            'Copilote IA COMMERCIA (illimité)',
             'Historique illimité et export PDF/Excel',
           ]),
           limits: JSON.stringify({ salesPerMonth: -1, aiQueries: -1, historyDays: -1, stockEnabled: true }),

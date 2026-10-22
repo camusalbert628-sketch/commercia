@@ -98,7 +98,7 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
     });
 
     res.status(201).json({
-      message: 'Compte créé avec succès ! Bienvenue sur RS-BIZZ 👋',
+      message: 'Compte créé avec succès ! Bienvenue sur COMMERCIA 👋',
       user: {
         id: user.id,
         email: user.email,

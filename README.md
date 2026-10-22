@@ -1,6 +1,6 @@
-# RS-BIZZ — Copilote Financier & Gestion Commerciale pour TPE / PME Africaines
+# COMMERCIA — Copilote Financier & Gestion Commerciale pour TPE / PME Africaines
 
-**RS-BIZZ** est une application SaaS de gestion commerciale et copilote financier conçue spécifiquement pour les micro-entrepreneurs, commerçants et PME (marchés africains, zone CEMAC / FCFA - XAF).
+**COMMERCIA** est une application SaaS de gestion commerciale et copilote financier conçue spécifiquement pour les micro-entrepreneurs, commerçants et PME (marchés africains, zone CEMAC / FCFA - XAF).
 
 ## 🚀 Fonctionnalités Clés
 
@@ -38,4 +38,4 @@ npm run dev
 
 Application disponible sur `http://localhost:5173`.
 Compte démo Commerçant : `moussa@boutique.cm` / `bizz1234`
-Compte démo Admin : `admin@rsbizz.com` / `admin1234`
+Compte démo Admin : `admin@commercia.com` / `admin1234`

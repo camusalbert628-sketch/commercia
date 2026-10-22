@@ -59,7 +59,7 @@ export const AuthPage: React.FC = () => {
 
   const fillDemoAdmin = () => {
     setIsLogin(true);
-    setEmail('admin@rsbizz.com');
+    setEmail('admin@commercia.com');
     setPassword('admin1234');
   };
 
@@ -111,7 +111,7 @@ export const AuthPage: React.FC = () => {
             <Store size={28} color="#FFFFFF" />
           </div>
           <h1 style={{ fontSize: '1.75rem', color: '#FFFFFF', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
-            RS-BIZZ
+            COMMERCIA
           </h1>
           <p style={{ fontSize: '0.95rem', color: '#D1FAE5', margin: 0 }}>
             Le copilote financier des entrepreneurs africains

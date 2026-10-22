@@ -211,7 +211,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal }) => {
             </div>
             <div className="modal-body">
               <div style={{ textAlign: 'center', paddingBottom: '16px', borderBottom: '1px dashed #CBD5E1' }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669' }}>RS-BIZZ TICKET</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669' }}>COMMERCIA TICKET</div>
                 <div style={{ fontSize: '0.8rem', color: '#64748B' }}>
                   Date : {new Date(selectedSale.saleDate).toLocaleString('fr-FR')}
                 </div>
