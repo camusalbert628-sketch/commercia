@@ -22,6 +22,7 @@ import { CopilotPage } from './pages/CopilotPage';
 import { PlansPage } from './pages/PlansPage';
 import { AdminPage } from './pages/AdminPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { CommerciaChatbot } from './components/chatbot/CommerciaChatbot';
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const {
@@ -64,6 +65,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         onClose={closeExpenseModal}
         onExpenseCreated={triggerRefresh}
       />
+
+      {/* Global Omniscient AI Chatbot */}
+      <CommerciaChatbot />
     </div>
   );
 }

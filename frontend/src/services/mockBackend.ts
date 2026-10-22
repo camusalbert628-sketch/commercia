@@ -1,6 +1,7 @@
 // COMMERCIA In-Memory & LocalStorage Mock Backend
 // Ensures zero-downtime demonstration on static cloud deployments (Vercel)
 import { calculateFinancialMetrics } from '../utils/finance';
+import { generateAIAnswer } from './aiKnowledgeEngine';
 
 const USERS_DB_KEY = 'commercia_users_db';
 
@@ -444,27 +445,11 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     };
   }
 
-  // 10. AI COPILOT
-  if (endpoint.startsWith('/analytics/ai/chat') && method === 'POST') {
-    const q = (body?.message || '').toLowerCase();
-    if (q.includes('bénéfice') || q.includes('profit') || q.includes('gain')) {
-      return {
-        reply: 'Votre bénéfice estimé aujourd\'hui est de **+24 850 FCFA** (Recettes : 42 350 FCFA, Dépenses : 17 500 FCFA). Votre activité est saine et rentable ! 📈',
-      };
-    }
-    if (q.includes('dette') || q.includes('crédit') || q.includes('doit')) {
-      return {
-        reply: 'Vous avez actuellement **38 500 FCFA** de crédits en attente répartis sur 3 clients :\n• **Maman Chantal** : 15 000 FCFA\n• **Papa Pierre** : 13 500 FCFA\n• **Tantie Rose** : 10 000 FCFA\n\n💡 *Astuce : Envoyez un rappel cordial par WhatsApp pour sécuriser vos encaissements.*',
-      };
-    }
-    if (q.includes('dépense') || q.includes('charge')) {
-      return {
-        reply: 'Vos dépenses totales déclarées cette semaine s\'élèvent à **110 000 FCFA**, dont 77% alloués à la marchandise (achat de stock) et 14% pour le transport.',
-      };
-    }
-    return {
-      reply: 'Bonjour ! Je suis votre Copilote Financier COMMERCIA. Votre solde estimé est au vert. Posez-moi des questions sur vos marges, vos stocks ou vos clients débiteurs ! 🚀',
-    };
+  // 10. AI COPILOT & OMNISCIENT CHATBOT
+  if ((endpoint.startsWith('/ai/chat') || endpoint.startsWith('/analytics/ai/chat')) && method === 'POST') {
+    const message = body?.message || '';
+    const reply = generateAIAnswer(message);
+    return { reply };
   }
 
   // Helper: get or init mock products per business
@@ -599,9 +584,11 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
             cs.movements.unshift(move);
             if (method === 'cash') {
               cs.totalCashSales = (cs.totalCashSales || 0) + paid;
+              cs.totalCashIn = (cs.totalCashIn || 0) + paid;
               cs.theoreticalCash = (cs.theoreticalCash || 0) + paid;
             } else {
               cs.totalMomoSales = (cs.totalMomoSales || 0) + paid;
+              cs.totalMomoIn = (cs.totalMomoIn || 0) + paid;
               cs.theoreticalMomo = (cs.theoreticalMomo || 0) + paid;
             }
             localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
@@ -908,6 +895,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         totalMomoSales: 0,
         totalCashIn: 0,
         totalCashOut: 0,
+        totalMomoIn: 0,
         theoreticalCash: initialCash,
         theoreticalMomo: initialMomo,
         notes: body?.notes || null,
@@ -1011,8 +999,9 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
             initialMomo: 0,
             totalCashSales: 54000,
             totalMomoSales: 12500,
-            totalCashIn: 0,
+            totalCashIn: 54000,
             totalCashOut: 8500,
+            totalMomoIn: 12500,
             theoreticalCash: 60500,
             theoreticalMomo: 12500,
             actualCash: 60500,

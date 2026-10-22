@@ -298,7 +298,7 @@ export const CashPage: React.FC = () => {
               <div>
                 <div className="stat-label">Mobile Money encaissé</div>
                 <div className="stat-value" style={{ color: '#D97706' }}>
-                  {session.totalMomoIn.toLocaleString('fr-FR')} FCFA
+                  {(session.totalMomoIn || 0).toLocaleString('fr-FR')} FCFA
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
                   Sur compte Orange / MTN MoMo
@@ -860,7 +860,7 @@ export const CashPage: React.FC = () => {
                     min="0"
                     value={actualMomo}
                     onChange={e => setActualMomo(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder={`Attendu : ${session.totalMomoIn.toLocaleString('fr-FR')} FCFA`}
+                    placeholder={`Attendu : ${(session.totalMomoIn || 0).toLocaleString('fr-FR')} FCFA`}
                   />
                 </div>
               </div>
@@ -899,23 +899,23 @@ export const CashPage: React.FC = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.9rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Fond initial :</span>
-                  <strong>{selectedPastSession.initialCash.toLocaleString('fr-FR')} FCFA</strong>
+                  <strong>{(selectedPastSession.initialCash || 0).toLocaleString('fr-FR')} FCFA</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Entrées cash :</span>
-                  <strong style={{ color: '#059669' }}>+{selectedPastSession.totalCashIn.toLocaleString('fr-FR')} FCFA</strong>
+                  <strong style={{ color: '#059669' }}>+{(selectedPastSession.totalCashIn || 0).toLocaleString('fr-FR')} FCFA</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Sorties cash :</span>
-                  <strong style={{ color: '#DC2626' }}>-{selectedPastSession.totalCashOut.toLocaleString('fr-FR')} FCFA</strong>
+                  <strong style={{ color: '#DC2626' }}>-{(selectedPastSession.totalCashOut || 0).toLocaleString('fr-FR')} FCFA</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #E2E8F0', paddingTop: '6px' }}>
                   <span>Solde théorique :</span>
-                  <strong>{selectedPastSession.theoreticalCash.toLocaleString('fr-FR')} FCFA</strong>
+                  <strong>{(selectedPastSession.theoreticalCash || 0).toLocaleString('fr-FR')} FCFA</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Montant physique compté :</span>
-                  <strong>{selectedPastSession.actualCash?.toLocaleString('fr-FR')} FCFA</strong>
+                  <strong>{selectedPastSession.actualCash !== undefined && selectedPastSession.actualCash !== null ? `${selectedPastSession.actualCash.toLocaleString('fr-FR')} FCFA` : 'Non clôturée'}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #CBD5E1', paddingTop: '8px', fontWeight: 800 }}>
                   <span>Écart constaté :</span>

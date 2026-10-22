@@ -19,10 +19,12 @@ export const CopilotPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const SUGGESTIONS = [
-    'Quel est mon bénéfice réel ?',
-    'Qui me doit de l\'argent ?',
-    'Mes dépenses sont-elles trop élevées ?',
-    'Conseils pour booster mes ventes',
+    '💼 Où en est ma caisse journalière ?',
+    '🎯 Explique-moi la règle des 3 poches',
+    '🤝 Qui me doit de l\'argent ?',
+    '🔒 Comment clôturer ma caisse ce soir ?',
+    '📈 Quel est mon bénéfice réel aujourd\'hui ?',
+    '👑 Quels sont les tarifs des forfaits ?',
   ];
 
   const sendMessage = async (textToSend?: string) => {
