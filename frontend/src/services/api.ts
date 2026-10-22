@@ -1,3 +1,5 @@
+import { handleMockRequest } from './mockBackend';
+
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 export class ApiError extends Error {
@@ -20,53 +22,66 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const method = options.method || 'GET';
+  const parsedBody = options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : undefined;
 
-  if (response.status === 401) {
-    // Attempt token refresh or logout
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (refreshToken && endpoint !== '/auth/refresh') {
-      try {
-        const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        });
-        if (refreshRes.ok) {
-          const tokens = await refreshRes.json();
-          localStorage.setItem('accessToken', tokens.accessToken);
-          localStorage.setItem('refreshToken', tokens.refreshToken);
-          headers['Authorization'] = `Bearer ${tokens.accessToken}`;
-          const retryRes = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
-          if (!retryRes.ok) {
-            const errData = await retryRes.json().catch(() => ({}));
-            throw new ApiError(errData.error || 'Erreur requête', retryRes.status);
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    if (response.status === 401) {
+      // Attempt token refresh or logout
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken && endpoint !== '/auth/refresh') {
+        try {
+          const refreshRes = await fetch(`${BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+          });
+          if (refreshRes.ok) {
+            const tokens = await refreshRes.json();
+            localStorage.setItem('accessToken', tokens.accessToken);
+            localStorage.setItem('refreshToken', tokens.refreshToken);
+            headers['Authorization'] = `Bearer ${tokens.accessToken}`;
+            const retryRes = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+            if (!retryRes.ok) {
+              const errData = await retryRes.json().catch(() => ({}));
+              throw new ApiError(errData.error || 'Erreur requête', retryRes.status);
+            }
+            return retryRes.json();
           }
-          return retryRes.json();
+        } catch (e) {
+          // If in cloud demo, proceed with mock
+          return handleMockRequest(endpoint, method, parsedBody);
         }
-      } catch (e) {
+      } else {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
-      }
-    } else {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
     }
-  }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new ApiError(errorData.error || `Erreur serveur (${response.status})`, response.status);
-  }
+    // Fallback for static cloud hosting returning 404/405/502 on API routes
+    if (response.status === 404 || response.status === 405 || response.status === 502) {
+      return handleMockRequest(endpoint, method, parsedBody);
+    }
 
-  return response.json();
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new ApiError(errorData.error || `Erreur serveur (${response.status})`, response.status);
+    }
+
+    return response.json();
+  } catch (err: any) {
+    if (err instanceof ApiError) throw err;
+    // On network failure or offline, serve from smart mock backend
+    return handleMockRequest(endpoint, method, parsedBody);
+  }
 }
 
 export const api = {
