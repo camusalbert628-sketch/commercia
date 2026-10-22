@@ -92,112 +92,132 @@ export const PlansPage: React.FC = () => {
       </div>
 
       {/* Pricing Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', alignItems: 'stretch' }}>
-        {plans.map(p => {
-          const isCurrent = mySub?.plan === p.name;
-          const isPro = p.name === 'pro';
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748B' }}>
+          <div className="spinner" style={{ margin: '0 auto 16px' }} />
+          <p>Chargement des offres...</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', alignItems: 'stretch' }}>
+          {plans.map(p => {
+            const currentPlanName = mySub?.plan || mySub?.planName;
+            const isCurrent = currentPlanName === p.name;
+            const isPro = p.name === 'pro';
+            const featuresList = Array.isArray(p.features)
+              ? p.features
+              : typeof p.features === 'string'
+              ? (() => {
+                  try {
+                    const parsed = JSON.parse(p.features);
+                    return Array.isArray(parsed) ? parsed : [p.features];
+                  } catch {
+                    return [p.features];
+                  }
+                })()
+              : [];
 
-          return (
-            <div
-              key={p.id}
-              className="card"
-              style={{
-                padding: '32px 24px',
-                display: 'flex',
-                flexDirection: 'column',
-                position: 'relative',
-                border: isPro ? '2px solid #059669' : isCurrent ? '2px solid #3B82F6' : '1px solid #E2E8F0',
-                boxShadow: isPro ? '0 10px 25px -5px rgba(5, 150, 105, 0.2)' : 'var(--shadow-sm)',
-              }}
-            >
-              {isPro && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '-14px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
-                    color: 'white',
-                    fontSize: '0.75rem',
-                    fontWeight: 800,
-                    padding: '4px 14px',
-                    borderRadius: '20px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                  }}
-                >
-                  Le plus populaire 🔥
-                </div>
-              )}
-
-              {isCurrent && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '-14px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    background: '#2563EB',
-                    color: 'white',
-                    fontSize: '0.75rem',
-                    fontWeight: 800,
-                    padding: '4px 14px',
-                    borderRadius: '20px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Votre Plan Actuel ✓
-                </div>
-              )}
-
-              <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '1.4rem', margin: '0 0 6px 0' }}>{p.displayName}</h3>
-                <p style={{ color: '#64748B', fontSize: '0.85rem', minHeight: '36px' }}>{p.description}</p>
-              </div>
-
-              <div style={{ marginBottom: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                  <span style={{ fontSize: '2.2rem', fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
-                    {p.priceMonthly.toLocaleString('fr-FR')}
-                  </span>
-                  <span style={{ fontWeight: 700, color: '#64748B', fontSize: '1rem' }}>FCFA</span>
-                  <span style={{ color: '#94A3B8', fontSize: '0.85rem' }}>/ mois</span>
-                </div>
-              </div>
-
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
-                {p.features.map((feat, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.9rem' }}>
-                    <div
-                      style={{
-                        background: '#ECFDF5',
-                        color: '#059669',
-                        borderRadius: '50%',
-                        padding: '2px',
-                        display: 'flex',
-                        marginTop: '2px',
-                      }}
-                    >
-                      <Check size={14} />
-                    </div>
-                    <span>{feat}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                className={`btn ${isPro ? 'btn-primary' : 'btn-outline'} btn-lg`}
-                disabled={isCurrent}
-                onClick={() => setSelectedPlan(p)}
-                style={{ width: '100%' }}
+            return (
+              <div
+                key={p.id}
+                className="card"
+                style={{
+                  padding: '32px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative',
+                  border: isPro ? '2px solid #059669' : isCurrent ? '2px solid #3B82F6' : '1px solid #E2E8F0',
+                  boxShadow: isPro ? '0 10px 25px -5px rgba(5, 150, 105, 0.2)' : 'var(--shadow-sm)',
+                }}
               >
-                {isCurrent ? 'Plan Actif' : p.priceMonthly === 0 ? 'Choisir ce plan' : `S'abonner (${p.priceMonthly.toLocaleString('fr-FR')} FCFA)`}
-              </button>
-            </div>
-          );
-        })}
-      </div>
+                {isPro && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '-14px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      padding: '4px 14px',
+                      borderRadius: '20px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    Le plus populaire 🔥
+                  </div>
+                )}
+
+                {isCurrent && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '-14px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: '#2563EB',
+                      color: 'white',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      padding: '4px 14px',
+                      borderRadius: '20px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Votre Plan Actuel ✓
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '1.4rem', margin: '0 0 6px 0' }}>{p.displayName}</h3>
+                  <p style={{ color: '#64748B', fontSize: '0.85rem', minHeight: '36px' }}>{p.description}</p>
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    <span style={{ fontSize: '2.2rem', fontWeight: 800, fontFamily: 'Space Grotesk, sans-serif' }}>
+                      {(p.priceMonthly || 0).toLocaleString('fr-FR')}
+                    </span>
+                    <span style={{ fontWeight: 700, color: '#64748B', fontSize: '1rem' }}>FCFA</span>
+                    <span style={{ color: '#94A3B8', fontSize: '0.85rem' }}>/ mois</span>
+                  </div>
+                </div>
+
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '28px' }}>
+                  {featuresList.map((feat, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '0.9rem' }}>
+                      <div
+                        style={{
+                          background: '#ECFDF5',
+                          color: '#059669',
+                          borderRadius: '50%',
+                          padding: '2px',
+                          display: 'flex',
+                          marginTop: '2px',
+                        }}
+                      >
+                        <Check size={14} />
+                      </div>
+                      <span>{feat}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  className={`btn ${isPro ? 'btn-primary' : 'btn-outline'} btn-lg`}
+                  disabled={isCurrent}
+                  onClick={() => setSelectedPlan(p)}
+                  style={{ width: '100%' }}
+                >
+                  {isCurrent ? 'Plan Actif' : p.priceMonthly === 0 ? 'Choisir ce plan' : `S'abonner (${(p.priceMonthly || 0).toLocaleString('fr-FR')} FCFA)`}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Mobile Money Payment Modal */}
       {selectedPlan && (

@@ -828,7 +828,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         displayName: 'Gratuit',
         priceMonthly: 0,
         currency: 'XAF',
-        features: JSON.stringify(['15 ventes max / jour', 'Calcul bénéfice journalier', 'Support communauté']),
+        features: ['15 ventes max / jour', 'Calcul bénéfice journalier', 'Support communauté'],
       },
       {
         id: 'plan-pro',
@@ -836,7 +836,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         displayName: 'Pro Croissance',
         priceMonthly: 4500,
         currency: 'XAF',
-        features: JSON.stringify(['Ventes illimitées', 'Gestion de stock & alertes', 'Carnet dettes clients', 'Copilote IA COMMERCIA']),
+        features: ['Ventes illimitées', 'Gestion de stock & alertes', 'Carnet dettes clients', 'Copilote IA COMMERCIA'],
       },
       {
         id: 'plan-business',
@@ -844,7 +844,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
         displayName: 'Business Multi-boutiques',
         priceMonthly: 12000,
         currency: 'XAF',
-        features: JSON.stringify(['Multi-utilisateurs & rôles', 'Rapports hebdomadaires PDF', 'Copilote IA illimité', 'Support VIP WhatsApp']),
+        features: ['Multi-utilisateurs & rôles', 'Rapports hebdomadaires PDF', 'Copilote IA illimité', 'Support VIP WhatsApp'],
       },
     ];
   }
