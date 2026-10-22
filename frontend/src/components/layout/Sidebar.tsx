@@ -12,6 +12,8 @@ import {
   ShieldAlert,
   LogOut,
   Wallet,
+  TrendingUp,
+  Landmark,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -115,6 +117,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           <span>Statistiques & Rapport</span>
         </NavLink>
 
+        <div className="menu-category">Modules Premium</div>
+        <NavLink
+          to="/growth"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <TrendingUp size={18} />
+          <span>Croissance & CAC</span>
+          <span style={{ fontSize: '0.65rem', background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+        </NavLink>
+
+        <NavLink
+          to="/treasury"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Landmark size={18} />
+          <span>Trésorerie & Scénarios</span>
+          <span style={{ fontSize: '0.65rem', background: '#10B981', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+        </NavLink>
+
         <div className="menu-category">Intelligence & Offres</div>
         <NavLink
           to="/copilot"
@@ -125,11 +146,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
         </NavLink>
 
         <NavLink
-          to="/plans"
+          to="/subscription"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <Crown size={18} />
-          <span>Abonnements</span>
+          <span>Mon Abonnement</span>
         </NavLink>
 
         {user?.isAdmin && (

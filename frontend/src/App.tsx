@@ -20,6 +20,9 @@ import { ProductsPage } from './pages/ProductsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { CopilotPage } from './pages/CopilotPage';
 import { PlansPage } from './pages/PlansPage';
+import { SubscriptionPage } from './pages/SubscriptionPage';
+import { GrowthPage } from './pages/GrowthPage';
+import { TreasuryPage } from './pages/TreasuryPage';
 import { AdminPage } from './pages/AdminPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommerciaChatbot } from './components/chatbot/CommerciaChatbot';
@@ -183,10 +186,34 @@ export function App() {
             }
           />
           <Route
+            path="/growth"
+            element={
+              <ProtectedRoute>
+                <GrowthPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/treasury"
+            element={
+              <ProtectedRoute>
+                <TreasuryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/subscription"
+            element={
+              <ProtectedRoute>
+                <SubscriptionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/plans"
             element={
               <ProtectedRoute>
-                <PlansPage />
+                <SubscriptionPage />
               </ProtectedRoute>
             }
           />

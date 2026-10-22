@@ -15,6 +15,7 @@ export const CustomersPage: React.FC = () => {
   // New Customer form
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newChannel, setNewChannel] = useState('Bouche-à-oreille / Recommandation');
   const [newNotes, setNewNotes] = useState('');
 
   // Payment form
@@ -49,6 +50,7 @@ export const CustomersPage: React.FC = () => {
       await api.post('/customers', {
         name: newName,
         phone: newPhone || undefined,
+        channel: newChannel || undefined,
         notes: newNotes || undefined,
       });
       setShowAddModal(false);
@@ -287,6 +289,27 @@ export const CustomersPage: React.FC = () => {
                     value={newPhone}
                     onChange={e => setNewPhone(e.target.value)}
                   />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                    Comment nous a-t-il connus ? (Canal d'origine) *
+                  </label>
+                  <select
+                    value={newChannel}
+                    onChange={e => setNewChannel(e.target.value)}
+                    style={{ width: '100%', padding: '10px' }}
+                  >
+                    <option value="Bouche-à-oreille / Recommandation">🌱 Bouche-à-oreille / Recommandation</option>
+                    <option value="WhatsApp (Statuts & Catalogue)">📱 WhatsApp (Statuts & Catalogue)</option>
+                    <option value="Facebook / Instagram Ads">🎯 Facebook / Instagram Ads</option>
+                    <option value="TikTok Organique & Vidéos">🎵 TikTok Organique & Vidéos</option>
+                    <option value="Passage devant la boutique">🚶 Passage devant la boutique</option>
+                    <option value="Marché / Stand / Événement">🎪 Marché / Stand / Événement</option>
+                    <option value="Flyers & Affichage quartier">📄 Flyers & Affichage quartier</option>
+                    <option value="Partenaires / Apporteurs d'affaires">🤝 Partenaires / Apporteurs d'affaires</option>
+                    <option value="Autre">Autre canal</option>
+                  </select>
                 </div>
 
                 <div>

@@ -328,7 +328,66 @@ ${lowTxt}
   - **Seuil de réapprovisionnement** : Dès qu'un article passe sous son seuil d'alerte, un badge orange apparaît pour vous éviter la rupture devant un client !`;
   }
 
-  // 8. PLANS & PRICING / ABONNEMENTS
+  // 8. MODULE PREMIUM A : CROISSANCE CLIENTS & CAC
+  if (
+    q.includes('cac') ||
+    q.includes('croissance') ||
+    q.includes('acquisition') ||
+    q.includes('canal') ||
+    q.includes('campagne') ||
+    q.includes('roas')
+  ) {
+    return `🎯 **Module Premium A : Croissance Clients & CAC :**
+
+Ce module vous indique **quels canaux vous rapportent des clients rentables** et lesquels vous coûtent de l'argent :
+
+• **Indicateurs clés :**
+  - **CAC (Coût d'Acquisition Client)** = \`Budget investi / Clients convertis\`.
+  - **Seuil CAC maximal acceptable** = recalculé automatiquement à **30% de votre marge brute moyenne** (ou forcé manuellement par vos soins).
+  - **ROAS (Retour sur pub)** = \`Chiffre d'affaires généré / Budget dépensé\`.
+  - **Valeur Client (LTV)** = Marge brute moyenne générée par un client sur 12 mois.
+
+• **Règle anti-illusion des données (< 5 clients) :**
+  Si un canal compte moins de 5 clients convertis sur la période, COMMERCIA affiche le badge « ⚠️ Données insuffisantes » pour éviter de tirer des conclusions hâtives.
+
+• **Fonctionnalités avancées :**
+  - **Traçabilité dès la création du client** : Sélectionnez simplement *« Comment nous a-t-il connus ? »* (WhatsApp, Facebook Ads, TikTok, Bouche-à-oreille...).
+  - **Campagnes sponsorisées illimitées** avec import direct des fichiers CSV Meta Ads Manager.
+  - **Ligne TOTAL recalculée** sur les sommes brutes (sans fausse moyenne de moyennes).`;
+  }
+
+  // 9. MODULE PREMIUM B : TRÉSORERIE AVANCÉE & SCÉNARIOS
+  if (
+    q.includes('trésorerie') ||
+    q.includes('tresorerie') ||
+    q.includes('autonomie') ||
+    q.includes('scénario') ||
+    q.includes('scenario') ||
+    q.includes('échéancier') ||
+    q.includes('echeancier') ||
+    q.includes('virement')
+  ) {
+    return `💳 **Module Premium B : Trésorerie Avancée & Scénarios :**
+
+Ce module vous évite d'être pris de court par les manques de liquidités :
+
+• **Multi-Comptes Financiers :**
+  Consolidation en temps réel de votre Caisse physique, Banque Pro et comptes Mobile Money (Orange Money, MTN MoMo, Wave).
+
+• **Autonomie en Jours :**
+  \`Autonomie = Trésorerie disponible / Dépenses moyennes par jour (sur 90 jours)\`.
+  *Elle vous dit combien de jours votre boutique peut tenir sans aucune rentrée d'argent !*
+
+• **Règles d'or absolues (B.5 & B.10) :**
+  1. **Le capital de départ et les apports ne sont JAMAIS du chiffre d'affaires.**
+  2. **Les prélèvements personnels du gérant ne sont JAMAIS des charges d'exploitation** (suivis dans leur propre colonne pour ne pas fausser votre marge réelle).
+  3. **Un virement interne** entre la banque et la caisse ne modifie pas votre trésorerie totale, seulement sa répartition.
+
+• **Échéancier & Prévisions à 30 jours :**
+  Visualisation jour par jour de votre solde futur pour détecter à l'avance tout risque de solde négatif.`;
+  }
+
+  // 10. PLANS & PRICING / ABONNEMENTS (CAHIER DES CHARGES ABONNEMENTS)
   if (
     q.includes('plan') ||
     q.includes('abonnement') ||
@@ -337,29 +396,26 @@ ${lowTxt}
     q.includes('combien coute') ||
     q.includes('pro') ||
     q.includes('business') ||
-    q.includes('gratuit')
+    q.includes('gratuit') ||
+    q.includes('essai') ||
+    q.includes('grâce') ||
+    q.includes('grace') ||
+    q.includes('résili')
   ) {
-    return `🏷️ **Offres & Forfaits COMMERCIA :**
+    return `👑 **Gestion des Abonnements COMMERCIA (Cycle de Vie & Tarifs) :**
 
-COMMERCIA propose 3 formules adaptées à chaque stade de maturité de votre commerce :
+• **Tarification transparente :**
+  - ⚪ **Plan Gratuit** : 0 FCFA/mois (découverte, 50 ventes max/mois).
+  - 🟠 **Plan Pro (Croissance)** : **4 500 FCFA / mois** *(ou 45 000 FCFA / an avec 2 mois offerts)*.
+  - 🔵 **Plan Business (Réseau)** : **12 000 FCFA / mois** *(ou 120 000 FCFA / an)*.
 
-1. ⚪ **Plan Gratuit (Démarrage)** : **0 FCFA / mois**
-   - Idéal pour débuter
-   - 1 point de vente, jusqu'à 50 ventes/mois et 10 produits.
-
-2. 🟠 **Plan Pro (Croissance)** : **4 500 FCFA / mois** *(ou 45 000 FCFA / an avec 2 mois offerts)*
-   - Ventes et dépenses **illimitées**
-   - Journal de caisse complet avec réconciliation des écarts
-   - Gestion des stocks en temps réel & alertes ruptures
-   - Relances des crédits clients par WhatsApp en 1 clic
-   - **Copilote Financier IA illimité**
-
-3. 🔵 **Plan Business (Réseau & Multi-Boutiques)** : **12 000 FCFA / mois** *(ou 120 000 FCFA / an)*
-   - Gestion multi-boutiques (ex: Douala + Yaoundé)
-   - Multi-utilisateurs avec permissions (gérants, caissiers avec caisse isolée)
-   - Rapports PDF comptables complets et clôtures consolidées
-
-👉 *Rendez-vous dans le menu **"Abonnements"** pour changer de plan ou payer par Mobile Money.*`;
+• **Cycle de vie & Sécurité des données :**
+  - **Essai gratuit de 14 jours** : accès immédiat sans carte bancaire ni engagement.
+  - **Paiements prépayés Mobile Money** : Orange Money, MTN MoMo, Wave (pas de prélèvement automatique forcé).
+  - **Période de Grâce (7 jours)** : en cas de retard de paiement, vos modules restent 100% actifs avec un bandeau de rappel.
+  - **Expiration & Lecture seule (90 jours)** : si non renouvelé, vous conservez la consultation et l'export de toutes vos données sans aucune suppression.
+  - **Reçus numérotés uniques** : téléchargeables en PDF pour chaque règlement.
+  - **Codes Promo acceptés** : saisissez \`COMMERCIA20\` pour obtenir -20% de remise !`;
   }
 
   // 9. MOBILE MONEY BEST PRACTICES
