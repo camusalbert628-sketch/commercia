@@ -14,7 +14,6 @@ import {
   ArrowDownRight,
   HelpCircle,
   FileText,
-  Filter,
   CheckCircle,
   Lock,
 } from 'lucide-react';
@@ -32,7 +31,6 @@ export const GrowthPage: React.FC = () => {
   const [channels, setChannels] = useState<AcquisitionChannel[]>(getAcquisitionChannels());
   const [campaigns, setCampaigns] = useState<AcquisitionCampaign[]>(getAcquisitionCampaigns());
   const [activeTab, setActiveTab] = useState<'apercu' | 'canaux' | 'campagnes' | 'evolution'>('apercu');
-  const [selectedMonth, setSelectedMonth] = useState('2026-10');
   const [showAddCampaignModal, setShowAddCampaignModal] = useState(false);
   const [showCsvModal, setShowCsvModal] = useState(false);
   const [editingChannel, setEditingChannel] = useState<AcquisitionChannel | null>(null);
@@ -43,9 +41,6 @@ export const GrowthPage: React.FC = () => {
   const [campBudget, setCampBudget] = useState(25000);
   const [campContacts, setCampContacts] = useState(60);
   const [syncWithTreasury, setSyncWithTreasury] = useState(true);
-
-  // CSV Import State
-  const [csvContent, setCsvContent] = useState('');
   const [csvSuccess, setCsvSuccess] = useState(false);
 
   const navigate = useNavigate();

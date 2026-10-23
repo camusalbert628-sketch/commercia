@@ -3,18 +3,11 @@ import {
   Crown,
   CheckCircle,
   AlertTriangle,
-  Clock,
-  Download,
   Printer,
   Sparkles,
-  ShieldCheck,
-  CreditCard,
-  Phone,
-  ArrowRight,
   TrendingUp,
   Wallet,
   X,
-  HelpCircle,
 } from 'lucide-react';
 import {
   getSubscriptionData,
@@ -433,10 +426,51 @@ export const SubscriptionPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Numéro Mobile Money */}
+              {/* Choix du mode de paiement */}
               <div>
                 <label style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', marginBottom: '6px' }}>
-                  Numéro de téléphone de facturation (OM / MoMo / Wave)
+                  Mode de paiement
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setMoyenPaiement('mobile_money')}
+                    style={{
+                      padding: '8px',
+                      borderRadius: '8px',
+                      border: moyenPaiement === 'mobile_money' ? '2px solid #0062FF' : '1px solid #CBD5E1',
+                      background: moyenPaiement === 'mobile_money' ? '#EFF6FF' : '#FFFFFF',
+                      color: moyenPaiement === 'mobile_money' ? '#0062FF' : '#334155',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    📱 Mobile Money
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMoyenPaiement('carte')}
+                    style={{
+                      padding: '8px',
+                      borderRadius: '8px',
+                      border: moyenPaiement === 'carte' ? '2px solid #0062FF' : '1px solid #CBD5E1',
+                      background: moyenPaiement === 'carte' ? '#EFF6FF' : '#FFFFFF',
+                      color: moyenPaiement === 'carte' ? '#0062FF' : '#334155',
+                      fontWeight: 700,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    💳 Carte bancaire
+                  </button>
+                </div>
+              </div>
+
+              {/* Numéro Mobile Money / Coordonnées */}
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', marginBottom: '6px' }}>
+                  {moyenPaiement === 'mobile_money' ? 'Numéro Mobile Money (OM / MoMo / Wave)' : 'Téléphone associé à la carte'}
                 </label>
                 <input
                   type="text"

@@ -14,6 +14,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0] || null;
 
@@ -50,7 +62,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
           <Store size={20} />
         </div>
         <div>
-          <div className="business-name">{activeBusiness?.name || 'Mon Activité'}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="business-name">{activeBusiness?.name || 'Mon Activité'}</span>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                background: isOnline ? '#ECFDF5' : '#FEF3C7',
+                color: isOnline ? '#059669' : '#D97706',
+                border: isOnline ? '1px solid #A7F3D0' : '1px solid #FDE68A',
+              }}
+            >
+              <span
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: isOnline ? '#10B981' : '#F59E0B',
+                }}
+              />
+              {isOnline ? 'En ligne' : 'Hors-ligne'}
+            </span>
+          </div>
           <div className="business-sector">
             {activeBusiness?.sector ? `Secteur : ${activeBusiness.sector}` : 'Micro-entreprise'}
           </div>

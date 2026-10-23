@@ -1,0 +1,24 @@
+{
+  "name": "COMMERCIA — Copilote Financier & Gestion Commerciale",
+  "short_name": "COMMERCIA",
+  "description": "Copilote financier et gestion commerciale pour micro-entrepreneurs africains (Zone FCFA/CEMAC)",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08162B",
+  "theme_color": "#08162B",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/commercia-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/commercia-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

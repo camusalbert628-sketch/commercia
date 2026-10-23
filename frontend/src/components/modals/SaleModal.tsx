@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { api } from '../../services/api';
-import { Product, Customer } from '../../types';
+import { Product, Customer, Sale } from '../../types';
+import { ReceiptModal } from './ReceiptModal';
 
 interface SaleModalProps {
   isOpen: boolean;
@@ -21,6 +22,22 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+
+  const resetForm = () => {
+    setItems([{ name: '', quantity: 1, unitPrice: 0 }]);
+    setSelectedProductId('');
+    setCustomerId('');
+    setPaymentMethod('cash');
+    setError('');
+    setSuccessMsg('');
+    setCompletedSale(null);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -32,6 +49,17 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  if (completedSale) {
+    return (
+      <ReceiptModal
+        isOpen={true}
+        sale={completedSale}
+        onClose={handleClose}
+        onNewSale={resetForm}
+      />
+    );
+  }
 
   const handleProductSelect = (productId: string) => {
     const prod = products.find(p => p.id === productId);
@@ -91,7 +119,9 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
     try {
       setLoading(true);
       const computedTotal = validItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice || 0), 0);
-      const res = await api.post<{ message: string }>('/sales', {
+      const selectedCustomer = customers.find(c => c.id === customerId);
+
+      const res = await api.post<{ message: string; sale?: Sale }>('/sales', {
         items: validItems,
         totalAmount: computedTotal,
         paidAmount: paymentMethod === 'credit' ? 0 : computedTotal,
@@ -99,11 +129,27 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
         customerId: customerId || undefined,
       });
 
-      setSuccessMsg(res.message);
-      setTimeout(() => {
-        onSaleCreated();
-        onClose();
-      }, 1200);
+      onSaleCreated();
+
+      const created: Sale = res.sale || {
+        id: 's-' + Date.now(),
+        businessId: 'active',
+        totalAmount: computedTotal,
+        paidAmount: paymentMethod === 'credit' ? 0 : computedTotal,
+        paymentMethod,
+        status: 'completed',
+        saleDate: new Date().toISOString(),
+        customer: selectedCustomer,
+        items: validItems.map((item, idx) => ({
+          id: 'item-' + idx,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.quantity * item.unitPrice,
+        })),
+      };
+
+      setCompletedSale(created);
     } catch (err: any) {
       setError(err.message || 'Erreur lors de l\'enregistrement de la vente.');
     } finally {
@@ -134,7 +180,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
               </p>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', color: '#94A3B8' }}>
+          <button onClick={handleClose} style={{ background: 'transparent', color: '#94A3B8' }}>
             <X size={20} />
           </button>
         </div>
@@ -298,7 +344,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
           </div>
 
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
+            <button type="button" className="btn btn-secondary" onClick={handleClose} disabled={loading}>
               Annuler
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading || totalAmount <= 0}>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Plus, Search, Trash2, Calendar, CreditCard, User, Eye, X } from 'lucide-react';
+import { Plus, Search, Trash2, User, Eye, Download } from 'lucide-react';
 import { api } from '../services/api';
 import { Sale } from '../types';
 import { useModals } from '../context/ModalContext';
+import { ReceiptModal } from '../components/modals/ReceiptModal';
 
 interface SalesPageProps {
   onOpenSaleModal?: () => void;
@@ -57,6 +58,42 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
 
   const totalFiltered = filtered.reduce((sum, s) => sum + s.totalAmount, 0);
 
+  const exportToCSV = () => {
+    if (filtered.length === 0) {
+      alert('Aucune vente à exporter.');
+      return;
+    }
+
+    const headers = ['ID Vente', 'Date', 'Heure', 'Client', 'Articles', 'Mode de Règlement', 'Montant Total (FCFA)'];
+    const rows = filtered.map(s => {
+      const d = new Date(s.saleDate);
+      const dateStr = d.toLocaleDateString('fr-FR');
+      const timeStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      const clientStr = s.customer?.name || 'Comptoir';
+      const articlesStr = s.items.map(i => `${i.quantity}x ${i.name}`).join(' | ');
+      const methodStr = s.paymentMethod === 'mobile_money' ? 'Mobile Money' : s.paymentMethod === 'credit' ? 'Crédit' : 'Espèces';
+      return [
+        `#${s.id.slice(0, 8)}`,
+        `"${dateStr}"`,
+        `"${timeStr}"`,
+        `"${clientStr}"`,
+        `"${articlesStr.replace(/"/g, '""')}"`,
+        `"${methodStr}"`,
+        s.totalAmount,
+      ].join(';');
+    });
+
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `COMMERCIA_Ventes_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="page-wrapper">
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
@@ -66,10 +103,16 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
             {filtered.length} vente(s) — Total : <strong style={{ color: '#059669' }}>{totalFiltered.toLocaleString('fr-FR')} FCFA</strong>
           </p>
         </div>
-        <button className="btn btn-primary btn-lg" onClick={onOpenSaleModal}>
-          <Plus size={18} />
-          <span>+ Nouvelle Vente</span>
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button className="btn btn-secondary" onClick={exportToCSV} title="Exporter les ventes en fichier CSV / Excel">
+            <Download size={16} />
+            <span>Exporter CSV</span>
+          </button>
+          <button className="btn btn-primary btn-lg" onClick={onOpenSaleModal}>
+            <Plus size={18} />
+            <span>+ Nouvelle Vente</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -205,75 +248,11 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
       </div>
 
       {/* Sale Detail / Receipt Modal */}
-      {selectedSale && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '440px' }}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.1rem' }}>Ticket de Vente</h3>
-              <button onClick={() => setSelectedSale(null)} style={{ background: 'transparent', color: '#94A3B8' }}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div style={{ textAlign: 'center', paddingBottom: '16px', borderBottom: '1px dashed #CBD5E1' }}>
-                <img
-                  src="/commercia-logo.png"
-                  alt="COMMERCIA"
-                  style={{
-                    width: '48px',
-                    height: '48px',
-                    objectFit: 'contain',
-                    margin: '0 auto 8px',
-                    display: 'block',
-                  }}
-                />
-                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#08162B' }}>
-                  COMMERC<span style={{ color: '#FF7A00' }}>IA</span> TICKET
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#64748B' }}>
-                  Date : {new Date(selectedSale.saleDate).toLocaleString('fr-FR')}
-                </div>
-                {selectedSale.customer && (
-                  <div style={{ fontSize: '0.85rem', fontWeight: 600, marginTop: '4px' }}>
-                    Client : {selectedSale.customer.name}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ padding: '16px 0', borderBottom: '1px dashed #CBD5E1' }}>
-                {selectedSale.items.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '0.9rem' }}>
-                    <span>
-                      {item.quantity}x {item.name}
-                    </span>
-                    <span style={{ fontWeight: 600 }}>{(item.quantity * item.unitPrice).toLocaleString('fr-FR')} FCFA</span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>TOTAL :</span>
-                <span style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0062FF' }}>
-                  {selectedSale.totalAmount.toLocaleString('fr-FR')} FCFA
-                </span>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setSelectedSale(null)}>
-                Fermer
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  window.print();
-                }}
-              >
-                Imprimer le ticket
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReceiptModal
+        sale={selectedSale}
+        isOpen={!!selectedSale}
+        onClose={() => setSelectedSale(null)}
+      />
     </div>
   );
 };

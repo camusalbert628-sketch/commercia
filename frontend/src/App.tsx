@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { Sidebar } from './components/layout/Sidebar';
@@ -8,24 +8,45 @@ import { SaleModal } from './components/modals/SaleModal';
 import { ExpenseModal } from './components/modals/ExpenseModal';
 import { QuickActionSheet } from './components/modals/QuickActionSheet';
 import { ModalProvider, useModals } from './context/ModalContext';
-
-import { AuthPage } from './pages/AuthPage';
-import { OnboardingPage } from './pages/OnboardingPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { SalesPage } from './pages/SalesPage';
-import { ExpensesPage } from './pages/ExpensesPage';
-import { CashPage } from './pages/CashPage';
-import { CustomersPage } from './pages/CustomersPage';
-import { ProductsPage } from './pages/ProductsPage';
-import { AnalyticsPage } from './pages/AnalyticsPage';
-import { CopilotPage } from './pages/CopilotPage';
-import { PlansPage } from './pages/PlansPage';
-import { SubscriptionPage } from './pages/SubscriptionPage';
-import { GrowthPage } from './pages/GrowthPage';
-import { TreasuryPage } from './pages/TreasuryPage';
-import { AdminPage } from './pages/AdminPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommerciaChatbot } from './components/chatbot/CommerciaChatbot';
+import { OfflineSyncBanner } from './components/common/OfflineSyncBanner';
+
+// Lazy-loaded pages for mobile performance and fast initial load
+const AuthPage = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage').then(m => ({ default: m.OnboardingPage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const SalesPage = lazy(() => import('./pages/SalesPage').then(m => ({ default: m.SalesPage })));
+const ExpensesPage = lazy(() => import('./pages/ExpensesPage').then(m => ({ default: m.ExpensesPage })));
+const CashPage = lazy(() => import('./pages/CashPage').then(m => ({ default: m.CashPage })));
+const CustomersPage = lazy(() => import('./pages/CustomersPage').then(m => ({ default: m.CustomersPage })));
+const ProductsPage = lazy(() => import('./pages/ProductsPage').then(m => ({ default: m.ProductsPage })));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage').then(m => ({ default: m.AnalyticsPage })));
+const CopilotPage = lazy(() => import('./pages/CopilotPage').then(m => ({ default: m.CopilotPage })));
+const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage').then(m => ({ default: m.SubscriptionPage })));
+const GrowthPage = lazy(() => import('./pages/GrowthPage').then(m => ({ default: m.GrowthPage })));
+const TreasuryPage = lazy(() => import('./pages/TreasuryPage').then(m => ({ default: m.TreasuryPage })));
+const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
+
+function PageLoadingFallback() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '12px' }}>
+      <div
+        style={{
+          width: '36px',
+          height: '36px',
+          border: '3px solid #E2E8F0',
+          borderTopColor: '#0062FF',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite',
+        }}
+      />
+      <div style={{ color: '#64748B', fontSize: '0.88rem', fontWeight: 600 }}>
+        Chargement de COMMERCIA...
+      </div>
+    </div>
+  );
+}
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const {
@@ -41,6 +62,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-container">
+      <OfflineSyncBanner />
       <Sidebar />
       <div className="main-content">
         <Navbar
@@ -49,7 +71,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         />
         <main key={refreshKey} style={{ flex: 1 }}>
           <ErrorBoundary>
-            {children}
+            <Suspense fallback={<PageLoadingFallback />}>
+              {children}
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
@@ -110,15 +134,16 @@ export function App() {
   return (
     <ModalProvider>
       <BrowserRouter>
-        <Routes>
-          <Route
-            path="/login"
-            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />}
-          />
-          <Route
-            path="/onboarding"
-            element={!isAuthenticated ? <Navigate to="/login" replace /> : <OnboardingPage />}
-          />
+        <Suspense fallback={<PageLoadingFallback />}>
+          <Routes>
+            <Route
+              path="/login"
+              element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />}
+            />
+            <Route
+              path="/onboarding"
+              element={!isAuthenticated ? <Navigate to="/login" replace /> : <OnboardingPage />}
+            />
 
           {/* Protected Application Routes */}
           <Route
@@ -229,8 +254,9 @@ export function App() {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
-      </BrowserRouter>
-    </ModalProvider>
+      </Suspense>
+    </BrowserRouter>
+  </ModalProvider>
   );
 }
 

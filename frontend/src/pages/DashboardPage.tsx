@@ -8,7 +8,6 @@ import {
   Minus,
   ArrowUpRight,
   ArrowDownRight,
-  Sparkles,
   ChevronRight,
   X,
   HelpCircle,
@@ -580,14 +579,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </tr>
             </thead>
             <tbody>
-              {Array.isArray(data?.recentTransactions?.sales) && data.recentTransactions.sales.map((s: any) => {
-                const saleTime = s.saleDate ? new Date(s.saleDate) : new Date();
-                const timeStr = !isNaN(saleTime.getTime())
+              {Array.isArray(data?.recentTransactions?.sales) && data.recentTransactions.sales.map((s: any, idx: number) => {
+                const saleTime = s.saleDate ? new Date(s.saleDate) : null;
+                const timeStr = saleTime && !isNaN(saleTime.getTime())
                   ? saleTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
                   : '--:--';
 
                 return (
-                  <tr key={s.id || Math.random()}>
+                  <tr key={s.id || `sale-${idx}`}>
                     <td>
                       <span
                         style={{
@@ -629,14 +628,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 );
               })}
 
-              {Array.isArray(data?.recentTransactions?.expenses) && data.recentTransactions.expenses.map((e: any) => {
-                const expTime = e.expenseDate ? new Date(e.expenseDate) : new Date();
-                const timeStr = !isNaN(expTime.getTime())
+              {Array.isArray(data?.recentTransactions?.expenses) && data.recentTransactions.expenses.map((e: any, idx: number) => {
+                const expTime = e.expenseDate ? new Date(e.expenseDate) : null;
+                const timeStr = expTime && !isNaN(expTime.getTime())
                   ? expTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
                   : '--:--';
 
                 return (
-                  <tr key={e.id || Math.random()}>
+                  <tr key={e.id || `expense-${idx}`}>
                     <td>
                       <span
                         style={{
