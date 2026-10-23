@@ -426,7 +426,9 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
       sector: z.string().min(1, 'Secteur requis'),
       trackingMode: z.string().default('simple'),
       dailySalesEstimate: z.string().optional(),
-    });
+      customSector: z.string().optional(),
+      businessDescription: z.string().optional(),
+    }).passthrough();
     
     const data = businessSchema.parse(req.body);
 
