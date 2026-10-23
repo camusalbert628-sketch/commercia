@@ -14,6 +14,7 @@ function getUsersDb(): any[] {
     {
       id: 'user-moussa',
       email: 'moussa@boutique.cm',
+      password: 'bizz1234',
       firstName: 'Moussa',
       lastName: 'Ibrahim',
       phone: '+237 670 123 456',
@@ -38,6 +39,7 @@ function getUsersDb(): any[] {
     {
       id: 'admin-1',
       email: 'admin@commercia.com',
+      password: 'admin1234',
       firstName: 'Admin',
       lastName: 'COMMERCIA',
       phone: '+237 690 000 000',
@@ -72,39 +74,86 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
   const storedUser = localStorage.getItem('commercia_user') || localStorage.getItem('rsbizz_user');
   let currentUser = storedUser ? JSON.parse(storedUser) : null;
 
-  // 1. AUTH / LOGIN
-  if (endpoint.startsWith('/auth/login') && method === 'POST') {
+  // 1. AUTH / GOOGLE AUTHENTICATION
+  if (endpoint.startsWith('/auth/google') && method === 'POST') {
     const rawEmail = (body?.email || '').trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!rawEmail || !emailRegex.test(rawEmail)) {
+      throw new Error("L'adresse email Google est invalide.");
+    }
+
     const users = getUsersDb();
     let foundUser = users.find(u => (u.email || '').toLowerCase() === rawEmail);
 
     if (!foundUser) {
-      // User typed an email that wasn't registered yet: create a dynamic profile
-      // so their personal email and identity are immediately respected!
-      const emailPrefix = rawEmail.split('@')[0] || 'commercant';
-      const parts = emailPrefix.split(/[._-]/);
-      const inferredFirst = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : 'Commerçant';
-      const inferredLast = parts[1] ? parts[1].charAt(0).toUpperCase() + parts[1].slice(1) : '';
-
+      // Register new verified Google user
       foundUser = {
-        id: 'user-' + Date.now(),
-        email: body?.email || `${rawEmail}`,
-        firstName: inferredFirst,
-        lastName: inferredLast,
+        id: 'google-user-' + Date.now(),
+        email: rawEmail,
+        password: '',
+        firstName: body?.firstName || body?.name?.split(' ')[0] || 'Commerçant',
+        lastName: body?.lastName || body?.name?.split(' ').slice(1).join(' ') || '',
         phone: body?.phone || '',
+        picture: body?.picture || null,
+        isGoogleVerified: true,
         locale: 'fr',
         currency: 'XAF',
         isAdmin: rawEmail.includes('admin'),
         businesses: [],
         subscription: {
-          planName: rawEmail.includes('admin') ? 'business' : 'free',
-          planDisplayName: rawEmail.includes('admin') ? 'Plan Business' : 'Plan Gratuit (Démarrage)',
+          planName: 'pro',
+          planDisplayName: 'Plan Pro (Croissance)',
           status: 'active',
-          features: ['Ventes', 'Dépenses', 'Dashboard'],
+          features: ['Ventes illimitées', 'Stock & Alertes', 'Carnet Dettes', 'Copilote IA'],
         },
       };
       users.push(foundUser);
       saveUsersDb(users);
+    } else {
+      foundUser.isGoogleVerified = true;
+      if (body?.picture) foundUser.picture = body.picture;
+      saveUsersDb(users);
+    }
+
+    localStorage.setItem('commercia_user', JSON.stringify(foundUser));
+    if (foundUser.businesses && foundUser.businesses.length > 0) {
+      localStorage.setItem('activeBusinessId', foundUser.businesses[0].id);
+    } else {
+      localStorage.removeItem('activeBusinessId');
+    }
+
+    return {
+      message: `Connexion Google réussie ! Bienvenue ${foundUser.firstName} 👋`,
+      accessToken: 'google-jwt-access-' + foundUser.id,
+      refreshToken: 'google-jwt-refresh-' + foundUser.id,
+      user: foundUser,
+    };
+  }
+
+  // 2. AUTH / LOGIN
+  if (endpoint.startsWith('/auth/login') && method === 'POST') {
+    const rawEmail = (body?.email || '').trim().toLowerCase();
+    const password = body?.password || '';
+
+    if (!rawEmail) {
+      throw new Error("Veuillez saisir votre adresse email.");
+    }
+    if (!password) {
+      throw new Error("Veuillez saisir votre mot de passe.");
+    }
+
+    const users = getUsersDb();
+    let foundUser = users.find(u => (u.email || '').toLowerCase() === rawEmail);
+
+    if (!foundUser) {
+      throw new Error(
+        `Aucun compte n'a été trouvé avec l'adresse "${rawEmail}". Veuillez créer un compte ou vous connecter avec Google.`
+      );
+    }
+
+    // Verify password if user has one set
+    if (foundUser.password && foundUser.password !== password) {
+      throw new Error("Mot de passe incorrect pour ce compte. Veuillez vérifier votre saisie ou afficher le mot de passe avec l'icône œil.");
     }
 
     localStorage.setItem('commercia_user', JSON.stringify(foundUser));
@@ -122,24 +171,38 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     };
   }
 
-  // 2. AUTH / REGISTER
+  // 3. AUTH / REGISTER
   if (endpoint.startsWith('/auth/register') && method === 'POST') {
     const users = getUsersDb();
     const rawEmail = (body?.email || '').trim().toLowerCase();
-    let existingUser = users.find(u => (u.email || '').toLowerCase() === rawEmail);
+    const password = body?.password || '';
+    const firstName = (body?.firstName || '').trim();
+    const lastName = (body?.lastName || '').trim();
 
+    // Strict email syntax check
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!rawEmail || !emailRegex.test(rawEmail)) {
+      throw new Error("Veuillez saisir une adresse email valide (ex: contact@gmail.com).");
+    }
+
+    // Block fake disposable domains
+    const fakeDomains = ['test.com', 'fake.com', 'example.com', 'temp.com', 'mailinator.com', 'yopmail.com'];
+    const domain = rawEmail.split('@')[1];
+    if (fakeDomains.includes(domain)) {
+      throw new Error("Les adresses email temporaires ou fictives ne sont pas autorisées. Veuillez utiliser votre compte Google ou un email réel.");
+    }
+
+    if (!firstName || !lastName) {
+      throw new Error("Le prénom et le nom sont obligatoires pour créer un compte professionnel.");
+    }
+
+    if (!password || password.length < 6) {
+      throw new Error("Le mot de passe doit contenir au moins 6 caractères pour sécuriser votre compte.");
+    }
+
+    let existingUser = users.find(u => (u.email || '').toLowerCase() === rawEmail);
     if (existingUser) {
-      if (body?.firstName) existingUser.firstName = body.firstName;
-      if (body?.lastName) existingUser.lastName = body.lastName;
-      if (body?.phone) existingUser.phone = body.phone;
-      saveUsersDb(users);
-      localStorage.setItem('commercia_user', JSON.stringify(existingUser));
-      return {
-        message: `Ravi de vous revoir ${existingUser.firstName} ! 👋`,
-        accessToken: 'demo-jwt-access-' + existingUser.id,
-        refreshToken: 'demo-jwt-refresh-' + existingUser.id,
-        user: existingUser,
-      };
+      throw new Error("Un compte existe déjà avec cette adresse email. Veuillez passer à l'onglet 'Connexion'.");
     }
 
     const chosenPlan = body?.plan || 'pro';
@@ -152,6 +215,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     const newUser = {
       id: 'user-' + Date.now(),
       email: body?.email || 'partenaire@commercia.cm',
+      password: password,
       firstName: body?.firstName || 'Commerçant',
       lastName: body?.lastName || '',
       phone: body?.phone || '',

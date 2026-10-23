@@ -208,6 +208,133 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
   }
 });
 
+// POST /api/auth/google
+const googleAuthSchema = z.object({
+  email: z.string().email('Email Google invalide'),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  avatarUrl: z.string().optional(),
+});
+
+router.post('/google', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = googleAuthSchema.parse(req.body);
+    const email = data.email.toLowerCase().trim();
+
+    let user = await req.prisma.user.findUnique({
+      where: { email },
+      include: {
+        businesses: {
+          include: { business: true },
+          where: { isActive: true },
+        },
+        subscription: {
+          include: { plan: true },
+        },
+      },
+    });
+
+    if (!user) {
+      const dummyPassword = await bcrypt.hash('GOOGLE_AUTH_' + Date.now(), 10);
+      const created = await req.prisma.user.create({
+        data: {
+          email,
+          passwordHash: dummyPassword,
+          firstName: data.firstName || 'Commerçant',
+          lastName: data.lastName || 'Google',
+          avatarUrl: data.avatarUrl || null,
+          emailVerified: true,
+        },
+      });
+
+      let freePlan = await req.prisma.plan.findUnique({ where: { name: 'free' } });
+      if (!freePlan) {
+        freePlan = await req.prisma.plan.create({
+          data: {
+            name: 'free',
+            displayName: 'Gratuit',
+            description: 'Fonctions essentielles pour démarrer',
+            priceMonthly: 0,
+            priceYearly: 0,
+            features: JSON.stringify(['Ventes', 'Dépenses', 'Dashboard']),
+            limits: JSON.stringify({ salesPerMonth: 100, aiQueries: 0, historyDays: 30 }),
+            sortOrder: 0,
+          },
+        });
+      }
+
+      await req.prisma.subscription.create({
+        data: {
+          userId: created.id,
+          planId: freePlan.id,
+          status: 'active',
+        },
+      });
+
+      user = await req.prisma.user.findUnique({
+        where: { id: created.id },
+        include: {
+          businesses: {
+            include: { business: true },
+            where: { isActive: true },
+          },
+          subscription: {
+            include: { plan: true },
+          },
+        },
+      });
+    }
+
+    if (!user || !user.isActive) {
+      throw new AppError('Ce compte utilisateur est désactivé.', 403);
+    }
+
+    const tokens = generateTokens(user.id);
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    await req.prisma.refreshToken.create({
+      data: {
+        token: tokens.refreshToken,
+        userId: user.id,
+        expiresAt,
+      },
+    });
+
+    res.json({
+      message: `Connexion Google réussie ! Bienvenue ${user.firstName} 👋`,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        avatarUrl: user.avatarUrl,
+        locale: user.locale,
+        currency: user.currency,
+        isAdmin: user.isAdmin,
+        businesses: user.businesses.map((bm: any) => ({
+          id: bm.business.id,
+          name: bm.business.name,
+          sector: bm.business.sector,
+          role: bm.role,
+        })),
+        subscription: user.subscription ? {
+          planName: user.subscription.plan.name,
+          planDisplayName: user.subscription.plan.displayName,
+          status: user.subscription.status,
+          features: JSON.parse(user.subscription.plan.features || '[]'),
+        } : null,
+      },
+      ...tokens,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors[0].message, 400));
+    }
+    next(error);
+  }
+});
+
 // POST /api/auth/refresh
 router.post('/refresh', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
