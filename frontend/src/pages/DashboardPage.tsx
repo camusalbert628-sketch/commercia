@@ -46,6 +46,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [trends, setTrends] = useState<Array<{ date: string; sales: number; expenses: number; profit: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [showWhyModal, setShowWhyModal] = useState(false);
+  const [hideBanner, setHideBanner] = useState(false);
 
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
   const businessName = activeBusiness?.name || (data as any)?.businessName || 'Votre Boutique';
@@ -94,7 +95,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const safeDebtTotal = Number(debt.total || 0);
 
   const planName = user?.subscription?.planName || 'free';
-  const [hideBanner, setHideBanner] = useState(false);
 
   return (
     <div className="page-wrapper">
