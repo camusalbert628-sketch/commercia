@@ -87,6 +87,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const today = data?.today || { sales: 0, salesCount: 0, expenses: 0, profit: 0 };
   const debt = data?.debt || { total: 0, customerCount: 0 };
+  const safeProfit = Number(today.profit || 0);
+  const safeRevenue = Number(today.revenue !== undefined ? today.revenue : (today.sales || 0));
+  const safeCashCollected = Number(today.cashCollected !== undefined ? today.cashCollected : safeRevenue);
+  const safeOperatingExpenses = Number(today.operatingExpenses !== undefined ? today.operatingExpenses : (today.expenses || 0));
+  const safeDebtTotal = Number(debt.total || 0);
 
   const planName = user?.subscription?.planName || 'free';
   const [hideBanner, setHideBanner] = useState(false);
@@ -316,10 +321,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             />
             <div>
               <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#08162B', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>Copilote IA : {data.insights[0].title}</span>
+                <span>Copilote IA : {data.insights[0]?.title || 'Copilote COMMERCIA'}</span>
                 <span className="brand-tag">COMMERCIA</span>
               </div>
-              <div style={{ fontSize: '0.88rem', color: '#334155' }}>{data.insights[0].message}</div>
+              <div style={{ fontSize: '0.88rem', color: '#334155' }}>{data.insights[0]?.message || 'Prêt à vous accompagner.'}</div>
             </div>
           </div>
           <Link
@@ -355,9 +360,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 Pourquoi ?
               </button>
             </div>
-            <div className="stat-value" style={{ color: today.profit >= 0 ? '#10B981' : '#EF4444' }}>
-              {today.profit > 0 ? '+' : ''}
-              {today.profit.toLocaleString('fr-FR')} FCFA
+            <div className="stat-value" style={{ color: safeProfit >= 0 ? '#10B981' : '#EF4444' }}>
+              {safeProfit > 0 ? '+' : ''}
+              {safeProfit.toLocaleString('fr-FR')} FCFA
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
               {today.grossMarginPercent !== undefined ? `Marge brute : ${today.grossMarginPercent}%` : 'Recettes nettes après coûts & charges'}
@@ -372,9 +377,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="stat-card sales">
           <div>
             <div className="stat-label">Chiffre d'affaires</div>
-            <div className="stat-value">{(today.revenue || today.sales).toLocaleString('fr-FR')} FCFA</div>
+            <div className="stat-value">{safeRevenue.toLocaleString('fr-FR')} FCFA</div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
-              {today.salesCount} vente(s) facturée(s)
+              {Number(today.salesCount || 0)} vente(s) facturée(s)
             </div>
           </div>
           <div className="stat-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
@@ -387,11 +392,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div>
             <div className="stat-label">Encaissements réels</div>
             <div className="stat-value" style={{ color: '#2563EB' }}>
-              {(today.cashCollected !== undefined ? today.cashCollected : today.sales).toLocaleString('fr-FR')} FCFA
+              {safeCashCollected.toLocaleString('fr-FR')} FCFA
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
               {today.creditSales && today.creditSales > 0 ? (
-                <span style={{ color: '#DC2626' }}>⚠️ {today.creditSales.toLocaleString('fr-FR')} FCFA à crédit</span>
+                <span style={{ color: '#DC2626' }}>⚠️ {Number(today.creditSales).toLocaleString('fr-FR')} FCFA à crédit</span>
               ) : (
                 'Espèces & Mobile Money entrés'
               )}
@@ -422,11 +427,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div>
             <div className="stat-label">Charges d'exploitation</div>
             <div className="stat-value" style={{ color: '#D97706' }}>
-              {(today.operatingExpenses !== undefined ? today.operatingExpenses : today.expenses).toLocaleString('fr-FR')} FCFA
+              {safeOperatingExpenses.toLocaleString('fr-FR')} FCFA
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
               {today.personalWithdrawals && today.personalWithdrawals > 0
-                ? `Dont ${today.personalWithdrawals.toLocaleString('fr-FR')} F retirés perso`
+                ? `Dont ${Number(today.personalWithdrawals).toLocaleString('fr-FR')} F retirés perso`
                 : 'Frais de fonctionnement boutique'}
             </div>
           </div>
@@ -440,10 +445,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div>
             <div className="stat-label">Crédits clients en attente</div>
             <div className="stat-value" style={{ color: '#EF4444' }}>
-              {debt.total.toLocaleString('fr-FR')} FCFA
+              {safeDebtTotal.toLocaleString('fr-FR')} FCFA
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
-              {debt.customerCount} client(s) à relancer
+              {Number(debt.customerCount || 0)} client(s) à relancer
             </div>
           </div>
           <div className="stat-icon" style={{ background: '#FEE2E2', color: '#EF4444' }}>
@@ -474,7 +479,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
           <div style={{ width: '100%', height: '240px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <AreaChart data={Array.isArray(trends) ? trends : []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0062FF" stopOpacity={0.4} />
@@ -499,7 +504,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <YAxis
                   stroke="#94A3B8"
                   fontSize={11}
-                  tickFormatter={v => (v >= 1000 ? `${v / 1000}k` : v)}
+                  tickFormatter={v => (Number(v || 0) >= 1000 ? `${(Number(v || 0) / 1000).toFixed(0)}k` : v)}
                 />
                 <Tooltip
                   formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} FCFA`}
@@ -575,77 +580,93 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </tr>
             </thead>
             <tbody>
-              {data?.recentTransactions?.sales?.map(s => (
-                <tr key={s.id}>
-                  <td>
-                    <span
-                      style={{
-                        background: '#ECFDF5',
-                        color: '#059669',
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      + Vente
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>
-                      {s.items && s.items.length > 0 ? s.items.map(i => i.name).join(', ') : 'Vente comptoir'}
-                    </div>
-                    {s.customer && <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Client : {s.customer.name}</div>}
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.82rem', textTransform: 'capitalize' }}>
-                      {s.paymentMethod === 'mobile_money'
-                        ? '📱 Mobile Money'
-                        : s.paymentMethod === 'credit'
-                        ? '⏳ Crédit'
-                        : '💵 Espèces'}
-                    </span>
-                  </td>
-                  <td style={{ fontWeight: 700, color: '#059669' }}>
-                    +{s.totalAmount.toLocaleString('fr-FR')} FCFA
-                  </td>
-                  <td style={{ fontSize: '0.8rem', color: '#64748B' }}>
-                    {new Date(s.saleDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                  </td>
-                </tr>
-              ))}
+              {Array.isArray(data?.recentTransactions?.sales) && data.recentTransactions.sales.map((s: any) => {
+                const saleTime = s.saleDate ? new Date(s.saleDate) : new Date();
+                const timeStr = !isNaN(saleTime.getTime())
+                  ? saleTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                  : '--:--';
 
-              {data?.recentTransactions?.expenses?.map(e => (
-                <tr key={e.id}>
-                  <td>
-                    <span
-                      style={{
-                        background: '#FEF3C7',
-                        color: '#D97706',
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      - Dépense
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600 }}>{e.category}</div>
-                    {e.description && <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{e.description}</div>}
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.82rem' }}>Sortie caisse</span>
-                  </td>
-                  <td style={{ fontWeight: 700, color: '#DC2626' }}>
-                    -{e.amount.toLocaleString('fr-FR')} FCFA
-                  </td>
-                  <td style={{ fontSize: '0.8rem', color: '#64748B' }}>
-                    {new Date(e.expenseDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                  </td>
-                </tr>
-              ))}
+                return (
+                  <tr key={s.id || Math.random()}>
+                    <td>
+                      <span
+                        style={{
+                          background: '#ECFDF5',
+                          color: '#059669',
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        + Vente
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>
+                        {s.items && Array.isArray(s.items) && s.items.length > 0
+                          ? s.items.map((i: any) => i?.name || 'Article').join(', ')
+                          : 'Vente comptoir'}
+                      </div>
+                      {s.customer && <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Client : {s.customer.name}</div>}
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.82rem', textTransform: 'capitalize' }}>
+                        {s.paymentMethod === 'mobile_money'
+                          ? '📱 Mobile Money'
+                          : s.paymentMethod === 'credit'
+                          ? '⏳ Crédit'
+                          : '💵 Espèces'}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 700, color: '#059669' }}>
+                      +{Number(s.totalAmount || 0).toLocaleString('fr-FR')} FCFA
+                    </td>
+                    <td style={{ fontSize: '0.8rem', color: '#64748B' }}>
+                      {timeStr}
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {Array.isArray(data?.recentTransactions?.expenses) && data.recentTransactions.expenses.map((e: any) => {
+                const expTime = e.expenseDate ? new Date(e.expenseDate) : new Date();
+                const timeStr = !isNaN(expTime.getTime())
+                  ? expTime.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                  : '--:--';
+
+                return (
+                  <tr key={e.id || Math.random()}>
+                    <td>
+                      <span
+                        style={{
+                          background: '#FEF3C7',
+                          color: '#D97706',
+                          padding: '4px 10px',
+                          borderRadius: '20px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        - Dépense
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{e.category || 'Dépense'}</div>
+                      {e.description && <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{e.description}</div>}
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.82rem' }}>Sortie caisse</span>
+                    </td>
+                    <td style={{ fontWeight: 700, color: '#DC2626' }}>
+                      -{Number(e.amount || 0).toLocaleString('fr-FR')} FCFA
+                    </td>
+                    <td style={{ fontSize: '0.8rem', color: '#64748B' }}>
+                      {timeStr}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {(!data?.recentTransactions?.sales?.length && !data?.recentTransactions?.expenses?.length) && (
                 <tr>

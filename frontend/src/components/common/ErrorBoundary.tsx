@@ -56,9 +56,29 @@ export class ErrorBoundary extends Component<Props, State> {
             <h2 style={{ fontSize: '1.3rem', marginBottom: '8px', color: '#0F172A' }}>
               Une difficulté est survenue
             </h2>
-            <p style={{ color: '#64748B', fontSize: '0.9rem', marginBottom: '20px' }}>
+            <p style={{ color: '#64748B', fontSize: '0.9rem', marginBottom: '16px' }}>
               COMMERCIA a rencontré un imprévu lors de l'affichage de cet écran.
             </p>
+            {this.state.error && (
+              <div
+                style={{
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  color: '#991B1B',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  fontFamily: 'monospace',
+                  textAlign: 'left',
+                  marginBottom: '18px',
+                  maxHeight: '120px',
+                  overflowY: 'auto',
+                  wordBreak: 'break-word',
+                }}
+              >
+                <strong>{this.state.error.name}:</strong> {this.state.error.message}
+              </div>
+            )}
             <button
               className="btn btn-primary"
               onClick={() => {
