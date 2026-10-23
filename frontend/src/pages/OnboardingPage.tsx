@@ -53,6 +53,7 @@ export const OnboardingPage: React.FC = () => {
   const [sector, setSector] = useState('commerce');
   const [trackingMode, setTrackingMode] = useState('complet');
   const [dailySalesEstimate, setDailySalesEstimate] = useState(REVENUE_ESTIMATES[1]);
+  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | 'business'>('pro');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -70,6 +71,7 @@ export const OnboardingPage: React.FC = () => {
         sector: sector || 'commerce',
         trackingMode: trackingMode || 'complet',
         dailySalesEstimate: dailySalesEstimate || REVENUE_ESTIMATES[1],
+        plan: selectedPlan,
       });
 
       if (res?.business?.id) {
@@ -138,7 +140,7 @@ export const OnboardingPage: React.FC = () => {
           <div
             style={{
               height: '100%',
-              width: `${(step / 4) * 100}%`,
+              width: `${(step / 5) * 100}%`,
               background: 'linear-gradient(90deg, #0062FF 0%, #FF6B00 100%)',
               transition: 'width 0.3s ease',
             }}
@@ -148,7 +150,7 @@ export const OnboardingPage: React.FC = () => {
         <div style={{ padding: '36px 32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0062FF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {`Étape ${step} sur 4`}
+              {`Étape ${step} sur 5`}
             </span>
             <span style={{ fontSize: '0.8rem', color: '#94A3B8' }}>Configuration en 1 minute</span>
           </div>
@@ -295,6 +297,125 @@ export const OnboardingPage: React.FC = () => {
             </div>
           )}
 
+          {/* STEP 5: CHOIX DU PLAN COMMERCIA */}
+          {step === 5 && (
+            <div key="step-5">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <Rocket size={22} color="#0062FF" />
+                <h2 style={{ fontSize: '1.45rem', margin: 0 }}>Choisissez votre formule d'abonnement</h2>
+              </div>
+              <p style={{ color: '#64748B', fontSize: '0.95rem', marginBottom: '18px' }}>
+                Le système configurera automatiquement vos fonctionnalités selon le forfait choisi.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* PLAN GRATUIT */}
+                <div
+                  onClick={() => setSelectedPlan('free')}
+                  style={{
+                    padding: '16px 18px',
+                    borderRadius: '14px',
+                    border: selectedPlan === 'free' ? '2px solid #0062FF' : '1px solid #E2E8F0',
+                    background: selectedPlan === 'free' ? '#EFF6FF' : '#FFFFFF',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: selectedPlan === 'free' ? '0 6px 16px rgba(0, 98, 255, 0.12)' : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0F172A' }}>Plan Gratuit (Démarrage)</span>
+                      <span style={{ fontSize: '0.72rem', background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                        0 FCFA
+                      </span>
+                    </div>
+                    {selectedPlan === 'free' && <Check size={18} color="#0062FF" strokeWidth={3} />}
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#64748B', margin: '0 0 8px 0' }}>
+                    15 ventes/jour maximum • Calcul bénéfice de base.
+                  </p>
+                  <div style={{ fontSize: '0.78rem', color: '#D97706', background: '#FFFBEB', padding: '6px 10px', borderRadius: '8px', border: '1px solid #FDE68A' }}>
+                    ⚠️ Note : Le système vous rappellera par notifications les bénéfices du Plan Pro (ventes illimitées & gestion stocks).
+                  </div>
+                </div>
+
+                {/* PLAN PRO (RECOMMANDÉ) */}
+                <div
+                  onClick={() => setSelectedPlan('pro')}
+                  style={{
+                    padding: '16px 18px',
+                    borderRadius: '14px',
+                    border: selectedPlan === 'pro' ? '2px solid #0062FF' : '2px solid #DBEAFE',
+                    background: selectedPlan === 'pro' ? '#EFF6FF' : '#FFFFFF',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                    boxShadow: selectedPlan === 'pro' ? '0 8px 20px rgba(0, 98, 255, 0.16)' : '0 2px 6px rgba(0, 0, 0, 0.04)',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '-10px',
+                      right: '16px',
+                      background: 'linear-gradient(135deg, #0062FF 0%, #0045B5 100%)',
+                      color: '#FFFFFF',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      padding: '3px 10px',
+                      borderRadius: '20px',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    ⭐ PLUS POPULAIRE (RECOMMANDÉ)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0062FF' }}>Plan Pro (Croissance)</span>
+                      <span style={{ fontSize: '0.75rem', background: '#DBEAFE', color: '#0062FF', padding: '2px 8px', borderRadius: '12px', fontWeight: 800 }}>
+                        4 500 FCFA / mois
+                      </span>
+                    </div>
+                    {selectedPlan === 'pro' && <Check size={18} color="#0062FF" strokeWidth={3} />}
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#334155', margin: '0 0 6px 0', fontWeight: 500 }}>
+                    🚀 <strong>Ventes illimitées</strong> + Gestion de stocks + Alertes ruptures + Carnet de crédits & relance WhatsApp + <strong>Copilote IA</strong>.
+                  </p>
+                  <div style={{ fontSize: '0.78rem', color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sparkles size={14} /> Idéal pour sécuriser vos marges et votre caisse dès le premier jour.
+                  </div>
+                </div>
+
+                {/* PLAN BUSINESS */}
+                <div
+                  onClick={() => setSelectedPlan('business')}
+                  style={{
+                    padding: '16px 18px',
+                    borderRadius: '14px',
+                    border: selectedPlan === 'business' ? '2px solid #FF6B00' : '1px solid #E2E8F0',
+                    background: selectedPlan === 'business' ? '#FFF7ED' : '#FFFFFF',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: selectedPlan === 'business' ? '0 6px 16px rgba(255, 107, 0, 0.14)' : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0F172A' }}>Plan Business (Multi-boutiques)</span>
+                      <span style={{ fontSize: '0.75rem', background: '#FFEDD5', color: '#C2410C', padding: '2px 8px', borderRadius: '12px', fontWeight: 800 }}>
+                        12 000 FCFA / mois
+                      </span>
+                    </div>
+                    {selectedPlan === 'business' && <Check size={18} color="#FF6B00" strokeWidth={3} />}
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#64748B', margin: '0 0 6px 0' }}>
+                    Multi-boutiques isolées, gestion des rôles caissiers/gérants, rapports PDF hebdomadaires et support WhatsApp VIP.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Navigation Controls */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '32px' }}>
             {step > 1 ? (
@@ -308,7 +429,7 @@ export const OnboardingPage: React.FC = () => {
               </button>
             ) : <div />}
 
-            {step < 4 ? (
+            {step < 5 ? (
               <button
                 type="button"
                 className="btn btn-primary"
@@ -331,7 +452,7 @@ export const OnboardingPage: React.FC = () => {
                 disabled={loading}
                 style={{ flex: 1, marginLeft: '12px' }}
               >
-                {loading ? 'Création de votre espace...' : 'Accéder au Tableau de Bord 🚀'}
+                {loading ? 'Création de votre espace vierge...' : 'Finaliser & Accéder au Tableau de Bord 🚀'}
               </button>
             )}
           </div>

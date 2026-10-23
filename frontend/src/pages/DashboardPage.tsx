@@ -88,8 +88,152 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const today = data?.today || { sales: 0, salesCount: 0, expenses: 0, profit: 0 };
   const debt = data?.debt || { total: 0, customerCount: 0 };
 
+  const planName = user?.subscription?.planName || 'free';
+  const [hideBanner, setHideBanner] = useState(false);
+
   return (
     <div className="page-wrapper">
+      {/* Plan Upgrade Reminder Banner */}
+      {!hideBanner && planName === 'free' && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #0A2540 0%, #004BD6 100%)',
+            borderRadius: '16px',
+            padding: '16px 22px',
+            marginBottom: '20px',
+            color: '#FFFFFF',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '14px',
+            boxShadow: '0 8px 24px rgba(0, 98, 255, 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'rgba(255, 255, 255, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.3rem',
+              }}
+            >
+              🚀
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontWeight: 800, fontSize: '1.02rem', color: '#FFFFFF' }}>
+                  Vous utilisez le Plan Gratuit (Démarrage)
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    background: '#FF7A00',
+                    color: '#FFFFFF',
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                  }}
+                >
+                  Limite : 15 ventes / jour
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#BFDBFE' }}>
+                Passez au <strong>Plan Pro (4 500 FCFA/mois)</strong> pour débloquer : Ventes illimitées • Gestion de stock & alertes ruptures • Relances créances WhatsApp • Copilote IA omniscient.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Link
+              to="/subscription"
+              style={{
+                background: '#FF6B00',
+                color: '#FFFFFF',
+                padding: '9px 18px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+                textDecoration: 'none',
+                boxShadow: '0 4px 12px rgba(255, 107, 0, 0.3)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span>Découvrir le Plan Pro</span>
+              <ArrowUpRight size={16} />
+            </Link>
+            <button
+              onClick={() => setHideBanner(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#94A3B8',
+                cursor: 'pointer',
+                padding: '6px',
+              }}
+              title="Masquer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!hideBanner && planName === 'pro' && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%)',
+            border: '1px solid #A7F3D0',
+            borderRadius: '16px',
+            padding: '14px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '1.25rem' }}>⭐</span>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#065F46' }}>
+                Votre boutique tourne sur le Plan Pro (Croissance)
+              </span>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: '#047857' }}>
+                Besoin de gérer plusieurs points de vente ou d'isoler la caisse de vos employés ? Découvrez le <strong>Plan Business (12 000 FCFA/mois)</strong>.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Link
+              to="/subscription"
+              style={{
+                color: '#059669',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                textDecoration: 'underline',
+              }}
+            >
+              Voir avantages Business →
+            </Link>
+            <button
+              onClick={() => setHideBanner(true)}
+              style={{ background: 'transparent', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: '4px' }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Welcome Banner & Action Buttons */}
       <div
         style={{

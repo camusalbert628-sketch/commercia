@@ -142,6 +142,13 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       };
     }
 
+    const chosenPlan = body?.plan || 'pro';
+    const planMeta = chosenPlan === 'business'
+      ? { planName: 'business', planDisplayName: 'Plan Business (Multi-boutiques)', features: ['Multi-boutiques & rôles', 'Rapports PDF', 'Copilote IA illimité'] }
+      : chosenPlan === 'free'
+      ? { planName: 'free', planDisplayName: 'Plan Gratuit (Démarrage)', features: ['15 ventes/jour', 'Calcul de base'] }
+      : { planName: 'pro', planDisplayName: 'Plan Pro (Croissance)', features: ['Ventes illimitées', 'Stock & Alertes', 'Carnet Dettes', 'Copilote IA'] };
+
     const newUser = {
       id: 'user-' + Date.now(),
       email: body?.email || 'partenaire@commercia.cm',
@@ -153,10 +160,10 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       isAdmin: false,
       businesses: [],
       subscription: {
-        planName: 'free',
-        planDisplayName: 'Plan Gratuit (Démarrage)',
+        planName: planMeta.planName,
+        planDisplayName: planMeta.planDisplayName,
         status: 'active',
-        features: ['Jusqu\'à 15 ventes/jour', 'Calcul bénéfice'],
+        features: planMeta.features,
       },
     };
 
@@ -164,6 +171,22 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     saveUsersDb(users);
     localStorage.setItem('commercia_user', JSON.stringify(newUser));
     localStorage.removeItem('activeBusinessId');
+
+    // Also sync subscription engine state
+    const subState = {
+      id: 'sub-' + Date.now(),
+      commerceId: 'bizz-' + Date.now(),
+      planId: `plan-${planMeta.planName}`,
+      etat: planMeta.planName === 'free' ? 'AUCUN' : 'ACTIF',
+      periodicite: 'mensuel',
+      dateDebutPeriode: new Date().toISOString(),
+      dateFinPeriode: new Date(Date.now() + 30 * 86400000).toISOString(),
+      essaiUtilise: false,
+      resiliationDemandee: false,
+      renouvellementAuto: false,
+      joursRestants: 30,
+    };
+    try { localStorage.setItem('commercia_subscription_state', JSON.stringify(subState)); } catch (e) { /* ignore */ }
 
     return {
       message: 'Compte créé avec succès ! 🎉',
@@ -198,8 +221,22 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       role: 'owner',
     };
 
+    // Selected plan from onboarding step
+    const chosenPlan = body?.plan || currentUser?.subscription?.planName || 'pro';
+    const planMeta = chosenPlan === 'business'
+      ? { planName: 'business', planDisplayName: 'Plan Business (Multi-boutiques)', features: ['Multi-boutiques & rôles', 'Rapports PDF', 'Copilote IA illimité'] }
+      : chosenPlan === 'free'
+      ? { planName: 'free', planDisplayName: 'Plan Gratuit (Démarrage)', features: ['15 ventes/jour', 'Calcul de base'] }
+      : { planName: 'pro', planDisplayName: 'Plan Pro (Croissance)', features: ['Ventes illimitées', 'Stock & Alertes', 'Carnet Dettes', 'Copilote IA'] };
+
     if (currentUser) {
       currentUser.businesses = [newBizz, ...(currentUser.businesses || [])];
+      currentUser.subscription = {
+        planName: planMeta.planName,
+        planDisplayName: planMeta.planDisplayName,
+        status: 'active',
+        features: planMeta.features,
+      };
       localStorage.setItem('commercia_user', JSON.stringify(currentUser));
 
       const users = getUsersDb();
@@ -210,6 +247,34 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       }
     }
     localStorage.setItem('activeBusinessId', newBizz.id);
+
+    // CRITICAL: Ensure absolute virgin state for newly registered account/business!
+    // Zero sales, zero expenses, zero products, zero customers, zero movements
+    localStorage.setItem(`commercia_sales_${newBizz.id}`, JSON.stringify([]));
+    localStorage.setItem(`commercia_expenses_${newBizz.id}`, JSON.stringify([]));
+    localStorage.setItem(`commercia_products_${newBizz.id}`, JSON.stringify([]));
+    localStorage.setItem(`commercia_customers_${newBizz.id}`, JSON.stringify([]));
+    localStorage.setItem('commercia_active_cash_session', '');
+    localStorage.removeItem('commercia_active_cash_session');
+    localStorage.setItem('commercia_past_cash_sessions', JSON.stringify([]));
+    localStorage.setItem('commercia_treasury_movements', JSON.stringify([]));
+    localStorage.setItem('commercia_treasury_echeances', JSON.stringify([]));
+
+    // Sync subscription engine state
+    const subState = {
+      id: 'sub-' + Date.now(),
+      commerceId: newBizz.id,
+      planId: `plan-${planMeta.planName}`,
+      etat: planMeta.planName === 'free' ? 'AUCUN' : 'ACTIF',
+      periodicite: 'mensuel',
+      dateDebutPeriode: new Date().toISOString(),
+      dateFinPeriode: new Date(Date.now() + 30 * 86400000).toISOString(),
+      essaiUtilise: false,
+      resiliationDemandee: false,
+      renouvellementAuto: false,
+      joursRestants: 30,
+    };
+    try { localStorage.setItem('commercia_subscription_state', JSON.stringify(subState)); } catch (e) { /* ignore */ }
 
     return {
       message: 'Activité créée avec succès ! 🎉',
@@ -225,9 +290,9 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' || userObj?.id === 'user-moussa';
 
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
-    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || localStorage.getItem('commercia_sales');
+    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
     const localSales = rawSales ? JSON.parse(rawSales) : [];
-    const rawExpenses = localStorage.getItem(`commercia_expenses_${activeBizId}`) || localStorage.getItem('commercia_expenses');
+    const rawExpenses = localStorage.getItem(`commercia_expenses_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
     const localExpenses = rawExpenses ? JSON.parse(rawExpenses) : [];
 
     const defaultSales = isDemoMoussa && localSales.length === 0 ? [
@@ -385,26 +450,57 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
   // 6. ANALYTICS / TRENDS
   if (endpoint.startsWith('/analytics/trends')) {
+    const rawUser = localStorage.getItem('commercia_user');
+    const u = rawUser ? JSON.parse(rawUser) : currentUser;
+    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
+    const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
+    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+    const localSales = rawSales ? JSON.parse(rawSales) : [];
+
     const days = 7;
     const result = [];
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      const sales = Math.floor(25000 + Math.random() * 45000);
-      const expenses = Math.floor(10000 + Math.random() * 20000);
-      result.push({
-        date: dateStr,
-        sales,
-        expenses,
-        profit: sales - expenses,
-      });
+
+      if (!isDemoMoussa && localSales.length === 0) {
+        result.push({ date: dateStr, sales: 0, expenses: 0, profit: 0 });
+      } else {
+        const sales = Math.floor(25000 + Math.random() * 45000);
+        const expenses = Math.floor(10000 + Math.random() * 20000);
+        result.push({
+          date: dateStr,
+          sales,
+          expenses,
+          profit: sales - expenses,
+        });
+      }
     }
     return result;
   }
 
   // 7. ANALYTICS / CATEGORIES
   if (endpoint.startsWith('/analytics/categories')) {
+    const rawUser = localStorage.getItem('commercia_user');
+    const u = rawUser ? JSON.parse(rawUser) : currentUser;
+    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
+    const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
+    const rawExp = localStorage.getItem(`commercia_expenses_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
+    const localExp = rawExp ? JSON.parse(rawExp) : [];
+
+    if (!isDemoMoussa && localExp.length === 0) {
+      return [];
+    }
+
+    if (localExp.length > 0) {
+      const catMap: Record<string, number> = {};
+      localExp.forEach((e: any) => {
+        catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount || 0);
+      });
+      return Object.entries(catMap).map(([category, amount]) => ({ category, amount }));
+    }
+
     return [
       { category: 'Marchandise', amount: 85000 },
       { category: 'Loyer boutique', amount: 45000 },
@@ -417,6 +513,17 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
   // 8. ANALYTICS / TOP PRODUCTS
   if (endpoint.startsWith('/analytics/top-products')) {
+    const rawUser = localStorage.getItem('commercia_user');
+    const u = rawUser ? JSON.parse(rawUser) : currentUser;
+    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
+    const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
+    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+    const localSales = rawSales ? JSON.parse(rawSales) : [];
+
+    if (!isDemoMoussa && localSales.length === 0) {
+      return [];
+    }
+
     return [
       { name: 'Riz Blanc Mémé Cassé 5kg', quantity: 48, revenue: 144000 },
       { name: 'Huile de palme raffinée Mayor 1L', quantity: 65, revenue: 97500 },
@@ -428,6 +535,21 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
   // 9. ANALYTICS / WEEKLY REPORT
   if (endpoint.startsWith('/analytics/weekly-report')) {
+    const rawUser = localStorage.getItem('commercia_user');
+    const u = rawUser ? JSON.parse(rawUser) : currentUser;
+    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
+    const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
+    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+    const localSales = rawSales ? JSON.parse(rawSales) : [];
+
+    if (!isDemoMoussa && localSales.length === 0) {
+      return {
+        period: { from: 'Cette semaine', to: "Aujourd'hui" },
+        metrics: { totalSales: 0, salesCount: 0, totalExpenses: 0, expensesCount: 0, netProfit: 0, totalDebt: 0 },
+        recommendation: 'Bienvenue sur COMMERCIA ! Enregistrez votre première vente ou dépense pour générer vos analyses statistiques.',
+      };
+    }
+
     return {
       period: {
         from: '15/10/2026',
@@ -501,11 +623,12 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
   if (endpoint.startsWith('/sales')) {
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
+    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' || userObj?.id === 'user-moussa';
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
     const saleKey = `commercia_sales_${activeBizId}`;
 
     if (method === 'POST') {
-      const raw = localStorage.getItem(saleKey) || localStorage.getItem('commercia_sales');
+      const raw = localStorage.getItem(saleKey) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
       const sales = raw ? JSON.parse(raw) : [];
       const newItems = body?.items || [{ name: 'Vente directe comptoir' }];
 
@@ -602,15 +725,15 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     if (method === 'DELETE') {
       const parts = endpoint.split('?')[0].split('/');
       const saleId = parts[2];
-      const raw = localStorage.getItem(saleKey) || localStorage.getItem('commercia_sales');
+      const raw = localStorage.getItem(saleKey) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
       let sales = raw ? JSON.parse(raw) : [];
       sales = sales.filter((s: any) => s.id !== saleId);
       localStorage.setItem(saleKey, JSON.stringify(sales));
-      localStorage.setItem('commercia_sales', JSON.stringify(sales));
+      if (isDemoMoussa) localStorage.setItem('commercia_sales', JSON.stringify(sales));
       return { message: 'Vente annulée avec succès.' };
     }
 
-    const raw = localStorage.getItem(saleKey) || localStorage.getItem('commercia_sales');
+    const raw = localStorage.getItem(saleKey) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
     const list = raw ? JSON.parse(raw) : [];
     return { sales: list, pagination: { total: list.length } };
   }
@@ -619,11 +742,12 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
   if (endpoint.startsWith('/expenses')) {
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
+    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' || userObj?.id === 'user-moussa';
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
     const expKey = `commercia_expenses_${activeBizId}`;
 
     if (method === 'POST') {
-      const raw = localStorage.getItem(expKey) || localStorage.getItem('commercia_expenses');
+      const raw = localStorage.getItem(expKey) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
       const expenses = raw ? JSON.parse(raw) : [];
       const newExpense = {
         id: 'e-' + Date.now(),
@@ -669,15 +793,15 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     if (method === 'DELETE') {
       const parts = endpoint.split('?')[0].split('/');
       const expId = parts[2];
-      const raw = localStorage.getItem(expKey) || localStorage.getItem('commercia_expenses');
+      const raw = localStorage.getItem(expKey) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
       let expenses = raw ? JSON.parse(raw) : [];
       expenses = expenses.filter((e: any) => e.id !== expId);
       localStorage.setItem(expKey, JSON.stringify(expenses));
-      localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
+      if (isDemoMoussa) localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
       return { message: 'Dépense supprimée avec succès.' };
     }
 
-    const raw = localStorage.getItem(expKey) || localStorage.getItem('commercia_expenses');
+    const raw = localStorage.getItem(expKey) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
     const list = raw ? JSON.parse(raw) : [];
     return { expenses: list, pagination: { total: list.length } };
   }
@@ -763,12 +887,49 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
   // 15. NOTIFICATIONS
   if (endpoint.startsWith('/notifications')) {
+    const rawUser = localStorage.getItem('commercia_user');
+    const u = rawUser ? JSON.parse(rawUser) : currentUser;
+    const planName = u?.subscription?.planName || 'free';
+    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
+
+    const list: any[] = [];
+
+    // Plan-specific upgrade reminder notifications
+    if (planName === 'free') {
+      list.push({
+        id: 'n-plan-upgrade',
+        title: '💡 Débloquez le Vrai Potentiel (Plan Pro)',
+        message: 'Vous êtes sur le Plan Gratuit (limité à 15 ventes/jour). Passez au Plan Pro (4 500 F/mois) pour des ventes illimitées, la gestion des stocks avec alertes ruptures et le Copilote IA !',
+        icon: '🚀',
+        isRead: false,
+      });
+      list.push({
+        id: 'n-free-stock-tip',
+        title: '📦 Alertes Stocks & WhatsApp',
+        message: 'Saviez-vous que le Plan Pro vous alerte par notification avant chaque rupture et relance automatiquement vos créanciers sur WhatsApp ?',
+        icon: '⚡',
+        isRead: false,
+      });
+    } else if (planName === 'pro') {
+      list.push({
+        id: 'n-plan-business',
+        title: '🏢 Passez au Multi-Boutiques (Plan Business)',
+        message: 'Vous avez plusieurs points de vente ou des caissiers ? Le Plan Business (12 000 F/mois) offre la gestion multi-boutiques, les rôles avec caisses isolées et les rapports comptables PDF.',
+        icon: '💎',
+        isRead: false,
+      });
+    }
+
+    if (isDemoMoussa) {
+      list.push(
+        { id: 'n-1', title: 'Stock Critique', message: 'Lait Nido : seulement 2 boîtes restantes en rayon.', icon: '⚠️', isRead: false },
+        { id: 'n-2', title: 'Rappel Dette', message: 'Maman Chantal a un crédit de 15 000 FCFA depuis 5 jours.', icon: '⏰', isRead: false },
+      );
+    }
+
     return {
-      notifications: [
-        { id: 'n-1', title: 'Stock Critique', message: 'Lait Nido : seulement 2 boîtes restantes en rayon.', isRead: false },
-        { id: 'n-2', title: 'Rappel Dette', message: 'Maman Chantal a un crédit de 15 000 FCFA depuis 5 jours.', isRead: false },
-      ],
-      unreadCount: 2,
+      notifications: list,
+      unreadCount: list.filter(n => !n.isRead).length,
     };
   }
 
@@ -985,9 +1146,13 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
 
     // E. Past sessions list
     if (endpoint.startsWith('/cash/sessions')) {
+      const rawUser = localStorage.getItem('commercia_user');
+      const u = rawUser ? JSON.parse(rawUser) : currentUser;
+      const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
+
       const pastRaw = localStorage.getItem('commercia_past_cash_sessions');
       let past = pastRaw ? JSON.parse(pastRaw) : [];
-      if (past.length === 0) {
+      if (past.length === 0 && isDemoMoussa) {
         past = [
           {
             id: 'cs-demo-prev-1',
