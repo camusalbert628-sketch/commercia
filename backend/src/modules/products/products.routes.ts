@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId, requireProSubscription } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -33,8 +33,8 @@ router.get('/', async (req: AuthRequest, res, next) => {
   }
 });
 
-// POST /api/products — Créer un produit
-router.post('/', async (req: AuthRequest, res, next) => {
+// POST /api/products — Créer un produit (Gestion du stock réservée aux comptes Pro)
+router.post('/', requireProSubscription, async (req: AuthRequest, res, next) => {
   try {
     const businessId = await getTenantBusinessId(req);
     const schema = z.object({

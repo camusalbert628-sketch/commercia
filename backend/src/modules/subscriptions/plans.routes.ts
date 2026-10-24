@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { AuthRequest, authenticate } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
+import { getUserSubscriptionDetails } from '../../utils/subscriptionUtils';
+import { paymentGateway } from '../payments/paymentGateway';
 
 const router = Router();
 
@@ -13,7 +15,6 @@ router.get('/', async (req: any, res, next) => {
       orderBy: { sortOrder: 'asc' },
     });
 
-    // Seed default plans if none exist
     if (plans.length === 0) {
       const defaultPlans = [
         {
@@ -23,45 +24,46 @@ router.get('/', async (req: any, res, next) => {
           priceMonthly: 0,
           priceYearly: 0,
           features: JSON.stringify([
-            'Ventes & dépenses illimitées (30 jours)',
-            'Dashboard financier de base',
-            'Calcul du bénéfice journalier',
-            'Historique 30 jours',
+            '15 ventes par jour maximum',
+            'Enregistrement des dépenses de base',
+            'Tableau de bord financier simplifié',
+            'Calcul du bénéfice journalier estimé',
+            'Support communautaire',
           ]),
-          limits: JSON.stringify({ salesPerMonth: 100, aiQueries: 5, historyDays: 30, stockEnabled: false }),
+          limits: JSON.stringify({ salesPerDay: 15, aiQueries: 0, stockEnabled: false, creditEnabled: false }),
           sortOrder: 1,
         },
         {
           name: 'pro',
           displayName: 'Pro',
-          description: 'Idéal pour les commerces actifs et gestion des crédits',
-          priceMonthly: 5000,
-          priceYearly: 50000,
+          description: 'Idéal pour commerces actifs : crédits, stock et copilote',
+          priceMonthly: 4500,
+          priceYearly: 45000,
           features: JSON.stringify([
-            'Tout le plan Gratuit',
+            'Ventes et dépenses illimitées',
             'Gestion complète des crédits clients',
             'Relances automatiques de dettes',
             'Gestion de stock & alertes ruptures',
-            'Copilote IA COMMERCIA (illimité)',
-            'Historique illimité et export PDF/Excel',
+            'Copilote IA COMMERCIA en temps réel',
+            'Historique complet et exports',
           ]),
-          limits: JSON.stringify({ salesPerMonth: -1, aiQueries: -1, historyDays: -1, stockEnabled: true }),
+          limits: JSON.stringify({ salesPerDay: -1, aiQueries: -1, stockEnabled: true, creditEnabled: true }),
           sortOrder: 2,
         },
         {
           name: 'business',
           displayName: 'Business Multi-Activités',
           description: 'Pour entrepreneurs avec plusieurs points de vente ou boutiques',
-          priceMonthly: 15000,
-          priceYearly: 150000,
+          priceMonthly: 12000,
+          priceYearly: 120000,
           features: JSON.stringify([
             'Tout le plan Pro',
-            'Multi-activités / boutiques',
-            'Comptes employés & gestion des permissions',
-            'Rapport hebdomadaire automatique sur WhatsApp',
-            'Support prioritaire 7j/7',
+            'Multi-boutiques & multi-utilisateurs',
+            'Gestion des permissions collaborateurs',
+            'Trésorerie prévisionnelle & simulations',
+            'Support prioritaire 7j/7 WhatsApp',
           ]),
-          limits: JSON.stringify({ salesPerMonth: -1, aiQueries: -1, historyDays: -1, stockEnabled: true, multiShop: true }),
+          limits: JSON.stringify({ salesPerDay: -1, aiQueries: -1, stockEnabled: true, creditEnabled: true, multiShop: true }),
           sortOrder: 3,
         },
       ];
@@ -94,94 +96,130 @@ router.get('/', async (req: any, res, next) => {
   }
 });
 
-// GET /api/plans/my-subscription — Abonnement actuel
+// GET /api/plans/my-subscription — Abonnement actuel réel vérifié
 router.get('/my-subscription', authenticate, async (req: AuthRequest, res, next) => {
   try {
-    const sub = await req.prisma.subscription.findUnique({
-      where: { userId: req.userId },
-      include: { plan: true },
-    });
-
-    if (!sub) {
-      return res.json({
-        plan: 'free',
-        displayName: 'Gratuit',
-        status: 'active',
-        features: [],
-      });
-    }
-
+    const details = await getUserSubscriptionDetails(req.prisma, req.userId!);
     res.json({
-      id: sub.id,
-      plan: sub.plan.name,
-      displayName: sub.plan.displayName,
-      status: sub.status,
-      startDate: sub.startDate,
-      endDate: sub.endDate,
-      features: JSON.parse(sub.plan.features || '[]'),
-      limits: JSON.parse(sub.plan.limits || '{}'),
+      plan: details.planName,
+      displayName: details.planDisplayName,
+      isPro: details.isPro,
+      isAdmin: details.isAdmin,
+      status: details.status,
+      startDate: details.startDate,
+      endDate: details.endDate,
+      daysRemaining: details.daysRemaining,
+      features: details.features,
+      limits: details.limits,
     });
   } catch (error) {
     next(error);
   }
 });
 
-// POST /api/plans/subscribe — Souscrire à un plan (Simulation Mobile Money MTN / Orange)
+// POST /api/plans/subscribe — Initier la souscription à une offre
 router.post('/subscribe', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({
       planName: z.enum(['free', 'pro', 'business']),
+      billingCycle: z.enum(['monthly', 'yearly']).default('monthly'),
       paymentMethod: z.enum(['mobile_money', 'card', 'cash']).default('mobile_money'),
       phoneNumber: z.string().optional(),
+      promoCode: z.string().optional(),
     });
     const data = schema.parse(req.body);
 
+    const user = await req.prisma.user.findUnique({ where: { id: req.userId! } });
+    if (!user) throw new AppError('Utilisateur introuvable', 404);
+
     const plan = await req.prisma.plan.findUnique({ where: { name: data.planName } });
-    if (!plan) throw new AppError('Plan introuvable.', 404);
+    if (!plan) throw new AppError('Plan tarifaire introuvable.', 404);
 
-    const endDate = new Date();
-    endDate.setMonth(endDate.getMonth() + 1);
+    if (plan.name === 'free') {
+      await req.prisma.subscription.upsert({
+        where: { userId: user.id },
+        update: { planId: plan.id, status: 'free', endDate: null },
+        create: { userId: user.id, planId: plan.id, status: 'free', endDate: null },
+      });
+      return res.json({
+        message: 'Votre compte est configuré sur la formule Gratuite.',
+        subscription: { plan: 'free', displayName: 'Gratuit', status: 'free', isPro: false },
+      });
+    }
 
-    const subscription = await req.prisma.subscription.upsert({
-      where: { userId: req.userId! },
-      update: {
+    // Calcul du montant réel
+    const isYearly = data.billingCycle === 'yearly';
+    const basePrice = isYearly
+      ? (plan.priceYearly > 0 ? plan.priceYearly : plan.priceMonthly * 10)
+      : plan.priceMonthly;
+
+    let finalAmount = basePrice;
+    if (data.promoCode?.trim().toUpperCase() === 'COMMERCIA20') {
+      finalAmount = Math.round(basePrice * 0.8);
+    } else if (data.promoCode?.trim().toUpperCase() === 'BIENVENUE5000') {
+      finalAmount = Math.max(0, basePrice - 5000);
+    }
+
+    const reference = `COMMERCIA-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const host = req.get('host') || 'localhost:3001';
+    const protocol = req.protocol || 'http';
+    const returnUrl = `${protocol}://${host}/subscription?payment_ref=${reference}`;
+    const notifyUrl = `${protocol}://${host}/api/payments/webhook`;
+
+    // Enregistrement de la transaction avec statut STRICTEMENT PENDING
+    const payment = await req.prisma.payment.create({
+      data: {
+        userId: user.id,
         planId: plan.id,
-        status: 'active',
-        startDate: new Date(),
-        endDate,
+        amount: finalAmount,
+        currency: plan.currency || 'XAF',
+        method: data.paymentMethod,
+        provider: 'cinetpay',
+        status: 'pending',
+        reference,
+        phoneNumber: data.phoneNumber || user.phone || null,
+        payerEmail: user.email,
+        metadata: JSON.stringify({
+          planName: plan.name,
+          billingCycle: data.billingCycle,
+          promoCode: data.promoCode || null,
+        }),
       },
-      create: {
-        userId: req.userId!,
-        planId: plan.id,
-        status: 'active',
-        startDate: new Date(),
-        endDate,
-      },
-      include: { plan: true },
     });
 
-    // Record payment
-    if (plan.priceMonthly > 0) {
-      await req.prisma.payment.create({
+    const gatewayResult = await paymentGateway.initiatePayment({
+      userId: user.id,
+      planName: plan.name as 'pro' | 'business',
+      billingCycle: data.billingCycle,
+      amount: finalAmount,
+      currency: plan.currency || 'XAF',
+      paymentMethod: data.paymentMethod === 'card' ? 'card' : 'mobile_money',
+      phoneNumber: data.phoneNumber || user.phone || undefined,
+      customerName: `${user.firstName} ${user.lastName}`.trim(),
+      customerEmail: user.email,
+      reference,
+      returnUrl,
+      notifyUrl,
+    });
+
+    if (gatewayResult.checkoutUrl) {
+      await req.prisma.payment.update({
+        where: { id: payment.id },
         data: {
-          userId: req.userId!,
-          amount: plan.priceMonthly,
-          currency: plan.currency,
-          method: data.paymentMethod,
-          status: 'completed',
-          reference: `PAY-${Date.now()}-${data.paymentMethod.toUpperCase()}`,
+          checkoutUrl: gatewayResult.checkoutUrl,
+          providerReference: gatewayResult.providerReference || null,
         },
       });
     }
 
-    res.json({
-      message: `Félicitations ! Vous êtes désormais abonné au plan ${plan.displayName} 🎉`,
-      subscription: {
-        plan: plan.name,
-        displayName: plan.displayName,
-        status: subscription.status,
-        endDate: subscription.endDate,
-      },
+    res.status(201).json({
+      message: 'Demande de paiement initiée. La formule Pro sera activée après confirmation réelle du paiement.',
+      reference,
+      amount: finalAmount,
+      currency: plan.currency || 'XAF',
+      status: 'pending',
+      checkoutUrl: gatewayResult.checkoutUrl,
+      requiresPaymentConfirmation: true,
     });
   } catch (error) {
     if (error instanceof z.ZodError) return next(new AppError(error.errors[0].message, 400));

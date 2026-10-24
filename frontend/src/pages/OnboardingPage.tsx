@@ -65,7 +65,7 @@ export const OnboardingPage: React.FC = () => {
 
   const [trackingMode, setTrackingMode] = useState('complet');
   const [dailySalesEstimate, setDailySalesEstimate] = useState(REVENUE_ESTIMATES[1]);
-  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | 'business'>('pro');
+  const [selectedPlan, setSelectedPlan] = useState<'free' | 'pro' | 'business'>('free');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

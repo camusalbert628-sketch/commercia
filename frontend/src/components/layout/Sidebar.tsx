@@ -14,6 +14,8 @@ import {
   Wallet,
   TrendingUp,
   Landmark,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -25,6 +27,18 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount = 0 }) => {
   const { user, activeBusinessId, logout } = useAuthStore();
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+
+  const planName = user?.subscription?.planName || 'free';
+  const subStatus = user?.subscription?.status || 'free';
+  const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && subStatus === 'active'));
+
+  const planBadge = user?.isAdmin
+    ? 'ADMIN'
+    : isPro
+    ? (planName === 'business' ? 'BUSINESS' : 'PRO ACTIF')
+    : subStatus === 'expired'
+    ? 'EXPIRÉ'
+    : 'VERSION GRATUITE';
 
   return (
     <aside className="sidebar">
@@ -48,16 +62,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             <span style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#FFFFFF', lineHeight: 1.2 }}>
               COMMERC<span style={{ background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>IA</span>
             </span>
-            <span className="brand-tag">PRO</span>
+            <span
+              style={{
+                fontSize: '0.62rem',
+                fontWeight: 900,
+                padding: '2px 6px',
+                borderRadius: '6px',
+                background: isPro
+                  ? 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)'
+                  : subStatus === 'expired'
+                  ? '#EF4444'
+                  : '#334155',
+                color: '#FFFFFF',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {planBadge}
+            </span>
           </div>
-          <div style={{ fontSize: '0.74rem', color: '#60A5FA', fontWeight: 600, maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }} title={activeBusiness?.name}>
-            {activeBusiness?.name || 'Copilote Financier'}
+          <div
+            style={{
+              fontSize: '0.74rem',
+              color: isPro ? '#60A5FA' : '#94A3B8',
+              fontWeight: 600,
+              maxWidth: '140px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              marginTop: '2px',
+            }}
+            title={activeBusiness?.name}
+          >
+            {activeBusiness?.name || (isPro ? 'Compte Pro actif' : 'Version Gratuite')}
           </div>
         </div>
       </div>
 
       <nav className="sidebar-menu">
-        <div className="menu-category">Principal</div>
+        <div className="menu-category">Gestion Quotidienne</div>
         <NavLink
           to="/dashboard"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
@@ -71,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <ShoppingCart size={18} />
-          <span>Ventes</span>
+          <span>Ventes comptoir</span>
         </NavLink>
 
         <NavLink
@@ -90,25 +132,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           <span>Caisse Journalière</span>
         </NavLink>
 
-        <div className="menu-category">Gestion Commerciale</div>
-        <NavLink
-          to="/customers"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <Users size={18} />
-          <span>Clients & Crédits</span>
-          {debtCount > 0 && <span className="badge badge-danger">{debtCount}</span>}
-        </NavLink>
-
-        <NavLink
-          to="/products"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <Package size={18} />
-          <span>Stock & Produits</span>
-          {lowStockCount > 0 && <span className="badge badge-warning">{lowStockCount}</span>}
-        </NavLink>
-
         <NavLink
           to="/analytics"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
@@ -117,51 +140,157 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           <span>Statistiques & Rapport</span>
         </NavLink>
 
-        <div className="menu-category">Modules Premium</div>
-        <NavLink
-          to="/growth"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <TrendingUp size={18} />
-          <span>Croissance & CAC</span>
-          <span style={{ fontSize: '0.65rem', background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
-        </NavLink>
+        {/* ========================================================================= */}
+        {/* FONCTIONNALITÉS STRICTEMENT RÉSERVÉES AUX COMPTES PRO ACTIFS */}
+        {/* Conformément à la consigne : Masquées pour les comptes gratuits */}
+        {/* ========================================================================= */}
+        {isPro ? (
+          <>
+            <div className="menu-category">Modules Avancés PRO</div>
+            <NavLink
+              to="/customers"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Users size={18} />
+              <span>Clients & Dettes</span>
+              {debtCount > 0 && <span className="badge badge-danger">{debtCount}</span>}
+            </NavLink>
 
-        <NavLink
-          to="/treasury"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <Landmark size={18} />
-          <span>Trésorerie & Scénarios</span>
-          <span style={{ fontSize: '0.65rem', background: '#10B981', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
-        </NavLink>
+            <NavLink
+              to="/products"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Package size={18} />
+              <span>Stock & Alertes</span>
+              {lowStockCount > 0 && <span className="badge badge-warning">{lowStockCount}</span>}
+            </NavLink>
 
-        <div className="menu-category">Intelligence & Offres</div>
-        <NavLink
-          to="/copilot"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <Bot size={18} />
-          <span>Copilote IA COMMERCIA</span>
-        </NavLink>
+            <NavLink
+              to="/copilot"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Bot size={18} />
+              <span>Copilote IA COMMERCIA</span>
+            </NavLink>
 
+            <NavLink
+              to="/growth"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <TrendingUp size={18} />
+              <span>Croissance & CAC</span>
+              <span style={{ fontSize: '0.62rem', background: '#FF6B00', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+            </NavLink>
+
+            <NavLink
+              to="/treasury"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Landmark size={18} />
+              <span>Trésorerie & Scénarios</span>
+              <span style={{ fontSize: '0.62rem', background: '#10B981', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+            </NavLink>
+
+            <div className="menu-category">Abonnement Pro</div>
+            <NavLink
+              to="/subscription"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Crown size={18} color="#FF6B00" />
+              <span>Gérer mon abonnement</span>
+            </NavLink>
+          </>
+        ) : (
+          /* ========================================================================= */
+          /* SECTION DÉDIÉE OFFRES PRO POUR UTILISATEURS GRATUITS */
+          /* ========================================================================= */
+          <div
+            style={{
+              margin: '16px 10px',
+              padding: '14px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(255, 107, 0, 0.15) 0%, rgba(0, 98, 255, 0.12) 100%)',
+              border: '1px solid rgba(255, 107, 0, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Crown size={16} color="#FFFFFF" />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
+                  COMMERCIA PRO
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#CBD5E1' }}>
+                  4 500 FCFA / mois
+                </div>
+              </div>
+            </div>
+
+            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.72rem', color: '#94A3B8', lineHeight: 1.5 }}>
+              <li>Ventes & encaissements illimités</li>
+              <li>Gestion de stock & alertes ruptures</li>
+              <li>Carnet de crédits clients & relances</li>
+              <li>Copilote IA financier interactif</li>
+            </ul>
+
+            <NavLink
+              to="/subscription"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)',
+                color: '#FFFFFF',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                textDecoration: 'none',
+                boxShadow: '0 4px 12px rgba(255, 107, 0, 0.35)',
+                marginTop: '4px',
+              }}
+            >
+              <Sparkles size={14} />
+              <span>Passer à Pro</span>
+              <ArrowRight size={14} />
+            </NavLink>
+          </div>
+        )}
+
+        <div className="menu-category">Formules & Offres</div>
         <NavLink
           to="/subscription"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <Crown size={18} />
-          <span>Mon Abonnement</span>
+          <span>{isPro ? 'Mon Abonnement Pro' : 'Découvrir les offres Pro'}</span>
         </NavLink>
 
         {user?.isAdmin && (
           <>
-            <div className="menu-category">Administration</div>
+            <div className="menu-category">Super Administration</div>
             <NavLink
               to="/admin"
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <ShieldAlert size={18} />
-              <span>Admin SaaS</span>
+              <span>Administration SaaS</span>
             </NavLink>
           </>
         )}
@@ -169,15 +298,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
 
       <div className="sidebar-footer">
         <div className="user-profile-card">
-          <div className="user-avatar">
+          <div className="user-avatar" style={{ background: isPro ? 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)' : '#475569' }}>
             {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
           </div>
           <div className="user-info">
             <div className="user-name">
               {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Commerçant'}
             </div>
-            <div className="user-role" title={activeBusiness?.name}>
-              {activeBusiness?.name || user?.subscription?.planDisplayName || 'Plan Gratuit'}
+            <div className="user-role" style={{ color: isPro ? '#38BDF8' : '#94A3B8', fontWeight: 600 }}>
+              {isPro ? 'Compte Pro actif' : 'Version Gratuite'}
             </div>
           </div>
           <button

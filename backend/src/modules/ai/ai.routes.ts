@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId, requireProSubscription } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 import { calculateFinancialMetrics } from '../../utils/finance';
 
@@ -104,8 +104,8 @@ router.get('/insights', async (req: AuthRequest, res, next) => {
   }
 });
 
-// POST /api/ai/chat — Copilote interactif guidant le commerçant
-router.post('/chat', async (req: AuthRequest, res, next) => {
+// POST /api/ai/chat — Copilote interactif guidant le commerçant (Réservé aux comptes PRO)
+router.post('/chat', requireProSubscription, async (req: AuthRequest, res, next) => {
   try {
     const businessId = await getTenantBusinessId(req);
     const schema = z.object({

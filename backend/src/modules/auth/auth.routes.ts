@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { AuthRequest, authenticate } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
+import { getUserSubscriptionDetails } from '../../utils/subscriptionUtils';
 
 const router = Router();
 
@@ -80,7 +81,7 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
       data: {
         userId: user.id,
         planId: freePlan.id,
-        status: 'active',
+        status: 'free',
       },
     });
 
@@ -110,9 +111,11 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
         isAdmin: user.isAdmin,
         businesses: [],
         subscription: {
-          planName: freePlan.name,
-          planDisplayName: freePlan.displayName,
-          status: 'active',
+          planName: 'free',
+          planDisplayName: 'Gratuit',
+          status: 'free',
+          isPro: false,
+          features: JSON.parse(freePlan.features || '[]'),
         },
       },
       ...tokens,
@@ -174,6 +177,8 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
       },
     });
 
+    const subDetails = await getUserSubscriptionDetails(req.prisma, user.id);
+
     res.json({
       message: `Bienvenue ${user.firstName} ! 👋`,
       user: {
@@ -191,12 +196,15 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
           sector: bm.business.sector,
           role: bm.role,
         })),
-        subscription: user.subscription ? {
-          planName: user.subscription.plan.name,
-          planDisplayName: user.subscription.plan.displayName,
-          status: user.subscription.status,
-          features: JSON.parse(user.subscription.plan.features || '[]'),
-        } : null,
+        subscription: {
+          planName: subDetails.planName,
+          planDisplayName: subDetails.planDisplayName,
+          status: subDetails.status,
+          isPro: subDetails.isPro,
+          endDate: subDetails.endDate,
+          daysRemaining: subDetails.daysRemaining,
+          features: subDetails.features,
+        },
       },
       ...tokens,
     });
@@ -300,6 +308,8 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
       },
     });
 
+    const subDetails = await getUserSubscriptionDetails(req.prisma, user.id);
+
     res.json({
       message: `Connexion Google réussie ! Bienvenue ${user.firstName} 👋`,
       user: {
@@ -318,12 +328,15 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
           sector: bm.business.sector,
           role: bm.role,
         })),
-        subscription: user.subscription ? {
-          planName: user.subscription.plan.name,
-          planDisplayName: user.subscription.plan.displayName,
-          status: user.subscription.status,
-          features: JSON.parse(user.subscription.plan.features || '[]'),
-        } : null,
+        subscription: {
+          planName: subDetails.planName,
+          planDisplayName: subDetails.planDisplayName,
+          status: subDetails.status,
+          isPro: subDetails.isPro,
+          endDate: subDetails.endDate,
+          daysRemaining: subDetails.daysRemaining,
+          features: subDetails.features,
+        },
       },
       ...tokens,
     });
@@ -391,6 +404,8 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response, next: Ne
       throw new AppError('Utilisateur non trouvé.', 404);
     }
 
+    const subDetails = await getUserSubscriptionDetails(req.prisma, user.id);
+
     res.json({
       id: user.id,
       email: user.email,
@@ -406,12 +421,16 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response, next: Ne
         sector: bm.business.sector,
         role: bm.role,
       })),
-      subscription: user.subscription ? {
-        planName: user.subscription.plan.name,
-        planDisplayName: user.subscription.plan.displayName,
-        status: user.subscription.status,
-        features: JSON.parse(user.subscription.plan.features),
-      } : null,
+      subscription: {
+        planName: subDetails.planName,
+        planDisplayName: subDetails.planDisplayName,
+        status: subDetails.status,
+        isPro: subDetails.isPro,
+        endDate: subDetails.endDate,
+        daysRemaining: subDetails.daysRemaining,
+        features: subDetails.features,
+        limits: subDetails.limits,
+      },
     });
   } catch (error) {
     next(error);

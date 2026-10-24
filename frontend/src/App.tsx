@@ -11,6 +11,7 @@ import { ModalProvider, useModals } from './context/ModalContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommerciaChatbot } from './components/chatbot/CommerciaChatbot';
 import { OfflineSyncBanner } from './components/common/OfflineSyncBanner';
+import { ProRouteGuard } from './components/common/ProRouteGuard';
 
 // Lazy-loaded pages for mobile performance and fast initial load
 const AuthPage = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })));
@@ -182,7 +183,9 @@ export function App() {
             path="/customers"
             element={
               <ProtectedRoute>
-                <CustomersPage />
+                <ProRouteGuard featureName="Clients & Carnet de Crédits">
+                  <CustomersPage />
+                </ProRouteGuard>
               </ProtectedRoute>
             }
           />
@@ -190,7 +193,9 @@ export function App() {
             path="/products"
             element={
               <ProtectedRoute>
-                <ProductsPage />
+                <ProRouteGuard featureName="Stock & Alertes Ruptures">
+                  <ProductsPage />
+                </ProRouteGuard>
               </ProtectedRoute>
             }
           />
@@ -206,7 +211,9 @@ export function App() {
             path="/copilot"
             element={
               <ProtectedRoute>
-                <CopilotPage />
+                <ProRouteGuard featureName="Copilote IA COMMERCIA">
+                  <CopilotPage />
+                </ProRouteGuard>
               </ProtectedRoute>
             }
           />
@@ -214,7 +221,9 @@ export function App() {
             path="/growth"
             element={
               <ProtectedRoute>
-                <GrowthPage />
+                <ProRouteGuard featureName="Croissance & Acquisition">
+                  <GrowthPage />
+                </ProRouteGuard>
               </ProtectedRoute>
             }
           />
@@ -222,7 +231,9 @@ export function App() {
             path="/treasury"
             element={
               <ProtectedRoute>
-                <TreasuryPage />
+                <ProRouteGuard featureName="Trésorerie & Scénarios">
+                  <TreasuryPage />
+                </ProRouteGuard>
               </ProtectedRoute>
             }
           />

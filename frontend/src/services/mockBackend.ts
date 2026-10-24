@@ -101,10 +101,10 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         isAdmin: rawEmail.includes('admin'),
         businesses: [],
         subscription: {
-          planName: 'pro',
-          planDisplayName: 'Plan Pro (Croissance)',
+          planName: 'free',
+          planDisplayName: 'Plan Gratuit (Démarrage)',
           status: 'active',
-          features: ['Ventes illimitées', 'Stock & Alertes', 'Carnet Dettes', 'Copilote IA'],
+          features: ['15 ventes/jour', 'Calcul de base'],
         },
       };
       users.push(foundUser);
@@ -205,13 +205,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       throw new Error("Un compte existe déjà avec cette adresse email. Veuillez passer à l'onglet 'Connexion'.");
     }
 
-    const chosenPlan = body?.plan || 'pro';
-    const planMeta = chosenPlan === 'business'
-      ? { planName: 'business', planDisplayName: 'Plan Business (Multi-boutiques)', features: ['Multi-boutiques & rôles', 'Rapports PDF', 'Copilote IA illimité'] }
-      : chosenPlan === 'free'
-      ? { planName: 'free', planDisplayName: 'Plan Gratuit (Démarrage)', features: ['15 ventes/jour', 'Calcul de base'] }
-      : { planName: 'pro', planDisplayName: 'Plan Pro (Croissance)', features: ['Ventes illimitées', 'Stock & Alertes', 'Carnet Dettes', 'Copilote IA'] };
-
+    // Tout nouvel utilisateur est STRICTEMENT GRATUIT par défaut
     const newUser = {
       id: 'user-' + Date.now(),
       email: body?.email || 'partenaire@commercia.cm',
@@ -224,10 +218,11 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       isAdmin: false,
       businesses: [],
       subscription: {
-        planName: planMeta.planName,
-        planDisplayName: planMeta.planDisplayName,
-        status: 'active',
-        features: planMeta.features,
+        planName: 'free',
+        planDisplayName: 'Gratuit',
+        status: 'free',
+        isPro: false,
+        features: ['15 ventes/jour', 'Calcul de base', 'Dashboard simplifié'],
       },
     };
 
@@ -236,19 +231,19 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     localStorage.setItem('commercia_user', JSON.stringify(newUser));
     localStorage.removeItem('activeBusinessId');
 
-    // Also sync subscription engine state
+    // Synchronisation état d'abonnement : Compte Gratuit (AUCUN)
     const subState = {
       id: 'sub-' + Date.now(),
       commerceId: 'bizz-' + Date.now(),
-      planId: `plan-${planMeta.planName}`,
-      etat: planMeta.planName === 'free' ? 'AUCUN' : 'ACTIF',
+      planId: 'plan-free',
+      etat: 'AUCUN',
       periodicite: 'mensuel',
       dateDebutPeriode: new Date().toISOString(),
-      dateFinPeriode: new Date(Date.now() + 30 * 86400000).toISOString(),
+      dateFinPeriode: new Date(Date.now() + 365 * 86400000).toISOString(),
       essaiUtilise: false,
       resiliationDemandee: false,
       renouvellementAuto: false,
-      joursRestants: 30,
+      joursRestants: 0,
     };
     try { localStorage.setItem('commercia_subscription_state', JSON.stringify(subState)); } catch (e) { /* ignore */ }
 
@@ -297,19 +292,22 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     };
 
     // Selected plan from onboarding step
-    const chosenPlan = body?.plan || currentUser?.subscription?.planName || 'pro';
-    const planMeta = chosenPlan === 'business'
-      ? { planName: 'business', planDisplayName: 'Plan Business (Multi-boutiques)', features: ['Multi-boutiques & rôles', 'Rapports PDF', 'Copilote IA illimité'] }
-      : chosenPlan === 'free'
-      ? { planName: 'free', planDisplayName: 'Plan Gratuit (Démarrage)', features: ['15 ventes/jour', 'Calcul de base'] }
-      : { planName: 'pro', planDisplayName: 'Plan Pro (Croissance)', features: ['Ventes illimitées', 'Stock & Alertes', 'Carnet Dettes', 'Copilote IA'] };
+    // Preserve real user subscription or default strictly to Free
+    const existingPlan = currentUser?.subscription?.planName || 'free';
+    const isPro = (existingPlan === 'pro' || existingPlan === 'business') && currentUser?.subscription?.status === 'active';
+    const planMeta = isPro
+      ? (existingPlan === 'business'
+          ? { planName: 'business', planDisplayName: 'Plan Business (Multi-boutiques)', features: ['Multi-boutiques & rôles', 'Rapports PDF', 'Copilote IA illimité'] }
+          : { planName: 'pro', planDisplayName: 'Plan Pro (Croissance)', features: ['Ventes illimitées', 'Stock & Alertes', 'Carnet Dettes', 'Copilote IA'] })
+      : { planName: 'free', planDisplayName: 'Gratuit', features: ['15 ventes/jour', 'Calcul de base'] };
 
     if (currentUser) {
       currentUser.businesses = [newBizz, ...(currentUser.businesses || [])];
       currentUser.subscription = {
         planName: planMeta.planName,
         planDisplayName: planMeta.planDisplayName,
-        status: 'active',
+        status: isPro ? 'active' : 'free',
+        isPro: Boolean(isPro),
         features: planMeta.features,
       };
       localStorage.setItem('commercia_user', JSON.stringify(currentUser));
@@ -340,14 +338,14 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       id: 'sub-' + Date.now(),
       commerceId: newBizz.id,
       planId: `plan-${planMeta.planName}`,
-      etat: planMeta.planName === 'free' ? 'AUCUN' : 'ACTIF',
+      etat: isPro ? 'ACTIF' : 'AUCUN',
       periodicite: 'mensuel',
       dateDebutPeriode: new Date().toISOString(),
       dateFinPeriode: new Date(Date.now() + 30 * 86400000).toISOString(),
-      essaiUtilise: false,
+      essaiUtilise: isPro,
       resiliationDemandee: false,
       renouvellementAuto: false,
-      joursRestants: 30,
+      joursRestants: isPro ? 30 : 0,
     };
     try { localStorage.setItem('commercia_subscription_state', JSON.stringify(subState)); } catch (e) { /* ignore */ }
 
@@ -1017,40 +1015,198 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     };
   }
 
-  // 16. PLANS
-  if (endpoint.startsWith('/plans')) {
-    if (endpoint === '/plans/my-subscription') {
-      const rawUser = localStorage.getItem('commercia_user');
-      const u = rawUser ? JSON.parse(rawUser) : currentUser;
-      return u?.subscription || {
-        planName: 'pro',
-        planDisplayName: 'Plan Pro (Croissance)',
-        status: 'active',
+  // 15B. PAYMENTS & SUBSCRIPTIONS
+  if (endpoint.startsWith('/payments')) {
+    if (endpoint === '/payments/initiate' && method === 'POST') {
+      const pName = body?.planName || 'pro';
+      const isYearly = body?.billingCycle === 'yearly';
+      const basePrice = pName === 'business' ? (isYearly ? 120000 : 12000) : (isYearly ? 45000 : 4500);
+      let finalAmount = basePrice;
+      if (body?.promoCode?.trim().toUpperCase() === 'COMMERCIA20') finalAmount = Math.round(basePrice * 0.8);
+      else if (body?.promoCode?.trim().toUpperCase() === 'BIENVENUE5000') finalAmount = Math.max(0, basePrice - 5000);
+      
+      const reference = `COMMERCIA-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const rawPayments = localStorage.getItem('commercia_payments');
+      const payments = rawPayments ? JSON.parse(rawPayments) : [];
+      const newPayment = {
+        id: 'pay-' + Date.now(),
+        reference,
+        planName: pName,
+        amount: finalAmount,
+        currency: 'XAF',
+        method: body?.paymentMethod || 'mobile_money',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        phoneNumber: body?.phoneNumber || '+237 670 123 456',
+        billingCycle: isYearly ? 'Annuel' : 'Mensuel',
+      };
+      payments.unshift(newPayment);
+      localStorage.setItem('commercia_payments', JSON.stringify(payments));
+
+      return {
+        message: 'Demande de paiement initiée. En attente de validation.',
+        reference,
+        amount: finalAmount,
+        currency: 'XAF',
+        status: 'pending',
+        checkoutUrl: `/subscription?payment_ref=${reference}`,
+        requiresPaymentConfirmation: true,
       };
     }
-    if (endpoint === '/plans/subscribe' && method === 'POST') {
-      const pName = body?.planName || 'pro';
-      const dispName = pName === 'business' ? 'Plan Business (Multi-boutiques)' : (pName === 'pro' ? 'Plan Pro (Croissance)' : 'Plan Gratuit');
-      const rawUser = localStorage.getItem('commercia_user');
-      const u = rawUser ? JSON.parse(rawUser) : currentUser;
-      if (u) {
-        u.subscription = {
-          planName: pName,
-          planDisplayName: dispName,
-          status: 'active',
-          features: ['Ventes & Dépenses illimitées', 'Stock temps réel', 'Copilote IA illimité'],
-        };
-        localStorage.setItem('commercia_user', JSON.stringify(u));
-        const users = getUsersDb();
-        const idx = users.findIndex(x => x.id === u.id);
-        if (idx !== -1) {
-          users[idx] = u;
-          saveUsersDb(users);
+
+    if (endpoint.startsWith('/payments/confirm-sandbox') && method === 'POST') {
+      const ref = body?.reference;
+      const outcome = body?.outcome || 'success';
+      const rawPayments = localStorage.getItem('commercia_payments');
+      const payments = rawPayments ? JSON.parse(rawPayments) : [];
+      const pIdx = payments.findIndex((p: any) => p.reference === ref);
+
+      if (pIdx !== -1) {
+        if (outcome === 'success') {
+          payments[pIdx].status = 'completed';
+          payments[pIdx].verifiedAt = new Date().toISOString();
+          localStorage.setItem('commercia_payments', JSON.stringify(payments));
+
+          // ACTIVER LE COMPTE PRO SEULEMENT APRÈS CONFIRMATION !
+          const rawUser = localStorage.getItem('commercia_user');
+          const u = rawUser ? JSON.parse(rawUser) : currentUser;
+          if (u) {
+            const targetPlan = payments[pIdx].planName || 'pro';
+            const isYearly = payments[pIdx].billingCycle === 'Annuel';
+            const duration = isYearly ? 365 : 30;
+            const endDate = new Date(Date.now() + duration * 86400000).toISOString();
+            u.subscription = {
+              planName: targetPlan,
+              planDisplayName: targetPlan === 'business' ? 'Plan Business' : 'Plan Pro (Croissance)',
+              status: 'active',
+              isPro: true,
+              endDate,
+              daysRemaining: duration,
+              features: ['Ventes & Dépenses illimitées', 'Gestion de stock & alertes', 'Carnet dettes clients', 'Copilote IA COMMERCIA'],
+            };
+            localStorage.setItem('commercia_user', JSON.stringify(u));
+            const users = getUsersDb();
+            const uIdx = users.findIndex(x => x.id === u.id);
+            if (uIdx !== -1) {
+              users[uIdx] = u;
+              saveUsersDb(users);
+            }
+          }
+          return {
+            message: 'Paiement confirmé avec succès ! Compte Pro activé.',
+            payment: payments[pIdx],
+          };
+        } else {
+          payments[pIdx].status = 'failed';
+          localStorage.setItem('commercia_payments', JSON.stringify(payments));
+          return {
+            message: 'Paiement échoué. Le compte reste strictement gratuit.',
+            payment: payments[pIdx],
+          };
         }
       }
+    }
+
+    if (endpoint.startsWith('/payments/verify/')) {
+      const ref = endpoint.split('/payments/verify/')[1];
+      const rawPayments = localStorage.getItem('commercia_payments');
+      const payments = rawPayments ? JSON.parse(rawPayments) : [];
+      const payment = payments.find((p: any) => p.reference === ref) || { reference: ref, status: 'pending', amount: 4500, currency: 'XAF' };
+      return { payment, subscription: currentUser?.subscription };
+    }
+
+    if (endpoint === '/payments/history') {
+      const rawPayments = localStorage.getItem('commercia_payments');
+      return rawPayments ? JSON.parse(rawPayments) : [];
+    }
+  }
+
+  // 16. PLANS & SUBSCRIPTION
+  if (endpoint.startsWith('/plans') || endpoint.startsWith('/subscription')) {
+    if (endpoint === '/plans/my-subscription' || endpoint === '/subscription') {
+      const rawUser = localStorage.getItem('commercia_user');
+      const u = rawUser ? JSON.parse(rawUser) : currentUser;
+      const planName = u?.subscription?.planName || 'free';
+      const now = new Date();
+      const isPaid = planName === 'pro' || planName === 'business';
+      const endDate = u?.subscription?.endDate ? new Date(u.subscription.endDate) : null;
+      const isExpired = isPaid && endDate && endDate < now;
+      const isPro = Boolean(u?.isAdmin || (isPaid && !isExpired && (u?.subscription?.status === 'active' || u?.subscription?.status === 'trial')));
+
       return {
-        message: `Félicitations ! Votre souscription au ${dispName} a été confirmée avec succès. 🚀`,
-        subscription: u?.subscription,
+        plan: isPro ? planName : 'free',
+        planName: isPro ? planName : 'free',
+        displayName: isPro ? (planName === 'business' ? 'Plan Business' : 'Plan Pro (Croissance)') : 'Gratuit',
+        planDisplayName: isPro ? (planName === 'business' ? 'Plan Business' : 'Plan Pro (Croissance)') : 'Gratuit',
+        status: isPro ? 'active' : (isExpired ? 'expired' : 'free'),
+        isPro,
+        isAdmin: Boolean(u?.isAdmin),
+        endDate: u?.subscription?.endDate || null,
+        daysRemaining: endDate ? Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / 86400000)) : 0,
+        features: isPro
+          ? ['Ventes & Dépenses illimitées', 'Stock temps réel', 'Copilote IA illimité']
+          : ['15 ventes max / jour', 'Calcul bénéfice journalier'],
+        limits: {
+          salesPerDay: isPro ? -1 : 15,
+          stockEnabled: isPro,
+          creditEnabled: isPro,
+        },
+      };
+    }
+
+    if ((endpoint === '/plans/subscribe' || endpoint === '/subscription/checkout') && method === 'POST') {
+      const pName = body?.planName || 'free';
+      if (pName === 'free') {
+        const rawUser = localStorage.getItem('commercia_user');
+        const u = rawUser ? JSON.parse(rawUser) : currentUser;
+        if (u) {
+          u.subscription = {
+            planName: 'free',
+            planDisplayName: 'Gratuit',
+            status: 'free',
+            isPro: false,
+            features: ['15 ventes max / jour', 'Calcul bénéfice journalier'],
+          };
+          localStorage.setItem('commercia_user', JSON.stringify(u));
+        }
+        return {
+          message: 'Votre compte est configuré sur la formule Gratuite.',
+          subscription: u?.subscription,
+        };
+      }
+
+      // Pour Pro ou Business, initier le paiement sans activer directement !
+      const isYearly = body?.billingCycle === 'yearly';
+      const basePrice = pName === 'business' ? (isYearly ? 120000 : 12000) : (isYearly ? 45000 : 4500);
+      let finalAmount = basePrice;
+      if (body?.promoCode?.trim().toUpperCase() === 'COMMERCIA20') finalAmount = Math.round(basePrice * 0.8);
+      const reference = `COMMERCIA-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const rawPayments = localStorage.getItem('commercia_payments');
+      const payments = rawPayments ? JSON.parse(rawPayments) : [];
+      payments.unshift({
+        id: 'pay-' + Date.now(),
+        reference,
+        planName: pName,
+        amount: finalAmount,
+        currency: 'XAF',
+        method: body?.paymentMethod || 'mobile_money',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        phoneNumber: body?.phoneNumber || '+237 670 123 456',
+        billingCycle: isYearly ? 'Annuel' : 'Mensuel',
+      });
+      localStorage.setItem('commercia_payments', JSON.stringify(payments));
+
+      return {
+        message: 'Demande de paiement initiée. La formule Pro sera activée dès réception de la confirmation.',
+        reference,
+        amount: finalAmount,
+        currency: 'XAF',
+        status: 'pending',
+        checkoutUrl: `/subscription?payment_ref=${reference}`,
+        requiresPaymentConfirmation: true,
       };
     }
     return [
@@ -1086,6 +1242,72 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     if (endpoint.includes('/toggle') && method === 'PUT') {
       return { message: 'Statut du compte utilisateur mis à jour avec succès.' };
     }
+
+    if (endpoint.includes('/subscription') && method === 'PUT') {
+      const parts = endpoint.split('/');
+      const targetUserId = parts[3];
+      const { planName, days, motif } = body || {};
+      const users = getUsersDb();
+      const u = users.find(x => x.id === targetUserId);
+      if (u) {
+        const isFree = planName === 'free';
+        const targetPlan = isFree ? 'free' : (planName === 'business' ? 'business' : 'pro');
+        u.subscription = {
+          planName: targetPlan,
+          planDisplayName: isFree ? 'Gratuit' : (targetPlan === 'business' ? 'Plan Business' : 'Plan Pro (Croissance)'),
+          status: isFree ? 'free' : 'active',
+          isPro: !isFree,
+          endDate: isFree ? null : new Date(Date.now() + (Number(days) || 30) * 86400000).toISOString(),
+          daysRemaining: isFree ? 0 : (Number(days) || 30),
+        };
+        saveUsersDb(users);
+      }
+      return { message: 'Abonnement mis à jour manuellement par l\'administrateur.', user: u };
+    }
+
+    if (endpoint === '/admin/payments') {
+      const rawPayments = localStorage.getItem('commercia_payments');
+      const payments = rawPayments ? JSON.parse(rawPayments) : [];
+      return payments.map((p: any) => ({
+        ...p,
+        user: { email: 'commercant@boutique.cm', firstName: 'Client', lastName: 'Commercia' },
+        plan: { displayName: p.planName === 'business' ? 'Plan Business' : 'Plan Pro' },
+      }));
+    }
+
+    if (endpoint === '/admin/subscriptions') {
+      const allUsers = getUsersDb();
+      return allUsers.map(u => ({
+        id: 'sub-' + u.id,
+        userId: u.id,
+        userEmail: u.email,
+        userName: `${u.firstName} ${u.lastName || ''}`.trim(),
+        businessName: u.businesses?.[0]?.name || 'Commerce',
+        plan: u.subscription?.planName || 'free',
+        planDisplayName: u.subscription?.planDisplayName || 'Gratuit',
+        status: u.subscription?.status || 'free',
+        isPro: Boolean(u.subscription?.isPro),
+        endDate: u.subscription?.endDate || null,
+        daysRemaining: u.subscription?.daysRemaining || 0,
+      }));
+    }
+
+    if (endpoint === '/admin/users') {
+      const allUsers = getUsersDb();
+      return allUsers.map(u => ({
+        id: u.id,
+        firstName: u.firstName,
+        lastName: u.lastName || '',
+        email: u.email,
+        phone: u.phone || '+237 600 000 000',
+        createdAt: '2026-10-22',
+        isActive: true,
+        isAdmin: Boolean(u.isAdmin),
+        businesses: u.businesses || [{ name: 'Boutique' }],
+        subscription: u.subscription || { planName: 'free', planDisplayName: 'Gratuit', status: 'free', isPro: false },
+      }));
+    }
+
     const allUsers = getUsersDb();
     return {
       metrics: {
@@ -1093,7 +1315,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         totalBusinesses: allUsers.reduce((s, u) => s + (u.businesses?.length || 1), 0) + 185,
         totalSalesVolume: 4860000,
         totalSalesCount: 320,
-        activeSubscriptionsCount: 14,
+        activeSubscriptionsCount: allUsers.filter(u => u.subscription?.isPro).length + 12,
         estimatedMRR: 63000,
       },
       recentUsers: allUsers.map(u => ({
@@ -1105,7 +1327,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         createdAt: '2026-10-22',
         isActive: true,
         businesses: u.businesses || [{ name: 'Boutique' }],
-        subscription: u.subscription ? { plan: { displayName: u.subscription.planDisplayName || 'Pro' } } : { plan: { displayName: 'Gratuit' } },
+        subscription: u.subscription ? { plan: { displayName: u.subscription.planDisplayName || 'Gratuit' } } : { plan: { displayName: 'Gratuit' } },
       })),
     };
   }

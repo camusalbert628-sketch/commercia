@@ -20,6 +20,7 @@ import { adminRouter } from './modules/admin/admin.routes';
 import { cashRouter } from './modules/cash/cash.routes';
 import { aiRouter } from './modules/ai/ai.routes';
 import { subscriptionRouter } from './modules/subscriptions/subscription.routes';
+import { paymentsRouter } from './modules/payments/payments.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 
@@ -64,6 +65,7 @@ app.use('/api/products', productsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/plans', plansRouter);
 app.use('/api/subscription', subscriptionRouter);
+app.use('/api/payments', paymentsRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);

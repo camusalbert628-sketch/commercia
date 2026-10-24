@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
+import { getUserSubscriptionDetails } from '../../utils/subscriptionUtils';
 
 const router = Router();
 router.use(authenticate);
@@ -27,6 +28,32 @@ router.post('/', async (req: AuthRequest, res, next) => {
     });
     
     const data = saleSchema.parse(req.body);
+
+    // Vérifier les droits et quotas de l'abonnement en temps réel
+    const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId!);
+
+    // Les ventes à crédit et carnet de dettes sont strictement réservées aux comptes PRO
+    if (data.paymentMethod === 'credit' && !subDetails.isPro) {
+      throw new AppError(
+        'Les ventes à crédit et la gestion du carnet de dettes sont réservées aux comptes PRO. Veuillez passer à COMMERCIA PRO.',
+        403
+      );
+    }
+
+    // Quota Plan Gratuit : 15 ventes max / jour
+    if (!subDetails.isPro) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const salesCountToday = await req.prisma.sale.count({
+        where: { businessId, saleDate: { gte: today } },
+      });
+      if (salesCountToday >= 15) {
+        throw new AppError(
+          'Limite de 15 ventes journalières atteinte pour le Plan Gratuit. Passez à COMMERCIA PRO pour des ventes illimitées.',
+          403
+        );
+      }
+    }
 
     // Si le prix de revient n'est pas fourni, le récupérer du catalogue produit
     const enrichedItems = await Promise.all(

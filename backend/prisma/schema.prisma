@@ -35,6 +35,7 @@ model User {
   aiConversations AIConversation[]
   subscription   Subscription?
   cashSessions   CashSession[]
+  payments       Payment[]
 }
 
 
@@ -336,18 +337,21 @@ model Plan {
   updatedAt   DateTime @updatedAt
 
   subscriptions Subscription[]
+  payments      Payment[]
 }
 
 model Subscription {
-  id          String   @id @default(uuid())
-  userId      String   @unique
-  planId      String
-  status      String   @default("active") // active, cancelled, expired, trial
-  startDate   DateTime @default(now())
-  endDate     DateTime?
-  trialEndsAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  planId        String
+  status        String    @default("free") // free, active, expired, cancelled, trial
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  trialEndsAt   DateTime?
+  autoRenew     Boolean   @default(false)
+  lastPaymentId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan   Plan @relation(fields: [planId], references: [id])
@@ -365,16 +369,27 @@ model SubscriptionEvent {
 }
 
 model Payment {
-  id            String   @id @default(uuid())
-  userId        String
-  amount        Float
-  currency      String   @default("XAF")
-  method        String   // mobile_money, card, bank_transfer
-  status        String   @default("pending") // pending, completed, failed, refunded
-  reference     String?
-  metadata      String?  // JSON
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                String    @id @default(uuid())
+  userId            String
+  planId            String?
+  amount            Float
+  currency          String    @default("XAF")
+  method            String    // mobile_money, card, bank_transfer
+  provider          String    @default("cinetpay") // cinetpay, notchpay, manual_admin
+  status            String    @default("pending") // pending, completed, failed, cancelled, refunded
+  reference         String    @unique
+  providerReference String?
+  phoneNumber       String?
+  payerEmail        String?
+  checkoutUrl       String?
+  errorMessage      String?
+  metadata          String?   // JSON
+  verifiedAt        DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan? @relation(fields: [planId], references: [id])
 }
 
 model Invoice {

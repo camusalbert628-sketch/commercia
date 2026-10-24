@@ -98,17 +98,36 @@ async function main() {
     },
   });
 
-  // Abonnement Pro pour Moussa
+  // Abonnement Pro pour Moussa adossé à une transaction réelle
   if (proPlan) {
+    const payment = await prisma.payment.upsert({
+      where: { reference: 'COMMERCIA-DEMO-MOUSSA-PRO' },
+      update: {},
+      create: {
+        userId: moussa.id,
+        planId: proPlan.id,
+        amount: 4500,
+        currency: 'XAF',
+        method: 'mobile_money',
+        provider: 'cinetpay',
+        status: 'completed',
+        reference: 'COMMERCIA-DEMO-MOUSSA-PRO',
+        providerReference: 'CP-MOMO-DEMO-2026',
+        verifiedAt: new Date(),
+        phoneNumber: '+237677112233',
+      },
+    });
+
     await prisma.subscription.upsert({
       where: { userId: moussa.id },
-      update: { planId: proPlan.id, status: 'active' },
+      update: { planId: proPlan.id, status: 'active', lastPaymentId: payment.id },
       create: {
         userId: moussa.id,
         planId: proPlan.id,
         status: 'active',
         startDate: new Date(),
         endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        lastPaymentId: payment.id,
       },
     });
   }

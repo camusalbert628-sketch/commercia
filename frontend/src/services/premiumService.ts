@@ -27,6 +27,30 @@ const ECHEANCES_KEY = 'commercia_treasury_echeances';
 // -------------------------------------------------------------
 
 export function getSubscriptionData(): SubscriptionData {
+  // Check current logged in user first
+  const rawUser = localStorage.getItem('commercia_user');
+  const user = rawUser ? JSON.parse(rawUser) : null;
+  const isUserPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && user?.subscription?.status === 'active'));
+  const isFreeUser = user && !isUserPro;
+
+  if (isFreeUser) {
+    const freeSub: SubscriptionData = {
+      id: 'sub-free',
+      commerceId: localStorage.getItem('activeBusinessId') || 'bizz-default',
+      planId: 'plan-free',
+      etat: 'AUCUN',
+      periodicite: 'mensuel',
+      dateDebutPeriode: new Date().toISOString(),
+      dateFinPeriode: new Date(Date.now() + 365 * 86400000).toISOString(),
+      essaiUtilise: false,
+      resiliationDemandee: false,
+      renouvellementAuto: false,
+      joursRestants: 0,
+    };
+    try { localStorage.setItem(SUB_KEY, JSON.stringify(freeSub)); } catch (e) { /* ignore */ }
+    return freeSub;
+  }
+
   try {
     const raw = localStorage.getItem(SUB_KEY);
     if (raw) {
@@ -39,7 +63,7 @@ export function getSubscriptionData(): SubscriptionData {
 
       if (sub.etat === 'ESSAI') {
         if (now > end) {
-          sub.etat = 'EXPIRE'; // No grace period after trial
+          sub.etat = 'EXPIRE';
           sub.lectureSeuleJoursRestants = 90;
         }
       } else if (sub.etat === 'ACTIF') {
@@ -66,22 +90,40 @@ export function getSubscriptionData(): SubscriptionData {
     }
   } catch (e) { /* ignore */ }
 
-  // Default demo state: Active Pro Subscription
-  const defaultSub: SubscriptionData = {
-    id: 'sub-active-1',
-    commerceId: 'bizz-demo-1',
-    planId: 'plan-pro',
-    etat: 'ACTIF',
+  if (isUserPro) {
+    const proSub: SubscriptionData = {
+      id: 'sub-user-' + (user?.id || 'active'),
+      commerceId: localStorage.getItem('activeBusinessId') || 'bizz-1',
+      planId: `plan-${user?.subscription?.planName || 'pro'}`,
+      etat: 'ACTIF',
+      periodicite: 'mensuel',
+      dateDebutPeriode: new Date().toISOString(),
+      dateFinPeriode: user?.subscription?.endDate || new Date(Date.now() + 30 * 86400000).toISOString(),
+      essaiUtilise: true,
+      resiliationDemandee: false,
+      renouvellementAuto: false,
+      joursRestants: user?.subscription?.daysRemaining ?? 30,
+    };
+    try { localStorage.setItem(SUB_KEY, JSON.stringify(proSub)); } catch (e) { /* ignore */ }
+    return proSub;
+  }
+
+  // Default clean state: Free account (Plan Gratuit)
+  const defaultFreeSub: SubscriptionData = {
+    id: 'sub-free',
+    commerceId: localStorage.getItem('activeBusinessId') || 'bizz-default',
+    planId: 'plan-free',
+    etat: 'AUCUN',
     periodicite: 'mensuel',
-    dateDebutPeriode: new Date(Date.now() - 5 * 86400000).toISOString(),
-    dateFinPeriode: new Date(Date.now() + 25 * 86400000).toISOString(),
+    dateDebutPeriode: new Date().toISOString(),
+    dateFinPeriode: new Date(Date.now() + 365 * 86400000).toISOString(),
     essaiUtilise: false,
     resiliationDemandee: false,
     renouvellementAuto: false,
-    joursRestants: 25,
+    joursRestants: 0,
   };
-  try { localStorage.setItem(SUB_KEY, JSON.stringify(defaultSub)); } catch (e) { /* ignore */ }
-  return defaultSub;
+  try { localStorage.setItem(SUB_KEY, JSON.stringify(defaultFreeSub)); } catch (e) { /* ignore */ }
+  return defaultFreeSub;
 }
 
 export function saveSubscriptionData(sub: SubscriptionData) {

@@ -12,7 +12,11 @@ export interface User {
     planName: string;
     planDisplayName: string;
     status: string;
+    isPro?: boolean;
+    endDate?: string | null;
+    daysRemaining?: number;
     features: string[];
+    limits?: Record<string, any>;
   } | null;
 }
 

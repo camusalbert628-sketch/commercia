@@ -94,3 +94,32 @@ export const requireAdmin = async (req: AuthRequest, _res: Response, next: NextF
   }
 };
 
+import { getUserSubscriptionDetails } from '../utils/subscriptionUtils';
+
+/**
+ * Middleware vérifiant qu'un utilisateur possède un abonnement PRO ou BUSINESS actif.
+ * Empêche strictement les comptes gratuits (Free) d'accéder aux API payantes.
+ */
+export const requireProSubscription = async (req: AuthRequest, _res: Response, next: NextFunction) => {
+  try {
+    if (!req.userId) {
+      throw new AppError('Non authentifié.', 401);
+    }
+
+    const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId);
+
+    // Les administrateurs et les comptes Pro actifs ont accès
+    if (subDetails.isAdmin || subDetails.isPro) {
+      return next();
+    }
+
+    throw new AppError(
+      'Accès restreint. Cette fonctionnalité requiert un abonnement PRO actif. Veuillez mettre à niveau votre compte.',
+      403
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+
