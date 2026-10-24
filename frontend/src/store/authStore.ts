@@ -11,6 +11,7 @@ interface AuthState {
   logout: () => void;
   fetchMe: () => Promise<void>;
   setActiveBusinessId: (id: string) => void;
+  updateUser: (partial: Partial<User>) => void;
 }
 
 const getInitialUser = (): User | null => {
@@ -27,6 +28,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!localStorage.getItem('accessToken'),
   isLoading: false,
   activeBusinessId: localStorage.getItem('activeBusinessId') || null,
+
+  updateUser: (partial: Partial<User>) => {
+    const current = get().user;
+    if (!current) return;
+    const updated = { ...current, ...partial };
+    try {
+      localStorage.setItem('commercia_user', JSON.stringify(updated));
+    } catch (_) {}
+    set({ user: updated });
+  },
 
   login: (tokens, user) => {
     localStorage.setItem('accessToken', tokens.accessToken);

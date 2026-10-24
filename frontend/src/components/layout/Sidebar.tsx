@@ -318,9 +318,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
 
       <div className="sidebar-footer">
         <div className="user-profile-card">
-          <div className="user-avatar" style={{ background: isPro ? 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)' : '#475569' }}>
-            {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
-          </div>
+          {user?.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={user.firstName}
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: isPro ? '2px solid #FF6B00' : '2px solid #0062FF',
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <div className="user-avatar" style={{ background: isPro ? 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)' : '#475569' }}>
+              {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
+            </div>
+          )}
           <div className="user-info">
             <div className="user-name">
               {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Commerçant'}

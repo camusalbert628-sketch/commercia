@@ -12,6 +12,8 @@ import {
   X,
   HelpCircle,
   Wallet,
+  Camera,
+  User as UserIcon,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -38,7 +40,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onOpenSaleModal: propOpenSale,
   onOpenExpenseModal: propOpenExpense,
 }) => {
-  const { user, activeBusinessId } = useAuthStore();
+  const { user, activeBusinessId, updateUser } = useAuthStore();
   const { openSaleModal, openExpenseModal, refreshKey } = useModals();
   const onOpenSaleModal = propOpenSale || openSaleModal;
   const onOpenExpenseModal = propOpenExpense || openExpenseModal;
@@ -48,6 +50,54 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [showWhyModal, setShowWhyModal] = useState(false);
   const [hideBanner, setHideBanner] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 256;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          updateUser({ avatarUrl: dataUrl });
+
+          try {
+            setAvatarUploading(true);
+            await api.put('/auth/profile', { avatarUrl: dataUrl });
+          } catch (err) {
+            console.warn('Sync avatar notice:', err);
+          } finally {
+            setAvatarUploading(false);
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
   const businessName = activeBusiness?.name || (data as any)?.businessName || 'Votre Boutique';
@@ -245,13 +295,82 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           marginBottom: '24px',
         }}
       >
-        <div>
-          <h1 style={{ fontSize: '1.75rem', margin: '0 0 6px 0', fontWeight: 800, color: '#0F172A' }}>
-            Bonjour {userName} 👋
-          </h1>
-          <p style={{ color: '#475569', fontSize: '0.98rem', margin: 0 }}>
-            Voici comment va <span style={{ color: '#0062FF', fontWeight: 800, fontSize: '1.05rem' }}>{businessName}</span> aujourd'hui — Devise : <strong>{user?.currency || 'FCFA'}</strong>
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Photo de profil cliquable sur le tableau de bord */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={userName}
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '3px solid #0062FF',
+                  boxShadow: '0 4px 14px rgba(0, 98, 255, 0.22)',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #0062FF 0%, #FF6B00 100%)',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.6rem',
+                  fontWeight: 800,
+                  boxShadow: '0 4px 14px rgba(0, 98, 255, 0.22)',
+                }}
+              >
+                {userName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              title="Changer ma photo de profil"
+              style={{
+                position: 'absolute',
+                bottom: '-2px',
+                right: '-2px',
+                background: '#0062FF',
+                color: '#FFFFFF',
+                border: '2px solid #FFFFFF',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+              }}
+            >
+              <Camera size={12} />
+            </button>
+            <input
+              type="file"
+              ref={avatarInputRef}
+              accept="image/*"
+              onChange={handleAvatarChange}
+              style={{ display: 'none' }}
+            />
+          </div>
+
+          <div>
+            <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0', fontWeight: 800, color: '#0F172A' }}>
+              Bonjour {userName} 👋
+            </h1>
+            <p style={{ color: '#475569', fontSize: '0.98rem', margin: 0 }}>
+              Voici comment va <span style={{ color: '#0062FF', fontWeight: 800, fontSize: '1.05rem' }}>{businessName}</span> aujourd'hui — Devise : <strong>{user?.currency || 'FCFA'}</strong>
+            </p>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -337,11 +456,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         {/* Bénéfice Net Estimé */}
         <div className="stat-card profit" style={{ position: 'relative' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-              <div className="stat-label">Bénéfice net estimé</div>
+          <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+            <div className="stat-label">Bénéfice net estimé</div>
+            <div className="stat-value" style={{ color: safeProfit >= 0 ? '#10B981' : '#EF4444' }}>
+              {safeProfit > 0 ? '+' : ''}
+              {safeProfit.toLocaleString('fr-FR')} FCFA
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span>{today.grossMarginPercent !== undefined ? `Marge brute : ${today.grossMarginPercent}%` : 'Recettes nettes'}</span>
+              <span>•</span>
               <button
+                type="button"
                 onClick={() => setShowWhyModal(true)}
+                title="Comprendre le détail du calcul"
                 style={{
                   background: '#ECFDF5',
                   border: '1px solid #A7F3D0',
@@ -351,20 +478,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   padding: '2px 8px',
                   borderRadius: '12px',
                   cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease',
                 }}
               >
-                Pourquoi ?
+                <span>Pourquoi ?</span>
               </button>
             </div>
-            <div className="stat-value" style={{ color: safeProfit >= 0 ? '#10B981' : '#EF4444' }}>
-              {safeProfit > 0 ? '+' : ''}
-              {safeProfit.toLocaleString('fr-FR')} FCFA
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
-              {today.grossMarginPercent !== undefined ? `Marge brute : ${today.grossMarginPercent}%` : 'Recettes nettes après coûts & charges'}
-            </div>
           </div>
-          <div className="stat-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
+          <div className="stat-icon" style={{ background: '#ECFDF5', color: '#059669', flexShrink: 0 }}>
             <TrendingUp size={24} />
           </div>
         </div>

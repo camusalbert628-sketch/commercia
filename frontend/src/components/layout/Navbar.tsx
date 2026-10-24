@@ -241,6 +241,41 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
             </div>
           )}
         </div>
+
+        {/* Avatar Profil Marchand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '4px', borderLeft: '1px solid #E2E8F0' }}>
+          {user?.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt={user.firstName || 'Profil'}
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2px solid #0062FF',
+                boxShadow: '0 2px 8px rgba(0, 98, 255, 0.2)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #0062FF 0%, #FF6B00 100%)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '0.9rem',
+              }}
+            >
+              {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 'U'}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck, X, Camera, Upload, User as UserIcon, Sparkles } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 
@@ -12,8 +12,57 @@ export const AuthPage: React.FC = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Helper pour traiter et compresser la photo de profil sélectionnée
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Veuillez sélectionner un fichier image valide (JPG, PNG, WebP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Redimensionner sur un canvas pour optimiser la mémoire et le stockage
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 256;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height = Math.round((height * MAX_SIZE) / width);
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width = Math.round((width * MAX_SIZE) / height);
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setAvatarUrl(dataUrl);
+          setError('');
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Google OAuth prompt modal state
   const [showGoogleModal, setShowGoogleModal] = useState(false);
@@ -166,6 +215,7 @@ export const AuthPage: React.FC = () => {
           firstName,
           lastName,
           phone: phone || undefined,
+          avatarUrl: avatarUrl || undefined,
         });
         login({ accessToken: res.accessToken, refreshToken: res.refreshToken }, res.user);
         navigate('/onboarding');
@@ -394,6 +444,133 @@ export const AuthPage: React.FC = () => {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {!isLogin && (
               <>
+                {/* Photo de profil - Upload & Suggestions */}
+                <div
+                  style={{
+                    background: '#F8FAFC',
+                    border: '1.5px dashed #CBD5E1',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    textAlign: 'center',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '10px',
+                  }}
+                >
+                  <div style={{ position: 'relative' }}>
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="Aperçu photo"
+                        style={{
+                          width: '76px',
+                          height: '76px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          border: '3px solid #0062FF',
+                          boxShadow: '0 4px 12px rgba(0, 98, 255, 0.25)',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '76px',
+                          height: '76px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+                          border: '2px dashed #93C5FD',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#0062FF',
+                        }}
+                      >
+                        <UserIcon size={34} />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Ajouter ou changer la photo"
+                      style={{
+                        position: 'absolute',
+                        bottom: '-2px',
+                        right: '-2px',
+                        background: '#0062FF',
+                        color: '#FFFFFF',
+                        border: '2px solid #FFFFFF',
+                        borderRadius: '50%',
+                        width: '28px',
+                        height: '28px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+                      }}
+                    >
+                      <Camera size={14} />
+                    </button>
+                  </div>
+
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0F172A' }}>
+                      Photo de profil du commerçant
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                      Elle figurera directement sur votre tableau de bord
+                    </div>
+                  </div>
+
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handlePhotoSelect}
+                    style={{ display: 'none' }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="btn btn-outline btn-sm"
+                      style={{
+                        fontSize: '0.76rem',
+                        padding: '5px 12px',
+                        borderColor: '#0062FF',
+                        color: '#0062FF',
+                        background: '#FFFFFF',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <Upload size={13} />
+                      <span>{avatarUrl ? 'Changer de photo' : 'Importer une photo'}</span>
+                    </button>
+
+                    {avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setAvatarUrl('')}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#EF4444',
+                          fontSize: '0.76rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                        }}
+                      >
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>

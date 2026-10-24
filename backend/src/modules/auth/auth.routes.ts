@@ -15,6 +15,7 @@ const registerSchema = z.object({
   firstName: z.string().min(1, 'Prénom requis'),
   lastName: z.string().min(1, 'Nom requis'),
   phone: z.string().optional(),
+  avatarUrl: z.string().optional(),
 });
 
 const loginSchema = z.object({
@@ -57,6 +58,7 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
         firstName: data.firstName,
         lastName: data.lastName,
         phone: data.phone || null,
+        avatarUrl: data.avatarUrl || null,
       },
     });
 
@@ -106,6 +108,7 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
         firstName: user.firstName,
         lastName: user.lastName,
         phone: user.phone,
+        avatarUrl: user.avatarUrl,
         locale: user.locale,
         currency: user.currency,
         isAdmin: user.isAdmin,
@@ -187,6 +190,7 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
         firstName: user.firstName,
         lastName: user.lastName,
         phone: user.phone,
+        avatarUrl: user.avatarUrl,
         locale: user.locale,
         currency: user.currency,
         isAdmin: user.isAdmin,
@@ -412,6 +416,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response, next: Ne
       firstName: user.firstName,
       lastName: user.lastName,
       phone: user.phone,
+      avatarUrl: user.avatarUrl,
       locale: user.locale,
       currency: user.currency,
       isAdmin: user.isAdmin,
@@ -433,6 +438,49 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response, next: Ne
       },
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/auth/profile (mettre à jour avatar, prénom, nom, téléphone)
+const updateProfileSchema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().optional(),
+  phone: z.string().optional(),
+  avatarUrl: z.string().nullable().optional(),
+});
+
+router.put('/profile', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = updateProfileSchema.parse(req.body);
+    const updated = await req.prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        ...(data.firstName ? { firstName: data.firstName } : {}),
+        ...(data.lastName !== undefined ? { lastName: data.lastName } : {}),
+        ...(data.phone !== undefined ? { phone: data.phone } : {}),
+        ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
+      },
+    });
+
+    res.json({
+      message: 'Profil et photo mis à jour avec succès !',
+      user: {
+        id: updated.id,
+        email: updated.email,
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        phone: updated.phone,
+        avatarUrl: updated.avatarUrl,
+        locale: updated.locale,
+        currency: updated.currency,
+        isAdmin: updated.isAdmin,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors[0].message, 400));
+    }
     next(error);
   }
 });
