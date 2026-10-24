@@ -258,9 +258,17 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   // 3. AUTH / ME
   if (endpoint === '/auth/me' && method === 'GET') {
     if (!currentUser) {
-      const users = getUsersDb();
-      currentUser = users[0];
-      localStorage.setItem('commercia_user', JSON.stringify(currentUser));
+      const raw = localStorage.getItem('commercia_user');
+      if (raw) {
+        try {
+          currentUser = JSON.parse(raw);
+        } catch (e) {
+          currentUser = null;
+        }
+      }
+    }
+    if (!currentUser) {
+      throw new Error('Non authentifié');
     }
     return currentUser;
   }
@@ -356,16 +364,61 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     };
   }
 
+  // Helper: get or init mock products per business
+  const getStoredProducts = () => {
+    const rawUser = localStorage.getItem('commercia_user');
+    const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
+    const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
+    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' && activeBizId === 'bizz-demo-1';
+    const prodKey = `commercia_products_${activeBizId}`;
+
+    const rawProd = localStorage.getItem(prodKey);
+    if (rawProd) {
+      try { return JSON.parse(rawProd); } catch (e) { /* ignore */ }
+    }
+    const defaultProds = isDemoMoussa ? [
+      { id: 'p-1', name: 'Riz Blanc Mémé Cassé 5kg', costPrice: 2400, sellingPrice: 3000, quantity: 18, unit: 'sac', lowStockAlert: 5, isActive: true },
+      { id: 'p-2', name: 'Huile de palme raffinée Mayor 1L', costPrice: 1200, sellingPrice: 1500, quantity: 3, unit: 'bouteille', lowStockAlert: 5, isActive: true },
+      { id: 'p-3', name: 'Sucre en morceaux SOSUCAM 1kg', costPrice: 750, sellingPrice: 950, quantity: 24, unit: 'boîte', lowStockAlert: 5, isActive: true },
+      { id: 'p-4', name: 'Lait en poudre Nido 400g', costPrice: 2200, sellingPrice: 2800, quantity: 2, unit: 'boîte', lowStockAlert: 5, isActive: true },
+      { id: 'p-5', name: 'Spaghetti Mambo 500g', costPrice: 380, sellingPrice: 500, quantity: 45, unit: 'paquet', lowStockAlert: 5, isActive: true },
+    ] : [];
+    try { localStorage.setItem(prodKey, JSON.stringify(defaultProds)); } catch (e) { /* ignore */ }
+    return defaultProds;
+  };
+
+  // Helper: get or init mock customers per business
+  const getStoredCustomers = () => {
+    const rawUser = localStorage.getItem('commercia_user');
+    const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
+    const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
+    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' && activeBizId === 'bizz-demo-1';
+    const custKey = `commercia_customers_${activeBizId}`;
+
+    const rawCust = localStorage.getItem(custKey);
+    if (rawCust) {
+      try { return JSON.parse(rawCust); } catch (e) { /* ignore */ }
+    }
+    const defaultCusts = isDemoMoussa ? [
+      { id: 'c-1', name: 'Maman Chantal', phone: '+237 677 11 22 33', totalBought: 125000, totalOwed: 15000 },
+      { id: 'c-2', name: 'Papa Pierre', phone: '+237 699 44 55 66', totalBought: 84000, totalOwed: 13500 },
+      { id: 'c-3', name: 'Tantie Rose', phone: '+237 655 77 88 99', totalBought: 96000, totalOwed: 10000 },
+      { id: 'c-4', name: 'Maître Eric', phone: '+237 680 01 02 03', totalBought: 210000, totalOwed: 0 },
+    ] : [];
+    try { localStorage.setItem(custKey, JSON.stringify(defaultCusts)); } catch (e) { /* ignore */ }
+    return defaultCusts;
+  };
+
   // 5. DASHBOARD
   if (endpoint === '/dashboard' && method === 'GET') {
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' || userObj?.id === 'user-moussa';
-
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
-    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' && activeBizId === 'bizz-demo-1';
+
+    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`);
     const localSales = rawSales ? JSON.parse(rawSales) : [];
-    const rawExpenses = localStorage.getItem(`commercia_expenses_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
+    const rawExpenses = localStorage.getItem(`commercia_expenses_${activeBizId}`);
     const localExpenses = rawExpenses ? JSON.parse(rawExpenses) : [];
 
     const defaultSales = isDemoMoussa && localSales.length === 0 ? [
@@ -433,17 +486,17 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     });
 
     const metricsWeek = calculateFinancialMetrics({
-      sales: salesList.length > 0 ? salesList : (isDemoMoussa ? [{ totalAmount: 120000, paymentMethod: 'cash', items: [] }] : []),
-      expenses: expensesList.length > 0 ? expensesList : (isDemoMoussa ? [{ amount: 60000, category: 'Loyer boutique' }] : []),
+      sales: salesList,
+      expenses: expensesList,
     });
 
     const metricsMonth = calculateFinancialMetrics({
-      sales: salesList.length > 0 ? salesList : (isDemoMoussa ? [{ totalAmount: 580000, paymentMethod: 'cash', items: [] }] : []),
-      expenses: expensesList.length > 0 ? expensesList : (isDemoMoussa ? [{ amount: 240000, category: 'Loyer boutique' }] : []),
+      sales: salesList,
+      expenses: expensesList,
     });
 
     // Calculate customer debts for this active business
-    const rawCust = localStorage.getItem(`commercia_customers_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_customers') : null);
+    const rawCust = localStorage.getItem(`commercia_customers_${activeBizId}`);
     let custs: any[] = [];
     if (rawCust) {
       try { custs = JSON.parse(rawCust); } catch (e) { /* ignore */ }
@@ -521,122 +574,158 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   }
 
 
-  // 6. ANALYTICS / TRENDS
+  // 6. ANALYTICS / TRENDS — Calcul 100% réel à partir des ventes et dépenses enregistrées
   if (endpoint.startsWith('/analytics/trends')) {
     const rawUser = localStorage.getItem('commercia_user');
     const u = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
     const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
-    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`);
     const localSales = rawSales ? JSON.parse(rawSales) : [];
+    const rawExp = localStorage.getItem(`commercia_expenses_${activeBizId}`);
+    const localExp = rawExp ? JSON.parse(rawExp) : [];
 
-    const days = 7;
-    const result = [];
+    const days = 14;
+    const dayMap: Record<string, { date: string; sales: number; expenses: number; profit: number }> = {};
     for (let i = days - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-
-      if (!isDemoMoussa && localSales.length === 0) {
-        result.push({ date: dateStr, sales: 0, expenses: 0, profit: 0 });
-      } else {
-        const sales = Math.floor(25000 + Math.random() * 45000);
-        const expenses = Math.floor(10000 + Math.random() * 20000);
-        result.push({
-          date: dateStr,
-          sales,
-          expenses,
-          profit: sales - expenses,
-        });
-      }
+      dayMap[dateStr] = { date: dateStr, sales: 0, expenses: 0, profit: 0 };
     }
-    return result;
+
+    localSales.forEach((s: any) => {
+      const dateKey = (s.saleDate || s.createdAt || new Date().toISOString()).split('T')[0];
+      if (dayMap[dateKey]) {
+        dayMap[dateKey].sales += Number(s.totalAmount || 0);
+      }
+    });
+
+    localExp.forEach((e: any) => {
+      const dateKey = (e.expenseDate || e.createdAt || new Date().toISOString()).split('T')[0];
+      if (dayMap[dateKey]) {
+        dayMap[dateKey].expenses += Number(e.amount || 0);
+      }
+    });
+
+    Object.values(dayMap).forEach(item => {
+      item.profit = item.sales - item.expenses;
+    });
+
+    return Object.values(dayMap);
   }
 
-  // 7. ANALYTICS / CATEGORIES
+  // 7. ANALYTICS / CATEGORIES — Répartition réelle des dépenses
   if (endpoint.startsWith('/analytics/categories')) {
     const rawUser = localStorage.getItem('commercia_user');
     const u = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
     const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
-    const rawExp = localStorage.getItem(`commercia_expenses_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
+    const rawExp = localStorage.getItem(`commercia_expenses_${activeBizId}`);
     const localExp = rawExp ? JSON.parse(rawExp) : [];
 
-    if (!isDemoMoussa && localExp.length === 0) {
+    if (localExp.length === 0) {
       return [];
     }
 
-    if (localExp.length > 0) {
-      const catMap: Record<string, number> = {};
-      localExp.forEach((e: any) => {
-        catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount || 0);
-      });
-      return Object.entries(catMap).map(([category, amount]) => ({ category, amount }));
-    }
+    const catMap: Record<string, number> = {};
+    localExp.forEach((e: any) => {
+      const cat = (e.category || 'Autre').trim();
+      catMap[cat] = (catMap[cat] || 0) + Number(e.amount || 0);
+    });
 
-    return [
-      { category: 'Marchandise', amount: 85000 },
-      { category: 'Loyer boutique', amount: 45000 },
-      { category: 'Transport', amount: 15000 },
-      { category: 'Électricité & Eau', amount: 12000 },
-      { category: 'Téléphone / Internet', amount: 5000 },
-      { category: 'Emballages', amount: 2500 },
-    ];
+    return Object.entries(catMap)
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
   }
 
-  // 8. ANALYTICS / TOP PRODUCTS
+  // 8. ANALYTICS / TOP PRODUCTS — Calcul réel basé sur les articles effectivement vendus
   if (endpoint.startsWith('/analytics/top-products')) {
     const rawUser = localStorage.getItem('commercia_user');
     const u = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
     const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
-    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`);
     const localSales = rawSales ? JSON.parse(rawSales) : [];
 
-    if (!isDemoMoussa && localSales.length === 0) {
+    if (localSales.length === 0) {
       return [];
     }
 
-    return [
-      { name: 'Riz Blanc Mémé Cassé 5kg', quantity: 48, revenue: 144000 },
-      { name: 'Huile de palme raffinée Mayor 1L', quantity: 65, revenue: 97500 },
-      { name: 'Sucre en morceaux SOSUCAM 1kg', quantity: 80, revenue: 76000 },
-      { name: 'Lait en poudre Nido 400g', quantity: 22, revenue: 61600 },
-      { name: 'Spaghetti Mambo 500g', quantity: 95, revenue: 47500 },
-    ];
+    const productMap: Record<string, { name: string; quantity: number; revenue: number }> = {};
+    localSales.forEach((s: any) => {
+      if (Array.isArray(s.items) && s.items.length > 0) {
+        s.items.forEach((it: any) => {
+          const name = (it.name || 'Article').trim();
+          if (!productMap[name]) {
+            productMap[name] = { name, quantity: 0, revenue: 0 };
+          }
+          const qty = Number(it.quantity) || 1;
+          const rev = Number(it.totalPrice) || (qty * Number(it.unitPrice || 0)) || (Number(s.totalAmount) / s.items.length);
+          productMap[name].quantity += qty;
+          productMap[name].revenue += rev;
+        });
+      } else {
+        const name = 'Vente directe comptoir';
+        if (!productMap[name]) {
+          productMap[name] = { name, quantity: 0, revenue: 0 };
+        }
+        productMap[name].quantity += 1;
+        productMap[name].revenue += Number(s.totalAmount || 0);
+      }
+    });
+
+    return Object.values(productMap)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
   }
 
-  // 9. ANALYTICS / WEEKLY REPORT
+  // 9. ANALYTICS / WEEKLY REPORT — Rapport synthétique réel
   if (endpoint.startsWith('/analytics/weekly-report')) {
     const rawUser = localStorage.getItem('commercia_user');
     const u = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
     const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
-    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+    const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`);
     const localSales = rawSales ? JSON.parse(rawSales) : [];
+    const rawExp = localStorage.getItem(`commercia_expenses_${activeBizId}`);
+    const localExpenses = rawExp ? JSON.parse(rawExp) : [];
 
-    if (!isDemoMoussa && localSales.length === 0) {
-      return {
-        period: { from: 'Cette semaine', to: "Aujourd'hui" },
-        metrics: { totalSales: 0, salesCount: 0, totalExpenses: 0, expensesCount: 0, netProfit: 0, totalDebt: 0 },
-        recommendation: 'Bienvenue sur COMMERCIA ! Enregistrez votre première vente ou dépense pour générer vos analyses statistiques.',
-      };
+    const now = new Date();
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(now.getDate() - 7);
+
+    const recentSales = localSales.filter((s: any) => new Date(s.saleDate || s.createdAt || now) >= oneWeekAgo);
+    const recentExpenses = localExpenses.filter((e: any) => new Date(e.expenseDate || e.createdAt || now) >= oneWeekAgo);
+
+    const totalSales = recentSales.reduce((sum: number, s: any) => sum + Number(s.totalAmount || 0), 0);
+    const totalExpenses = recentExpenses.reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0);
+    const netProfit = totalSales - totalExpenses;
+
+    const custs = getStoredCustomers();
+    const totalDebt = custs.reduce((sum: number, c: any) => sum + Number(c.totalOwed || 0), 0);
+
+    let recommendation = 'Bienvenue sur COMMERCIA ! Enregistrez votre première vente ou dépense pour générer vos analyses statistiques réelles.';
+    if (recentSales.length > 0 || recentExpenses.length > 0) {
+      if (netProfit > 0) {
+        recommendation = `Excellente activité ! Votre bénéfice net s'élève à +${netProfit.toLocaleString('fr-FR')} FCFA sur les 7 derniers jours. Votre trésorerie est positive.`;
+      } else if (netProfit < 0) {
+        recommendation = `Attention : vos charges dépassent vos recettes de ${Math.abs(netProfit).toLocaleString('fr-FR')} FCFA sur cette période. Pensez à maîtriser vos coûts d'exploitation.`;
+      } else {
+        recommendation = `Vos recettes équilibrent exactement vos dépenses (${totalSales.toLocaleString('fr-FR')} FCFA). Continuez vos efforts pour générer du bénéfice net.`;
+      }
     }
 
     return {
       period: {
-        from: '15/10/2026',
-        to: '22/10/2026',
+        from: oneWeekAgo.toLocaleDateString('fr-FR'),
+        to: now.toLocaleDateString('fr-FR'),
       },
       metrics: {
-        totalSales: 285000,
-        salesCount: 42,
-        totalExpenses: 110000,
-        expensesCount: 14,
-        netProfit: 175000,
-        totalDebt: 38500,
+        totalSales,
+        salesCount: recentSales.length,
+        totalExpenses,
+        expensesCount: recentExpenses.length,
+        netProfit,
+        totalDebt,
       },
-      recommendation: 'Excellente semaine ! Votre marge nette est supérieure à 60%. Pensez à réapprovisionner votre stock de riz et huile avant le week-end.',
+      recommendation,
     };
   }
 
@@ -656,51 +745,6 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     };
   }
 
-  // Helper: get or init mock products per business
-  const getStoredProducts = () => {
-    const rawUser = localStorage.getItem('commercia_user');
-    const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' || userObj?.id === 'user-moussa';
-    const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
-    const prodKey = `commercia_products_${activeBizId}`;
-
-    const rawProd = localStorage.getItem(prodKey) || (isDemoMoussa ? localStorage.getItem('commercia_products') : null);
-    if (rawProd) {
-      try { return JSON.parse(rawProd); } catch (e) { /* ignore */ }
-    }
-    const defaultProds = isDemoMoussa ? [
-      { id: 'p-1', name: 'Riz Blanc Mémé Cassé 5kg', costPrice: 2400, sellingPrice: 3000, quantity: 18, unit: 'sac', lowStockAlert: 5, isActive: true },
-      { id: 'p-2', name: 'Huile de palme raffinée Mayor 1L', costPrice: 1200, sellingPrice: 1500, quantity: 3, unit: 'bouteille', lowStockAlert: 5, isActive: true },
-      { id: 'p-3', name: 'Sucre en morceaux SOSUCAM 1kg', costPrice: 750, sellingPrice: 950, quantity: 24, unit: 'boîte', lowStockAlert: 5, isActive: true },
-      { id: 'p-4', name: 'Lait en poudre Nido 400g', costPrice: 2200, sellingPrice: 2800, quantity: 2, unit: 'boîte', lowStockAlert: 5, isActive: true },
-      { id: 'p-5', name: 'Spaghetti Mambo 500g', costPrice: 380, sellingPrice: 500, quantity: 45, unit: 'paquet', lowStockAlert: 5, isActive: true },
-    ] : [];
-    try { localStorage.setItem(prodKey, JSON.stringify(defaultProds)); } catch (e) { /* ignore */ }
-    return defaultProds;
-  };
-
-  // Helper: get or init mock customers per business
-  const getStoredCustomers = () => {
-    const rawUser = localStorage.getItem('commercia_user');
-    const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' || userObj?.id === 'user-moussa';
-    const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
-    const custKey = `commercia_customers_${activeBizId}`;
-
-    const rawCust = localStorage.getItem(custKey) || (isDemoMoussa ? localStorage.getItem('commercia_customers') : null);
-    if (rawCust) {
-      try { return JSON.parse(rawCust); } catch (e) { /* ignore */ }
-    }
-    const defaultCusts = isDemoMoussa ? [
-      { id: 'c-1', name: 'Maman Chantal', phone: '+237 677 11 22 33', totalBought: 125000, totalOwed: 15000 },
-      { id: 'c-2', name: 'Papa Pierre', phone: '+237 699 44 55 66', totalBought: 84000, totalOwed: 13500 },
-      { id: 'c-3', name: 'Tantie Rose', phone: '+237 655 77 88 99', totalBought: 96000, totalOwed: 10000 },
-      { id: 'c-4', name: 'Maître Eric', phone: '+237 680 01 02 03', totalBought: 210000, totalOwed: 0 },
-    ] : [];
-    try { localStorage.setItem(custKey, JSON.stringify(defaultCusts)); } catch (e) { /* ignore */ }
-    return defaultCusts;
-  };
-
   // 11. SALES (GET & POST)
   if (endpoint.startsWith('/sales')) {
     const rawUser = localStorage.getItem('commercia_user');
@@ -710,7 +754,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     const saleKey = `commercia_sales_${activeBizId}`;
 
     if (method === 'POST') {
-      const raw = localStorage.getItem(saleKey) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+      const raw = localStorage.getItem(saleKey);
       const sales = raw ? JSON.parse(raw) : [];
       const newItems = body?.items || [{ name: 'Vente directe comptoir' }];
 
@@ -764,10 +808,11 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       };
       sales.unshift(newSale);
       localStorage.setItem(saleKey, JSON.stringify(sales));
-      localStorage.setItem('commercia_sales', JSON.stringify(sales));
+      if (isDemoMoussa) localStorage.setItem('commercia_sales', JSON.stringify(sales));
 
       // Sync with active cash session if open
-      const activeCashRaw = localStorage.getItem('commercia_active_cash_session');
+      const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
+      const activeCashRaw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
       if (activeCashRaw) {
         try {
           const cs = JSON.parse(activeCashRaw);
@@ -796,7 +841,8 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
               cs.totalMomoIn = (cs.totalMomoIn || 0) + paid;
               cs.theoreticalMomo = (cs.theoreticalMomo || 0) + paid;
             }
-            localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
+            localStorage.setItem(activeCashKey, JSON.stringify(cs));
+            if (isDemoMoussa) localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
           }
         } catch (e) { /* ignore */ }
       }
@@ -840,10 +886,11 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       };
       expenses.unshift(newExpense);
       localStorage.setItem(expKey, JSON.stringify(expenses));
-      localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
+      if (isDemoMoussa) localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
 
       // Sync with active cash session if open
-      const activeCashRaw = localStorage.getItem('commercia_active_cash_session');
+      const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
+      const activeCashRaw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
       if (activeCashRaw) {
         try {
           const cs = JSON.parse(activeCashRaw);
@@ -864,7 +911,8 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
             cs.movements.unshift(move);
             cs.totalCashOut = (cs.totalCashOut || 0) + amt;
             cs.theoreticalCash = (cs.theoreticalCash || 0) - amt;
-            localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
+            localStorage.setItem(activeCashKey, JSON.stringify(cs));
+            if (isDemoMoussa) localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
           }
         } catch (e) { /* ignore */ }
       }
@@ -1334,9 +1382,16 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
 
   // 18. CASH SESSIONS & MOVEMENTS
   if (endpoint.startsWith('/cash')) {
+    const rawUser = localStorage.getItem('commercia_user');
+    const u = rawUser ? JSON.parse(rawUser) : currentUser;
+    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
+    const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
+    const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
+    const pastCashKey = `commercia_past_cash_sessions_${activeBizId}`;
+
     // A. Current cash session
     if (endpoint === '/cash/current' && method === 'GET') {
-      const raw = localStorage.getItem('commercia_active_cash_session');
+      const raw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
       if (raw) {
         try {
           const session = JSON.parse(raw);
@@ -1352,8 +1407,8 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       const initialMomo = Number(body?.initialMomo || 0);
       const newSession = {
         id: 'cs-' + Date.now(),
-        businessId: 'bizz-demo-1',
-        userId: currentUser?.id || 'user-moussa',
+        businessId: activeBizId,
+        userId: u?.id || 'user-1',
         status: 'open',
         openedAt: new Date().toISOString(),
         initialCash,
@@ -1367,8 +1422,8 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         theoreticalMomo: initialMomo,
         notes: body?.notes || null,
         user: {
-          firstName: currentUser?.firstName || 'Moussa',
-          lastName: currentUser?.lastName || 'Ibrahim',
+          firstName: u?.firstName || 'Utilisateur',
+          lastName: u?.lastName || '',
         },
         movements: [
           {
@@ -1383,13 +1438,14 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
           },
         ],
       };
-      localStorage.setItem('commercia_active_cash_session', JSON.stringify(newSession));
+      localStorage.setItem(activeCashKey, JSON.stringify(newSession));
+      if (isDemoMoussa) localStorage.setItem('commercia_active_cash_session', JSON.stringify(newSession));
       return { message: 'Caisse ouverte avec succès ! 💼', session: newSession };
     }
 
     // C. Add manual cash movement (in/out)
     if (endpoint === '/cash/movement' && method === 'POST') {
-      const raw = localStorage.getItem('commercia_active_cash_session');
+      const raw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
       if (!raw) {
         throw new Error('Aucune caisse n\'est actuellement ouverte.');
       }
@@ -1415,13 +1471,14 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         sess.totalCashOut = (sess.totalCashOut || 0) + amt;
         sess.theoreticalCash = (sess.theoreticalCash || 0) - amt;
       }
-      localStorage.setItem('commercia_active_cash_session', JSON.stringify(sess));
+      localStorage.setItem(activeCashKey, JSON.stringify(sess));
+      if (isDemoMoussa) localStorage.setItem('commercia_active_cash_session', JSON.stringify(sess));
       return { message: 'Mouvement de caisse enregistré !', movement: move, session: sess };
     }
 
     // D. Close cash session
     if (endpoint === '/cash/close' && method === 'POST') {
-      const raw = localStorage.getItem('commercia_active_cash_session');
+      const raw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
       if (!raw) {
         throw new Error('Aucune caisse n\'est actuellement ouverte.');
       }
@@ -1441,22 +1498,20 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       }
 
       // Add to past sessions
-      const pastRaw = localStorage.getItem('commercia_past_cash_sessions');
+      const pastRaw = localStorage.getItem(pastCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_past_cash_sessions') : null);
       const past = pastRaw ? JSON.parse(pastRaw) : [];
       past.unshift(sess);
-      localStorage.setItem('commercia_past_cash_sessions', JSON.stringify(past));
-      localStorage.removeItem('commercia_active_cash_session');
+      localStorage.setItem(pastCashKey, JSON.stringify(past));
+      if (isDemoMoussa) localStorage.setItem('commercia_past_cash_sessions', JSON.stringify(past));
+      localStorage.removeItem(activeCashKey);
+      if (isDemoMoussa) localStorage.removeItem('commercia_active_cash_session');
 
       return { message: 'Caisse clôturée avec succès ! 🔒', session: sess };
     }
 
     // E. Past sessions list
     if (endpoint.startsWith('/cash/sessions')) {
-      const rawUser = localStorage.getItem('commercia_user');
-      const u = rawUser ? JSON.parse(rawUser) : currentUser;
-      const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
-
-      const pastRaw = localStorage.getItem('commercia_past_cash_sessions');
+      const pastRaw = localStorage.getItem(pastCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_past_cash_sessions') : null);
       let past = pastRaw ? JSON.parse(pastRaw) : [];
       if (past.length === 0 && isDemoMoussa) {
         past = [

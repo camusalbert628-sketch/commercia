@@ -1,6 +1,10 @@
 import { handleMockRequest } from './mockBackend';
 
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const DEFAULT_API_URL = typeof window !== 'undefined' && (window.location.hostname.includes('vercel.app') || window.location.hostname !== 'localhost')
+  ? 'https://backend-phi-three-43.vercel.app/api'
+  : 'http://localhost:3001/api';
+
+const BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
 
 export class ApiError extends Error {
   statusCode: number;

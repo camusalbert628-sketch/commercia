@@ -35,7 +35,7 @@ app.use(helmet());
 app.use(compression());
 app.use(morgan('dev'));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: true,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -96,6 +96,9 @@ const startServer = async () => {
   }
 };
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
 
+export default app;
 export { app, prisma };
