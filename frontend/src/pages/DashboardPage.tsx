@@ -27,6 +27,8 @@ import { DashboardData } from '../types';
 import { useModals } from '../context/ModalContext';
 import { useAuthStore } from '../store/authStore';
 
+import { DashboardSkeleton } from '../components/common/SkeletonLoader';
+
 interface DashboardPageProps {
   onOpenSaleModal?: () => void;
   onOpenExpenseModal?: () => void;
@@ -76,13 +78,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   }, [refreshKey, activeBusinessId]);
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-        <div style={{ color: '#059669', fontWeight: 700, fontSize: '1.1rem' }}>
-          Chargement de votre copilote...
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const today = data?.today || { sales: 0, salesCount: 0, expenses: 0, profit: 0 };
@@ -96,7 +92,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const planName = user?.subscription?.planName || 'free';
 
   return (
-    <div className="page-wrapper">
+    <div className="page-wrapper fade-in">
       {/* Plan Upgrade Reminder Banner */}
       {!hideBanner && planName === 'free' && (
         <div
@@ -289,9 +285,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* AI Copilot Smart Insight Card */}
       {data?.insights && data.insights.length > 0 && (
         <div
+          className="ai-glow-card"
           style={{
             background: 'linear-gradient(135deg, #EFF6FF 0%, #FFF4ED 100%)',
-            border: '1px solid #BFDBFE',
+            border: '1.5px solid #BFDBFE',
             borderRadius: '16px',
             padding: '18px 22px',
             marginBottom: '24px',

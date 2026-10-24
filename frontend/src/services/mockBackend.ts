@@ -276,6 +276,7 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     currentUser = rawUser ? JSON.parse(rawUser) : currentUser;
 
     const bizzName = (body?.name || '').trim() || 'Mon Commerce';
+    const trackingMode = body?.trackingMode || 'complet';
     const newBizz = {
       id: 'bizz-' + Date.now(),
       name: bizzName,
@@ -284,7 +285,13 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
       businessDescription: body?.businessDescription || '',
       salesChannels: body?.salesChannels || [],
       hasStock: body?.hasStock ?? true,
-      trackingMode: body?.trackingMode || 'complet',
+      trackingMode: trackingMode,
+      settings: {
+        enableStock: trackingMode === 'avec_stock' || trackingMode === 'complet',
+        enableCredits: trackingMode === 'avec_credit' || trackingMode === 'complet',
+        enableNotifications: true,
+        lowStockThreshold: 5,
+      },
       dailySalesEstimate: body?.dailySalesEstimate,
       role: 'owner',
     };

@@ -78,7 +78,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      <MobileNav />
+      <MobileNav onOpenQuickSale={openSaleModal} />
 
       {/* Global Modals & Quick Action Sheet */}
       <QuickActionSheet />

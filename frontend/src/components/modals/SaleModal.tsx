@@ -23,12 +23,14 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+  const [receivedAmount, setReceivedAmount] = useState<number | ''>('');
 
   const resetForm = () => {
     setItems([{ name: '', quantity: 1, unitPrice: 0 }]);
     setSelectedProductId('');
     setCustomerId('');
     setPaymentMethod('cash');
+    setReceivedAmount('');
     setError('');
     setSuccessMsg('');
     setCompletedSale(null);
@@ -303,6 +305,71 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                 ))}
               </div>
             </div>
+
+            {/* Live Cash Change Calculator */}
+            {paymentMethod === 'cash' && totalAmount > 0 && (
+              <div
+                style={{
+                  background: '#F0FDF4',
+                  border: '1.5px solid #86EFAC',
+                  borderRadius: '12px',
+                  padding: '14px 16px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#166534', margin: 0 }}>
+                    💵 Espèces remises par le client :
+                  </label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setReceivedAmount(totalAmount)}
+                      style={{ fontSize: '0.72rem', background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Montant exact
+                    </button>
+                    {[5000, 10000, 20000].filter(val => val > totalAmount).slice(0, 2).map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setReceivedAmount(val)}
+                        style={{ fontSize: '0.72rem', background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        {val.toLocaleString('fr-FR')} F
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    type="number"
+                    placeholder={`Ex: ${totalAmount >= 5000 ? (Math.ceil(totalAmount / 5000) * 5000) : 5000}`}
+                    value={receivedAmount === '' ? '' : receivedAmount}
+                    onChange={e => setReceivedAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                    style={{ flex: 1, padding: '8px 12px', fontSize: '1rem', fontWeight: 700, color: '#0F172A', background: '#FFFFFF' }}
+                  />
+                  <div style={{ minWidth: '150px', textAlign: 'right' }}>
+                    {typeof receivedAmount === 'number' && receivedAmount >= totalAmount ? (
+                      <div>
+                        <div style={{ fontSize: '0.7rem', color: '#15803D', fontWeight: 700, textTransform: 'uppercase' }}>Monnaie à rendre :</div>
+                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#16A34A', fontFamily: 'Space Grotesk, sans-serif' }}>
+                          {(receivedAmount - totalAmount).toLocaleString('fr-FR')} FCFA
+                        </div>
+                      </div>
+                    ) : typeof receivedAmount === 'number' && receivedAmount > 0 && receivedAmount < totalAmount ? (
+                      <div style={{ fontSize: '0.78rem', color: '#DC2626', fontWeight: 700 }}>
+                        ⚠️ Reste : {(totalAmount - receivedAmount).toLocaleString('fr-FR')} F
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
+                        Tapez le billet reçu
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Customer selector (required for credit or optional for tracking) */}
             <div>

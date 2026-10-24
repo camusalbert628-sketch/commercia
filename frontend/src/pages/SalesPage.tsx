@@ -95,7 +95,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
   };
 
   return (
-    <div className="page-wrapper">
+    <div className="page-wrapper fade-in">
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0' }}>Historique des Ventes</h1>
@@ -155,7 +155,26 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
               </tr>
             </thead>
             <tbody>
-              {filtered.map(s => (
+              {loading ? (
+                Array.from({ length: 6 }).map((_, idx) => (
+                  <tr key={idx}>
+                    <td colSpan={6} style={{ padding: '10px 16px' }}>
+                      <div className="skeleton-shimmer" style={{ height: '32px', borderRadius: '8px', width: '100%' }} />
+                    </td>
+                  </tr>
+                ))
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px 20px', color: '#94A3B8' }}>
+                    <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🧾</div>
+                    <div style={{ fontWeight: 600, color: '#475569', fontSize: '0.95rem' }}>Aucune vente trouvée</div>
+                    <div style={{ fontSize: '0.82rem', color: '#94A3B8', marginTop: '4px' }}>
+                      Cliquez sur "+ Nouvelle Vente" pour enregistrer votre premier encaissement.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map(s => (
                 <tr key={s.id}>
                   <td style={{ fontSize: '0.85rem' }}>
                     <div style={{ fontWeight: 600 }}>{new Date(s.saleDate).toLocaleDateString('fr-FR')}</div>
@@ -233,15 +252,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
                     </div>
                   </td>
                 </tr>
-              ))}
-
-              {filtered.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>
-                    Aucune vente ne correspond à vos critères de recherche.
-                  </td>
-                </tr>
-              )}
+              )))}
             </tbody>
           </table>
         </div>

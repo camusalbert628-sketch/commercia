@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Plus, Users, Menu } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Plus, Users, Bot } from 'lucide-react';
 import { useModals } from '../../context/ModalContext';
 
 interface MobileNavProps {
@@ -40,7 +40,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onOpenQuickSale }) => {
       <button
         className="mobile-action-btn"
         onClick={handleActionClick}
-        title="Ajouter une opération"
+        title="Encaisser une vente rapide"
       >
         <Plus size={24} />
       </button>
@@ -54,11 +54,11 @@ export const MobileNav: React.FC<MobileNavProps> = ({ onOpenQuickSale }) => {
       </NavLink>
 
       <NavLink
-        to="/analytics"
+        to="/copilot"
         className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
       >
-        <Menu size={20} />
-        <span>Plus</span>
+        <Bot size={20} />
+        <span>Copilote</span>
       </NavLink>
     </nav>
   );
