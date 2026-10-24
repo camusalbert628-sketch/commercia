@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -16,6 +16,11 @@ import {
   Landmark,
   Sparkles,
   ArrowRight,
+  PhoneCall,
+  MessageCircle,
+  CheckCircle2,
+  Headphones,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -27,6 +32,10 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount = 0 }) => {
   const { user, activeBusinessId, logout } = useAuthStore();
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [callbackSent, setCallbackSent] = useState(false);
+  const [callbackPhone, setCallbackPhone] = useState(user?.phone || '');
 
   const planName = user?.subscription?.planName || 'free';
   const subStatus = user?.subscription?.status || 'free';
@@ -310,19 +319,178 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             </div>
           </div>
           <button
-            onClick={logout}
+            onClick={() => setShowLogoutModal(true)}
             title="Se déconnecter"
             style={{
               background: 'transparent',
               color: '#94A3B8',
               padding: '6px',
               borderRadius: '6px',
+              cursor: 'pointer',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             <LogOut size={16} />
           </button>
         </div>
       </div>
+
+      {/* Logout Confirmation & Support Call Modal */}
+      {showLogoutModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ maxWidth: '470px', padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <LogOut size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#0F172A' }}>Déconnexion Sécurisée</h3>
+                  <div style={{ fontSize: '0.78rem', color: '#64748B' }}>Vos données restent enregistrées</div>
+                </div>
+              </div>
+              <button onClick={() => setShowLogoutModal(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.88rem', color: '#334155', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+              Vous êtes sur le point de vous déconnecter de votre compte. Toutes vos opérations et caisses de <strong>{activeBusiness?.name || 'votre boutique'}</strong> sont sauvegardées et synchronisées.
+            </p>
+
+            {/* MESSAGE D'APPEL / ASSISTANCE ET RAPPEL */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #EFF6FF 0%, #F0FDF4 100%)',
+                border: '1px solid #BFDBFE',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '20px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <PhoneCall size={18} color="#0062FF" />
+                <strong style={{ fontSize: '0.92rem', color: '#0F172A' }}>Service d'Appel & Assistance Commerçant</strong>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#475569', margin: '0 0 12px 0', lineHeight: 1.4 }}>
+                Besoin d'un accompagnement personnalisé ou d'une assistance urgente sur votre boutique ? Lancez un appel direct ou demandez à être rappelé par nos experts.
+              </p>
+
+              {callbackSent ? (
+                <div style={{ background: '#DCFCE7', border: '1px solid #86EFAC', borderRadius: '8px', padding: '10px', display: 'flex', alignItems: 'center', gap: '8px', color: '#166534', fontSize: '0.82rem', fontWeight: 600 }}>
+                  <CheckCircle2 size={16} />
+                  <span>Votre demande d'appel a été envoyée ! Un conseiller COMMERCIA va vous appeler dans quelques instants sur votre numéro.</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <a
+                      href="tel:+237690000000"
+                      className="btn btn-outline"
+                      style={{
+                        flex: 1,
+                        fontSize: '0.8rem',
+                        padding: '8px 10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        textDecoration: 'none',
+                        background: '#FFFFFF',
+                        color: '#0062FF',
+                        borderColor: '#93C5FD',
+                      }}
+                    >
+                      <PhoneCall size={14} />
+                      <span>Appel Direct</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/237690000000?text=${encodeURIComponent("Bonjour assistance COMMERCIA, je souhaite échanger avec un conseiller pour ma boutique " + (activeBusiness?.name || ''))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-outline"
+                      style={{
+                        flex: 1,
+                        fontSize: '0.8rem',
+                        padding: '8px 10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        textDecoration: 'none',
+                        background: '#FFFFFF',
+                        color: '#16A34A',
+                        borderColor: '#86EFAC',
+                      }}
+                    >
+                      <MessageCircle size={14} />
+                      <span>WhatsApp Support</span>
+                    </a>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCallbackSent(true);
+                      try {
+                        localStorage.setItem('commercia_last_callback_request', JSON.stringify({
+                          time: new Date().toISOString(),
+                          phone: callbackPhone || user?.phone || 'Non renseigné',
+                          user: `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Commerçant',
+                          business: activeBusiness?.name || '',
+                        }));
+                      } catch (_) {}
+                    }}
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: '8px',
+                      padding: '8px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: '#1E293B',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Headphones size={13} color="#0062FF" />
+                    <span>Envoyer un message d'appel / demande de rappel</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowLogoutModal(false)}
+                style={{ flex: 1 }}
+              >
+                Rester connecté
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  setShowLogoutModal(false);
+                  logout();
+                }}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+              >
+                <LogOut size={16} />
+                <span>Se déconnecter</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };
