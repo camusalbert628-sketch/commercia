@@ -3,6 +3,7 @@
 // Includes live store RAG context injection, conversation multi-turn memory, and long-term memory extraction.
 
 import { getLiveStoreContext, LiveStoreContext } from './aiKnowledgeEngine';
+import { sanitizeNaturalText } from '../utils/textFormatter';
 
 export type LLMProvider = 'gemini' | 'openai' | 'groq' | 'custom';
 
@@ -311,6 +312,51 @@ async function callOpenAICompatible(
   return text;
 }
 
+// 6b. Call Public CORS-enabled Free LLM Engine (OpenAI / Llama model without API key)
+async function callDirectFreeLLM(
+  prompt: string,
+  history: Array<{ role: 'user' | 'assistant'; content: string }>,
+  systemInstruction: string
+): Promise<string> {
+  // Option A: Try Puter.js in window
+  if (typeof window !== 'undefined' && (window as any).puter?.ai?.chat) {
+    try {
+      const response = await (window as any).puter.ai.chat(prompt, {
+        model: 'openai/gpt-4o-mini',
+        system: systemInstruction,
+      });
+      const text = typeof response === 'string' ? response : response?.message?.content || response?.toString();
+      if (text && text.trim().length > 5) {
+        return text;
+      }
+    } catch (e) {
+      console.warn('Puter LLM failed, trying Pollinations gateway:', e);
+    }
+  }
+
+  // Option B: Public CORS Generative LLM Gateway (Pollinations)
+  // Encodes system prompt, live store data, conversation history and user query
+  const conversationSummary = history.slice(-4).map(h => `${h.role === 'user' ? 'Commerçant' : 'Copilote'}: ${h.content}`).join('\n');
+  const fullPrompt = `${systemInstruction}\n\nHistorique de la conversation récente :\n${conversationSummary}\n\nQuestion actuelle du commerçant :\n${prompt}`;
+  
+  const encoded = encodeURIComponent(fullPrompt);
+  const resp = await fetch(`https://text.pollinations.ai/${encoded}?model=openai&cache=false`, {
+    method: 'GET',
+    headers: { 'Accept': 'text/plain' },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Pollinations HTTP error ${resp.status}`);
+  }
+
+  const rawText = await resp.text();
+  if (!rawText || rawText.trim().length < 5) {
+    throw new Error('Réponse vide du LLM gratuit');
+  }
+
+  return rawText.trim();
+}
+
 // 7. High-Level Orchestrator: Generate Intelligent LLM Answer
 export async function generateCopilotLLMResponse(
   userMessage: string,
@@ -332,13 +378,11 @@ export async function generateCopilotLLMResponse(
     try {
       if (cfg.provider === 'gemini') {
         const reply = await callGemini(userMessage, history, systemPrompt, cfg.apiKey, cfg.model || 'gemini-1.5-flash');
-        const { sanitizeNaturalText } = await import('../utils/textFormatter');
         return { reply: sanitizeNaturalText(reply), memorizedFact: memorized, providerUsed: `Google Gemini (${cfg.model || '1.5-flash'})` };
       }
 
       if (cfg.provider === 'openai') {
         const reply = await callOpenAICompatible(userMessage, history, systemPrompt, cfg.apiKey, cfg.model || 'gpt-4o-mini');
-        const { sanitizeNaturalText } = await import('../utils/textFormatter');
         return { reply: sanitizeNaturalText(reply), memorizedFact: memorized, providerUsed: `OpenAI (${cfg.model || 'gpt-4o-mini'})` };
       }
 
@@ -351,13 +395,28 @@ export async function generateCopilotLLMResponse(
           cfg.model || 'llama-3.3-70b-versatile',
           'https://api.groq.com/openai/v1/chat/completions'
         );
-        const { sanitizeNaturalText } = await import('../utils/textFormatter');
         return { reply: sanitizeNaturalText(reply), memorizedFact: memorized, providerUsed: `Groq (${cfg.model || 'llama-3.3'})` };
       }
     } catch (llmError: any) {
-      console.warn('Direct LLM call failed, falling back to smart contextual engine:', llmError);
-      // We will let the execution continue down to the advanced contextual knowledge engine
+      console.warn('Direct LLM call failed, trying public free LLM gateway:', llmError);
     }
+  }
+
+  // 7b. AUTOMATIC OUT-OF-THE-BOX LLM ENGINE (Powered by true GPT / Llama with RAG and Memory)
+  // No API key required by default! Every question goes through real generative intelligence.
+  try {
+    const freeLLMReply = await callDirectFreeLLM(userMessage, history, systemPrompt);
+    let finalReply = sanitizeNaturalText(freeLLMReply);
+    if (memorized && !finalReply.toLowerCase().includes('mémorisé') && !finalReply.toLowerCase().includes('noté')) {
+      finalReply = `J'ai bien enregistré cette information dans ma mémoire continue pour votre établissement.\n\n${finalReply}`;
+    }
+    return {
+      reply: finalReply,
+      memorizedFact: memorized,
+      providerUsed: 'LLM Intelligent (GPT-4o-mini / Pollinations)',
+    };
+  } catch (freeErr) {
+    console.warn('Public LLM gateway unavailable, continuing to conversational local intelligence:', freeErr);
   }
 
   // 8. Advanced Contextual & Memory-Augmented Engine (When no personal API key is configured or offline)
@@ -371,6 +430,15 @@ export async function generateCopilotLLMResponse(
     smartReply = `🧠 **Voici ce que j'ai en mémoire sur votre activité (${storeContext.businessName}) :**\n\n` +
       memories.map(m => `• **${m.category.toUpperCase()}** : ${m.content}`).join('\n') +
       `\n\n💡 *Astuce : Pour m'apprendre un nouveau fait, dites-moi simplement : « Rappelle-toi que mon produit le plus rentable est... » ou « Note que... » !*`;
+  } else if (lower.includes('vente') || lower.includes('vendu') || lower.includes('chiffre d\'affaire') || lower.includes('recette') || lower.includes('encaiss')) {
+    smartReply = `🛍️ **Activité commerciale et ventes pour ${storeContext.businessName} :**\n\n` +
+      (storeContext.todaySalesCount > 0
+        ? `Aujourd'hui, vous avez réalisé **${storeContext.todaySalesCount} vente(s)** pour un total encaissé de **${storeContext.todaySalesTotal.toLocaleString('fr-FR')} FCFA**.\n\n` +
+          `• Espèces reçues en caisse : ${storeContext.totalCashIn.toLocaleString('fr-FR')} FCFA\n` +
+          `• Reçu par Mobile Money / Wave : ${storeContext.totalMomoIn.toLocaleString('fr-FR')} FCFA\n\n` +
+          `💡 Continuez sur cette dynamique ! Pensez à enregistrer chaque vente au fur et à mesure pour garder votre livre de caisse parfaitement exact.`
+        : `Pour le moment, **aucune vente n'a encore été enregistrée aujourd'hui** pour votre établissement.\n\n` +
+          `Dès que vous réalisez une vente au comptoir, cliquez sur le bouton bleu **+ Nouvelle Vente** en haut ou utilisez le raccourci rapide pour enregistrer le ticket et mettre à jour votre caisse en direct.`);
   } else if (lower.includes('bénéfice') || lower.includes('profit') || lower.includes('gagné') || lower.includes('rentab')) {
     const estimatedMargin = storeContext.todaySalesTotal > 0
       ? Math.round(((storeContext.todaySalesTotal - storeContext.todayExpensesTotal) / storeContext.todaySalesTotal) * 100)
@@ -447,7 +515,6 @@ export async function generateCopilotLLMResponse(
     smartReply = `🧠 *(J'ai mémorisé : « ${memorized} »)*\n\n` + smartReply;
   }
 
-  const { sanitizeNaturalText } = await import('../utils/textFormatter');
   return {
     reply: sanitizeNaturalText(smartReply),
     memorizedFact: memorized,
