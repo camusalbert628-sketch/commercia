@@ -27,7 +27,22 @@ router.get('/', async (req: AuthRequest, res, next) => {
       products = products.filter((p: any) => p.quantity <= p.lowStockAlert);
     }
 
-    res.json(products);
+    const formatted = products.map((p: any) => {
+      let extra: any = {};
+      if (p.description && p.description.startsWith('{') && p.description.endsWith('}')) {
+        try {
+          extra = JSON.parse(p.description);
+        } catch (_) {}
+      }
+      return {
+        ...p,
+        purchasePrice: extra.purchasePrice ?? p.costPrice,
+        logisticsFees: extra.logisticsFees ?? 0,
+        isOnlineShop: Boolean(extra.isOnlineShop),
+      };
+    });
+
+    res.json(formatted);
   } catch (error) {
     next(error);
   }
@@ -40,19 +55,32 @@ router.post('/', requireProSubscription, async (req: AuthRequest, res, next) => 
     const schema = z.object({
       name: z.string().min(1, 'Nom du produit requis'),
       description: z.string().optional(),
+      purchasePrice: z.number().min(0).optional(),
+      logisticsFees: z.number().min(0).optional(),
       sellingPrice: z.number().min(0, 'Le prix de vente doit être positif'),
       costPrice: z.number().min(0).default(0),
       quantity: z.number().int().min(0).default(0),
       unit: z.string().default('unité'),
       lowStockAlert: z.number().int().min(1).default(5),
+      isOnlineShop: z.boolean().optional(),
     });
     const data = schema.parse(req.body);
+
+    let extraMeta: any = {};
+    if (data.purchasePrice !== undefined || data.logisticsFees !== undefined || data.isOnlineShop !== undefined) {
+      extraMeta = {
+        purchasePrice: data.purchasePrice ?? data.costPrice,
+        logisticsFees: data.logisticsFees ?? 0,
+        isOnlineShop: Boolean(data.isOnlineShop),
+      };
+    }
+    const finalDescription = data.description || (Object.keys(extraMeta).length > 0 ? JSON.stringify(extraMeta) : null);
 
     const product = await req.prisma.product.create({
       data: {
         businessId,
         name: data.name,
-        description: data.description || null,
+        description: finalDescription,
         sellingPrice: data.sellingPrice,
         costPrice: data.costPrice,
         quantity: data.quantity,

@@ -22,6 +22,9 @@ const DEFAULT_CATEGORIES = [
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onExpenseCreated }) => {
   const [amount, setAmount] = useState<number | ''>('');
   const [category, setCategory] = useState('marchandise');
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customBeneficiary, setCustomBeneficiary] = useState('');
+  const [customPaymentMethod, setCustomPaymentMethod] = useState<'cash' | 'mobile_money' | 'virement'>('cash');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,14 +39,29 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
       return;
     }
 
+    if (category === 'autre' && !customCategoryName.trim()) {
+      setError('Veuillez préciser le nom de votre catégorie de dépense.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
       const selectedCategoryObj = DEFAULT_CATEGORIES.find(c => c.id === category);
+      const finalCategory = category === 'autre' && customCategoryName.trim()
+        ? `Autre: ${customCategoryName.trim()}`
+        : (selectedCategoryObj?.name || category);
+
+      let finalDescription = description.trim();
+      if (customBeneficiary.trim()) {
+        finalDescription = `Bénéficiaire: ${customBeneficiary.trim()}${finalDescription ? ' • ' + finalDescription : ''}`;
+      }
+
       const res = await api.post<{ message: string }>('/expenses', {
         amount: Number(amount),
-        category: selectedCategoryObj?.name || category,
-        description: description || undefined,
+        category: finalCategory,
+        description: finalDescription || undefined,
+        paymentMethod: customPaymentMethod,
       });
 
       setSuccessMsg(res.message);
@@ -52,6 +70,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
         onClose();
         setAmount('');
         setDescription('');
+        setCustomCategoryName('');
+        setCustomBeneficiary('');
       }, 1200);
     } catch (err: any) {
       setError(err.message || 'Erreur lors de l\'enregistrement de la dépense.');
@@ -149,13 +169,79 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
               </div>
             </div>
 
+            {/* EXPANDABLE FIELDS SPECIFICALLY FOR "AUTRE DÉPENSE" */}
+            {category === 'autre' && (
+              <div
+                style={{
+                  background: '#FFF8F4',
+                  border: '1.5px solid #FFD9C2',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  animation: 'fadeIn 0.2s ease',
+                }}
+              >
+                <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#C2410C', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>📋</span>
+                  <span>Détails de cette dépense personnalisée</span>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                    Intitulé ou motif exact de la dépense <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Frais de douane, Réparation congélateur, Achat matériel..."
+                    value={customCategoryName}
+                    onChange={e => setCustomCategoryName(e.target.value)}
+                    required
+                    autoFocus
+                    style={{ background: '#FFFFFF', borderColor: '#FFBD9B' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      Bénéficiaire / Prestataire / Prestataire
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Technicien froid, Transitaire..."
+                      value={customBeneficiary}
+                      onChange={e => setCustomBeneficiary(e.target.value)}
+                      style={{ background: '#FFFFFF' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                      Moyen de paiement
+                    </label>
+                    <select
+                      value={customPaymentMethod}
+                      onChange={e => setCustomPaymentMethod(e.target.value as any)}
+                      style={{ background: '#FFFFFF', cursor: 'pointer' }}
+                    >
+                      <option value="cash">💵 Espèces (Cash)</option>
+                      <option value="mobile_money">📲 Mobile Money</option>
+                      <option value="virement">🏦 Virement bancaire</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                Description ou note (facultatif) :
+                Description ou note complémentaire (facultatif) :
               </label>
               <input
                 type="text"
-                placeholder="Ex: Facture Eneo boutique, course moto Marché..."
+                placeholder="Ex: Facture #890, payé avec la caisse du matin..."
                 value={description}
                 onChange={e => setDescription(e.target.value)}
               />

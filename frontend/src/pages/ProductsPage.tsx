@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, AlertTriangle, Search, ArrowUp, X } from 'lucide-react';
+import { Plus, AlertTriangle, Search, ArrowUp, X, Crown, Globe, Truck, Calculator } from 'lucide-react';
 import { api } from '../services/api';
 import { Product } from '../types';
 
@@ -12,11 +12,23 @@ export const ProductsPage: React.FC = () => {
   // Modal New Product
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
+  const [purchasePrice, setPurchasePrice] = useState<number | ''>('');
+  const [logisticsFees, setLogisticsFees] = useState<number | ''>('');
   const [costPrice, setCostPrice] = useState<number | ''>('');
   const [sellingPrice, setSellingPrice] = useState<number | ''>('');
   const [quantity, setQuantity] = useState<number | ''>('');
   const [unit, setUnit] = useState('unité');
   const [lowStockAlert, setLowStockAlert] = useState(5);
+  const [isOnlineShop, setIsOnlineShop] = useState(false);
+
+  // Auto-calculate cost price (Prix d'achat + Frais annexes)
+  useEffect(() => {
+    const pPrice = Number(purchasePrice) || 0;
+    const lFees = Number(logisticsFees) || 0;
+    if (purchasePrice !== '' || logisticsFees !== '') {
+      setCostPrice(pPrice + lFees);
+    }
+  }, [purchasePrice, logisticsFees]);
 
   // Modal Adjust Stock
   const [showAdjustModal, setShowAdjustModal] = useState(false);
@@ -47,20 +59,30 @@ export const ProductsPage: React.FC = () => {
     if (!name.trim() || !sellingPrice) return;
 
     try {
+      const pPrice = Number(purchasePrice) || Number(costPrice) || 0;
+      const lFees = Number(logisticsFees) || 0;
+      const realCostPrice = Number(costPrice) || (pPrice + lFees);
+
       await api.post('/products', {
         name,
-        costPrice: Number(costPrice) || 0,
+        purchasePrice: pPrice,
+        logisticsFees: lFees,
+        costPrice: realCostPrice,
         sellingPrice: Number(sellingPrice),
         quantity: Number(quantity) || 0,
         unit,
         lowStockAlert: Number(lowStockAlert) || 5,
+        isOnlineShop: Boolean(isOnlineShop),
       });
 
       setShowAddModal(false);
       setName('');
+      setPurchasePrice('');
+      setLogisticsFees('');
       setCostPrice('');
       setSellingPrice('');
       setQuantity('');
+      setIsOnlineShop(false);
       fetchProducts();
     } catch (e: any) {
       alert(e.message || 'Erreur lors de la création du produit.');
@@ -141,30 +163,67 @@ export const ProductsPage: React.FC = () => {
             <thead>
               <tr>
                 <th>Désignation Article</th>
-                <th>Prix d'achat</th>
-                <th>Prix de vente</th>
-                <th>Marge unitaire</th>
+                <th>Coût d'Achat & Frais</th>
+                <th>Prix de Revient</th>
+                <th>Prix de Vente</th>
+                <th>Marge Réelle</th>
                 <th>En Stock</th>
                 <th style={{ textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(p => {
-                const margin = p.sellingPrice - p.costPrice;
-                const marginPercent = p.costPrice > 0 ? Math.round((margin / p.costPrice) * 100) : 100;
+                const pPurchase = p.purchasePrice ?? p.costPrice;
+                const pFees = p.logisticsFees ?? 0;
+                const pCost = p.costPrice || (pPurchase + pFees);
+                const margin = p.sellingPrice - pCost;
+                const marginPercent = pCost > 0 ? Math.round((margin / pCost) * 100) : 100;
                 const isLow = p.quantity <= p.lowStockAlert;
                 const isOut = p.quantity === 0;
 
                 return (
                   <tr key={p.id}>
                     <td>
-                      <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{p.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{p.name}</div>
+                        {(p as any).isOnlineShop && (
+                          <span
+                            style={{
+                              background: '#EFF6FF',
+                              color: '#0062FF',
+                              border: '1px solid #BFDBFE',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                            title="Disponible sur la boutique en ligne"
+                          >
+                            <Globe size={11} />
+                            <span>En Ligne</span>
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: '0.78rem', color: '#64748B' }}>Unité : {p.unit}</div>
                     </td>
-                    <td style={{ color: '#64748B', fontSize: '0.92rem' }}>
-                      {p.costPrice.toLocaleString('fr-FR')} FCFA
+                    <td style={{ color: '#64748B', fontSize: '0.88rem' }}>
+                      <div>Achat : <strong>{pPurchase.toLocaleString('fr-FR')} FCFA</strong></div>
+                      {pFees > 0 ? (
+                        <div style={{ fontSize: '0.76rem', color: '#0284C7' }}>+ Frais/Fret : {pFees.toLocaleString('fr-FR')} FCFA</div>
+                      ) : (
+                        <div style={{ fontSize: '0.74rem', color: '#94A3B8' }}>0 FCFA de frais</div>
+                      )}
                     </td>
-                    <td style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                    <td>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0F172A' }}>
+                        {pCost.toLocaleString('fr-FR')} FCFA
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Prix de revient net</div>
+                    </td>
+                    <td style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0062FF' }}>
                       {p.sellingPrice.toLocaleString('fr-FR')} FCFA
                     </td>
                     <td>
@@ -172,13 +231,14 @@ export const ProductsPage: React.FC = () => {
                         style={{
                           background: margin > 0 ? '#ECFDF5' : '#FEF3C7',
                           color: margin > 0 ? '#059669' : '#D97706',
-                          padding: '3px 8px',
+                          padding: '4px 8px',
                           borderRadius: '6px',
-                          fontSize: '0.78rem',
+                          fontSize: '0.8rem',
                           fontWeight: 700,
+                          display: 'inline-block',
                         }}
                       >
-                        +{margin.toLocaleString('fr-FR')} ({marginPercent}%)
+                        +{margin.toLocaleString('fr-FR')} FCFA ({marginPercent}%)
                       </span>
                     </td>
                     <td>
@@ -229,7 +289,7 @@ export const ProductsPage: React.FC = () => {
 
               {filtered.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>
                     Aucun article trouvé. Cliquez sur "+ Ajouter un Article".
                   </td>
                 </tr>
@@ -242,9 +302,27 @@ export const ProductsPage: React.FC = () => {
       {/* Add Product Modal */}
       {showAddModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '480px' }}>
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.15rem' }}>Nouvel Article</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ fontSize: '1.15rem', margin: 0 }}>Nouvel Article & Tarification</h3>
+                <span
+                  style={{
+                    background: '#FEF3C7',
+                    color: '#B45309',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Crown size={12} />
+                  <span>PLAN PRO</span>
+                </span>
+              </div>
               <button onClick={() => setShowAddModal(false)} style={{ background: 'transparent', color: '#94A3B8' }}>
                 <X size={20} />
               </button>
@@ -257,7 +335,7 @@ export const ProductsPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: Riz Parfumé 5kg, Huile Diamaor 1L..."
+                    placeholder="Ex: Robe Soirée Satinée, Riz Parfumé 5kg, iPhone 13..."
                     value={name}
                     onChange={e => setName(e.target.value)}
                     required
@@ -265,38 +343,117 @@ export const ProductsPage: React.FC = () => {
                   />
                 </div>
 
+                {/* PRO FEATURE: Cost Breakdown */}
+                <div
+                  style={{
+                    background: '#F8FAFC',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '12px',
+                    padding: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Calculator size={14} color="#0062FF" />
+                      Structure de Coût (Prix d'Achat + Frais)
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700 }}>
+                      Calcul automatique
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                        1. Prix d'achat (FCFA)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="Ex: 5000"
+                        min="0"
+                        value={purchasePrice}
+                        onChange={e => setPurchasePrice(parseFloat(e.target.value) || '')}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                        2. Frais annexes / Fret (FCFA)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="Ex: 500 (Transport/Colis)"
+                        min="0"
+                        value={logisticsFees}
+                        onChange={e => setLogisticsFees(parseFloat(e.target.value) || '')}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Calculated Cost Price Display */}
+                  <div
+                    style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 600 }}>
+                      = Prix de Revient Calculé :
+                    </span>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A' }}>
+                      {Number(costPrice || 0).toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
+                </div>
+
+                {/* Selling Price & Unit Margin Preview */}
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Prix d'achat (FCFA)
+                    <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0062FF', display: 'block', marginBottom: '6px' }}>
+                      Prix de vente client (FCFA) *
                     </label>
                     <input
                       type="number"
-                      placeholder="Ex: 2500"
-                      min="0"
-                      value={costPrice}
-                      onChange={e => setCostPrice(parseFloat(e.target.value) || '')}
-                    />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#059669', display: 'block', marginBottom: '6px' }}>
-                      Prix de vente (FCFA) *
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Ex: 3000"
+                      placeholder="Ex: 8000"
                       min="0"
                       value={sellingPrice}
                       onChange={e => setSellingPrice(parseFloat(e.target.value) || '')}
                       required
                     />
                   </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                      Marge nette unitaire
+                    </label>
+                    <div
+                      style={{
+                        height: '42px',
+                        background: '#F0FDF4',
+                        border: '1px solid #BBF7D0',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        color: Number(sellingPrice || 0) - Number(costPrice || 0) >= 0 ? '#16A34A' : '#DC2626',
+                        fontSize: '0.92rem',
+                      }}
+                    >
+                      {sellingPrice !== '' && costPrice !== ''
+                        ? `+${(Number(sellingPrice) - Number(costPrice)).toLocaleString('fr-FR')} FCFA`
+                        : '0 FCFA'}
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Quantité initiale
+                      Quantité initiale en stock
                     </label>
                     <input
                       type="number"
@@ -308,7 +465,7 @@ export const ProductsPage: React.FC = () => {
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Unité (sac, boîte, litre)
+                      Unité (pièce, sac, boîte, carton)
                     </label>
                     <input
                       type="text"
@@ -317,6 +474,37 @@ export const ProductsPage: React.FC = () => {
                       onChange={e => setUnit(e.target.value)}
                     />
                   </div>
+                </div>
+
+                {/* Online Shop / WhatsApp Catalog Option */}
+                <div
+                  style={{
+                    background: isOnlineShop ? '#EFF6FF' : '#F8FAFC',
+                    border: `1px solid ${isOnlineShop ? '#93C5FD' : '#E2E8F0'}`,
+                    borderRadius: '10px',
+                    padding: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onClick={() => setIsOnlineShop(!isOnlineShop)}
+                >
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={isOnlineShop}
+                      onChange={e => setIsOnlineShop(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#0062FF' }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Globe size={15} color="#0062FF" />
+                        Activer sur la Boutique en ligne & Catalogue WhatsApp
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                        Permet de commander cet article directement à distance via votre lien commerçant.
+                      </div>
+                    </div>
+                  </label>
                 </div>
 
                 <div>

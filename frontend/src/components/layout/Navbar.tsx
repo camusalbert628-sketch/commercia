@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Plus, Minus, Store } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { useModals } from '../../context/ModalContext';
 import { api } from '../../services/api';
 import { NotificationItem } from '../../types';
 
@@ -11,6 +12,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseModal }) => {
   const { user, activeBusinessId } = useAuthStore();
+  const { openChatbot } = useModals();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -96,6 +98,35 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
       </div>
 
       <div className="topbar-actions">
+        {/* Bouton Copilote IA en haut dans la barre de navigation */}
+        <button
+          onClick={openChatbot}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '7px 14px',
+            borderRadius: '24px',
+            background: 'linear-gradient(135deg, #08162B 0%, #004BD6 100%)',
+            color: '#FFFFFF',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            boxShadow: '0 4px 12px rgba(0, 98, 255, 0.25)',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease',
+          }}
+          title="Consulter le Copilote IA COMMERCIA"
+        >
+          <img
+            src="/commercia-logo.png"
+            alt="IA"
+            style={{ width: '18px', height: '18px', objectFit: 'contain', borderRadius: '4px' }}
+          />
+          <span>Copilote IA</span>
+          <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+        </button>
+
         {onOpenSaleModal && (
           <button className="btn btn-primary" onClick={onOpenSaleModal} style={{ padding: '8px 16px', fontSize: '0.88rem', fontWeight: 700 }}>
             <Plus size={16} />

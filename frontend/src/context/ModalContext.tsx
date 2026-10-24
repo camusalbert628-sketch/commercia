@@ -10,6 +10,9 @@ interface ModalContextType {
   isQuickActionOpen: boolean;
   openQuickAction: () => void;
   closeQuickAction: () => void;
+  isChatbotOpen: boolean;
+  openChatbot: () => void;
+  closeChatbot: () => void;
   refreshKey: number;
   triggerRefresh: () => void;
 }
@@ -20,6 +23,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const openSaleModal = () => {
@@ -37,6 +41,9 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const openQuickAction = () => setIsQuickActionOpen(true);
   const closeQuickAction = () => setIsQuickActionOpen(false);
 
+  const openChatbot = () => setIsChatbotOpen(true);
+  const closeChatbot = () => setIsChatbotOpen(false);
+
   const triggerRefresh = () => setRefreshKey(prev => prev + 1);
 
   return (
@@ -51,6 +58,9 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         isQuickActionOpen,
         openQuickAction,
         closeQuickAction,
+        isChatbotOpen,
+        openChatbot,
+        closeChatbot,
         refreshKey,
         triggerRefresh,
       }}

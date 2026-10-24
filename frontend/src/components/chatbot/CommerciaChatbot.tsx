@@ -13,11 +13,15 @@ import {
   AlertCircle,
   ChevronRight,
   Bot,
+  Lock,
+  Crown,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { getLiveStoreContext, LiveStoreContext } from '../../services/aiKnowledgeEngine';
 import { useNavigate } from 'react-router-dom';
 import { renderNaturalFormattedText } from '../../utils/textFormatter';
+import { useAuthStore } from '../../store/authStore';
+import { useModals } from '../../context/ModalContext';
 
 interface Message {
   id: string;
@@ -35,11 +39,21 @@ const QUICK_PROMPTS = [
 ];
 
 export const CommerciaChatbot: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const { isChatbotOpen, closeChatbot, openChatbot } = useModals();
+  const { user } = useAuthStore();
   const [isExpanded, setIsExpanded] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [context, setContext] = useState<LiveStoreContext>(getLiveStoreContext());
+
+  // Check if user has active Pro/Business subscription or is Admin
+  const isProUser = Boolean(
+    user?.isAdmin ||
+    (user?.subscription?.isPro && user?.subscription?.status === 'active') ||
+    user?.subscription?.planName === 'pro' ||
+    user?.subscription?.planName === 'business'
+  );
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -55,14 +69,14 @@ export const CommerciaChatbot: React.FC = () => {
 
   // Refresh live store context whenever chatbot opens
   useEffect(() => {
-    if (isOpen) {
+    if (isChatbotOpen && isProUser) {
       setContext(getLiveStoreContext());
       setTimeout(() => {
         inputRef.current?.focus();
         scrollToBottom();
       }, 150);
     }
-  }, [isOpen]);
+  }, [isChatbotOpen, isProUser]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -184,102 +198,14 @@ export const CommerciaChatbot: React.FC = () => {
 
   return (
     <>
-      {/* 1. FLOATING LAUNCHER BUTTON */}
-      {!isOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-          }}
-        >
-          {/* Subtle tooltip / pill */}
-          <div
-            onClick={() => setIsOpen(true)}
-            style={{
-              background: '#08162B',
-              color: '#FFFFFF',
-              padding: '8px 14px',
-              borderRadius: '24px',
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              boxShadow: '0 8px 24px rgba(8, 22, 43, 0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              transition: 'transform 0.2s',
-            }}
-          >
-            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }}></span>
-            <span>Une question ? Copilote IA</span>
-          </div>
-
-          <button
-            onClick={() => setIsOpen(true)}
-            aria-label="Ouvrir le Chatbot COMMERCIA"
-            style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #0062FF 0%, #0045B5 100%)',
-              border: '3px solid #FFFFFF',
-              boxShadow: '0 10px 28px rgba(0, 98, 255, 0.45)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              padding: '6px',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-          >
-            <img
-              src="/commercia-logo.png"
-              alt="COMMERCIA"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
-              }}
-            />
-            {/* Sparkle badge */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '-3px',
-                right: '-3px',
-                background: '#FF6B00',
-                color: '#FFFFFF',
-                borderRadius: '50%',
-                width: '20px',
-                height: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(255, 107, 0, 0.5)',
-              }}
-            >
-              <Sparkles size={11} />
-            </div>
-          </button>
-        </div>
-      )}
-
-      {/* 2. CHAT DRAWER / WINDOW */}
-      {isOpen && (
+      {/* 2. CHAT DRAWER / WINDOW — Ouvre quand isChatbotOpen === true */}
+      {isChatbotOpen && (
         <div
           style={{
             position: 'fixed',
             bottom: isExpanded ? '10px' : '20px',
             right: isExpanded ? '10px' : '20px',
-            width: isExpanded ? 'calc(100vw - 20px)' : '420px',
+            width: isExpanded ? 'calc(100vw - 20px)' : '430px',
             maxWidth: isExpanded ? '900px' : '95vw',
             height: isExpanded ? 'calc(100vh - 20px)' : '620px',
             maxHeight: '92vh',
@@ -379,7 +305,7 @@ export const CommerciaChatbot: React.FC = () => {
                 {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
               </button>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={closeChatbot}
                 title="Fermer"
                 style={{
                   background: 'rgba(255, 255, 255, 0.08)',
@@ -395,11 +321,130 @@ export const CommerciaChatbot: React.FC = () => {
             </div>
           </div>
 
-          {/* LIVE CONTEXT PILL BANNER */}
-          <div
-            style={{
-              background: '#F8FAFC',
-              borderBottom: '1px solid #E2E8F0',
+          {/* FREE PLAN PAYWALL BLOCK */}
+          {!isProUser && (
+            <div
+              style={{
+                flex: 1,
+                padding: '32px 24px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+              }}
+            >
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '20px',
+                  background: '#FFF4ED',
+                  color: '#FF6B00',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '18px',
+                  boxShadow: '0 8px 24px rgba(255, 107, 0, 0.25)',
+                }}
+              >
+                <Crown size={32} />
+              </div>
+
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  color: '#FF6B00',
+                  background: '#FFF4ED',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  marginBottom: '10px',
+                  border: '1px solid #FFD9C2',
+                }}
+              >
+                Fonctionnalité Réservée aux Abonnés Pro & Business
+              </div>
+
+              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#08162B', marginBottom: '10px', lineHeight: 1.3 }}>
+                Le Copilote IA est actif sur les formules payantes
+              </h3>
+
+              <p style={{ fontSize: '0.9rem', color: '#64748B', lineHeight: 1.5, marginBottom: '24px', maxWidth: '340px' }}>
+                Vous utilisez actuellement le <strong>Plan Gratuit</strong>. Pour débloquer l'assistant financier interactif capable d'analyser vos marges, surveiller vos caisses et relancer vos débiteurs, souscrivez au <strong>Plan Pro</strong>.
+              </p>
+
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: '350px',
+                  background: '#FFFFFF',
+                  borderRadius: '14px',
+                  padding: '16px',
+                  border: '1px solid #E2E8F0',
+                  textAlign: 'left',
+                  marginBottom: '24px',
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  color: '#334155',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#059669', fontWeight: 700 }}>✓</span>
+                  <span>Analyse automatique du bénéfice réel et des marges</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#059669', fontWeight: 700 }}>✓</span>
+                  <span>Détection des fuites de caisse et prévisions</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#059669', fontWeight: 700 }}>✓</span>
+                  <span>Messages de relance WhatsApp personnalisés</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  closeChatbot();
+                  navigate('/subscriptions');
+                }}
+                style={{
+                  width: '100%',
+                  maxWidth: '350px',
+                  padding: '14px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #0062FF 0%, #FF6B00 100%)',
+                  color: '#FFFFFF',
+                  fontWeight: 800,
+                  fontSize: '0.95rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 8px 20px rgba(0, 98, 255, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span>Découvrir les offres (Dès 4 500 F/mois)</span>
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* LIVE CONTEXT PILL BANNER (ONLY FOR PRO USERS) */}
+          {isProUser && (
+            <>
+              <div
+                style={{
+                  background: '#F8FAFC',
+                  borderBottom: '1px solid #E2E8F0',
               padding: '8px 14px',
               display: 'flex',
               alignItems: 'center',
@@ -647,6 +692,8 @@ export const CommerciaChatbot: React.FC = () => {
               COMMERCIA IA • Assistance financière & gestion commerciale instantanée
             </div>
           </div>
+          </>
+          )}
         </div>
       )}
     </>

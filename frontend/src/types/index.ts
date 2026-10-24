@@ -121,8 +121,10 @@ export interface Product {
   id: string;
   name: string;
   description?: string;
-  costPrice: number;
-  sellingPrice: number;
+  purchasePrice?: number; // Prix d'achat direct fournisseur
+  logisticsFees?: number; // Frais annexes (transport, douane, manutention, emballage)
+  costPrice: number;      // Prix de revient global (Prix d'achat + Frais)
+  sellingPrice: number;   // Prix de vente fixé
   quantity: number;
   unit: string;
   lowStockAlert: number;

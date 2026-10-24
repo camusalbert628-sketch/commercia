@@ -131,8 +131,8 @@ input:focus, select:focus, textarea:focus {
 
 .page-wrapper {
   flex: 1;
-  padding: 28px 32px;
-  max-width: 1360px;
+  padding: 24px 32px;
+  max-width: 1720px;
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;

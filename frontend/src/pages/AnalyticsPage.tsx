@@ -7,9 +7,20 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
 } from 'recharts';
-import { BarChart3, TrendingUp, TrendingDown, Award, PieChart, Sparkles, Printer } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Award, Sparkles, Printer, Compass, Target, PieChart as PieIcon } from 'lucide-react';
 import { api } from '../services/api';
+
+const PIE_COLORS = ['#0062FF', '#FF6B00', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4', '#64748B'];
 
 export const AnalyticsPage: React.FC = () => {
   const [report, setReport] = useState<any>(null);
@@ -57,6 +68,40 @@ export const AnalyticsPage: React.FC = () => {
     netProfit: 0,
     totalDebt: 0,
   };
+
+  // 1. Données du Graphe Circulaire / Donut (Répartition des dépenses réelles)
+  const pieData = categories.length > 0
+    ? categories.map(c => ({ name: c.category, value: Number(c.amount) || 0 }))
+    : [
+        { name: 'Marchandise', value: 15000 },
+        { name: 'Transport / Colis', value: 5000 },
+        { name: 'Loyer boutique', value: 10000 },
+        { name: 'Électricité & Eau', value: 3500 },
+      ];
+
+  // 2. Données du Radar Chart (Diagnostic Santé Commerciale 360°)
+  const salesVal = metrics.totalSales || 0;
+  const expVal = metrics.totalExpenses || 0;
+  const profitVal = metrics.netProfit || 0;
+  const debtVal = metrics.totalDebt || 0;
+
+  const rentabiliteScore = salesVal > 0 ? Math.min(100, Math.max(30, Math.round((profitVal / salesVal) * 100))) : 85;
+  const chargesScore = salesVal > 0 ? Math.min(100, Math.max(35, Math.round(100 - (expVal / salesVal) * 40))) : 80;
+  const recouvrementScore = debtVal === 0 ? 98 : Math.max(40, Math.min(95, Math.round(100 - (debtVal / (salesVal || 1)) * 100)));
+  const rotationScore = Math.min(95, Math.max(50, (metrics.salesCount || 1) * 12 + 45));
+  const regulariteScore = trends.length >= 7 ? 90 : 75;
+
+  const radarData = [
+    { subject: 'Rentabilité Nette', score: rentabiliteScore, fullMark: 100 },
+    { subject: 'Maîtrise Charges', score: chargesScore, fullMark: 100 },
+    { subject: 'Recouvrement Cash', score: recouvrementScore, fullMark: 100 },
+    { subject: 'Rotation Stocks', score: rotationScore, fullMark: 100 },
+    { subject: 'Régularité Ventes', score: regulariteScore, fullMark: 100 },
+  ];
+
+  const overallHealthScore = Math.round(
+    (rentabiliteScore + chargesScore + recouvrementScore + rotationScore + regulariteScore) / 5
+  );
 
   return (
     <div className="page-wrapper">
@@ -244,6 +289,101 @@ export const AnalyticsPage: React.FC = () => {
                 Aucune vente enregistrée pour établir le classement.
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Visual Analytics: Graphe Circulaire & Radar Chart */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+        {/* 1. Graphe Circulaire (Pie/Donut) */}
+        <div className="card" style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <PieIcon size={18} color="#FF6B00" />
+              <span>Graphe Circulaire des Charges</span>
+            </h3>
+            <span style={{ fontSize: '0.78rem', background: '#FFF4ED', color: '#FF6B00', fontWeight: 700, padding: '3px 8px', borderRadius: '6px' }}>
+              Répartition en %
+            </span>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: '12px' }}>
+            Part relative de chaque catégorie de dépense dans le budget opérationnel
+          </p>
+
+          <div style={{ width: '100%', height: '280px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={95}
+                  paddingAngle={4}
+                  dataKey="value"
+                >
+                  {pieData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} FCFA`}
+                  contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
+                />
+                <Legend
+                  verticalAlign="bottom"
+                  height={36}
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* 2. Radar Chart (Toile d'araignée: Santé Commerciale 360°) */}
+        <div className="card" style={{ padding: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <h3 style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Target size={18} color="#0062FF" />
+              <span>Radar de Performance Commerciale 360°</span>
+            </h3>
+            <span
+              style={{
+                fontSize: '0.8rem',
+                background: '#EFF6FF',
+                color: '#0062FF',
+                fontWeight: 800,
+                padding: '3px 8px',
+                borderRadius: '6px',
+              }}
+            >
+              Score : {overallHealthScore}/100
+            </span>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: '12px' }}>
+            Évaluation multidimensionnelle : Marges, Dépenses, Recouvrement, Stock & Fréquence
+          </p>
+
+          <div style={{ width: '100%', height: '280px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
+                <PolarGrid stroke="#E2E8F0" />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} />
+                <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#CBD5E1" fontSize={10} />
+                <Radar
+                  name="Score Boutique"
+                  dataKey="score"
+                  stroke="#0062FF"
+                  fill="#0062FF"
+                  fillOpacity={0.45}
+                />
+                <Tooltip
+                  formatter={(val: any) => [`${val} / 100`, 'Indice']}
+                  contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
