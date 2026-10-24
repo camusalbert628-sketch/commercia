@@ -61,7 +61,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
           }
         } catch (e) {
           // If in cloud demo, proceed with mock
-          return handleMockRequest(endpoint, method, parsedBody);
+          return await handleMockRequest(endpoint, method, parsedBody);
         }
       } else {
         localStorage.removeItem('accessToken');
@@ -74,13 +74,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     // Fallback for static cloud hosting returning 404/405/502 on API routes
     if (response.status === 404 || response.status === 405 || response.status === 502) {
-      return handleMockRequest(endpoint, method, parsedBody);
+      return await handleMockRequest(endpoint, method, parsedBody);
     }
 
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
       // Vercel SPA rewrites rewrite all /api routes to /index.html returning status 200 with HTML!
-      return handleMockRequest(endpoint, method, parsedBody);
+      return await handleMockRequest(endpoint, method, parsedBody);
     }
 
     if (!response.ok) {
@@ -92,7 +92,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   } catch (err: any) {
     if (err instanceof ApiError) throw err;
     // On network failure or offline, serve from smart mock backend
-    return handleMockRequest(endpoint, method, parsedBody);
+    return await handleMockRequest(endpoint, method, parsedBody);
   }
 }
 

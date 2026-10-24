@@ -87,7 +87,14 @@ export const CommerciaChatbot: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await api.post<{ reply: string }>('/ai/chat', { message: textToSend });
+      const historyPayload = messages.slice(-8).map(m => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }));
+      const res = await api.post<{ reply: string; memorizedFact?: string | null }>('/ai/chat', {
+        message: textToSend,
+        history: historyPayload,
+      });
       const botMsg: Message = {
         id: 'b-' + Date.now(),
         sender: 'bot',

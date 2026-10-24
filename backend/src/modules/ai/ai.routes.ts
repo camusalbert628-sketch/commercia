@@ -111,6 +111,10 @@ router.post('/chat', async (req: AuthRequest, res, next) => {
     const schema = z.object({
       message: z.string().min(1, 'Message requis'),
       conversationId: z.string().optional(),
+      history: z.array(z.object({
+        role: z.string(),
+        content: z.string(),
+      })).optional(),
     });
     const data = schema.parse(req.body);
 

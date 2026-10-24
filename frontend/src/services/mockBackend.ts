@@ -70,7 +70,7 @@ function saveUsersDb(users: any[]) {
   try { localStorage.setItem(USERS_DB_KEY, JSON.stringify(users)); } catch (e) { /* ignore */ }
 }
 
-export function handleMockRequest(endpoint: string, method: string, body?: any): any {
+export async function handleMockRequest(endpoint: string, method: string, body?: any): Promise<any> {
   const storedUser = localStorage.getItem('commercia_user') || localStorage.getItem('rsbizz_user');
   let currentUser = storedUser ? JSON.parse(storedUser) : null;
 
@@ -642,11 +642,20 @@ export function handleMockRequest(endpoint: string, method: string, body?: any):
     };
   }
 
-  // 10. AI COPILOT & OMNISCIENT CHATBOT
+  // 10. AI COPILOT & OMNISCIENT CHATBOT (Powered by LLM Gemini / Claude / GPT + Persistent Memory)
   if ((endpoint.startsWith('/ai/chat') || endpoint.startsWith('/analytics/ai/chat')) && method === 'POST') {
     const message = body?.message || '';
-    const reply = generateAIAnswer(message);
-    return { reply };
+    const history = body?.history || [];
+    const activeBizId = localStorage.getItem('activeBusinessId') || 'default';
+    
+    // Dynamic import / call to our multi-model LLM engine with memory
+    const { generateCopilotLLMResponse } = await import('./llmService');
+    const result = await generateCopilotLLMResponse(message, history, activeBizId);
+    return {
+      reply: result.reply,
+      memorizedFact: result.memorizedFact,
+      providerUsed: result.providerUsed,
+    };
   }
 
   // Helper: get or init mock products per business
