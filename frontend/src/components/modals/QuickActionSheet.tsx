@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, MinusCircle, UserPlus, CreditCard, PackagePlus, X } from 'lucide-react';
+import { ShoppingCart, MinusCircle, UserPlus, CreditCard, PackagePlus, Truck, X } from 'lucide-react';
 import { useModals } from '../../context/ModalContext';
 
 export const QuickActionSheet: React.FC = () => {
@@ -256,6 +256,51 @@ export const QuickActionSheet: React.FC = () => {
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#0F172A' }}>📦 Un achat de stock</div>
               <div style={{ fontSize: '0.8rem', color: '#64748B' }}>Ajouter un produit ou réapprovisionner</div>
+            </div>
+          </button>
+
+          {/* 6. Une livraison e-commerce / colis */}
+          <button
+            onClick={() => {
+              closeQuickAction();
+              navigate('/deliveries');
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px',
+              padding: '14px 16px',
+              borderRadius: '16px',
+              border: '1px solid #DBEAFE',
+              background: '#F0F9FF',
+              textAlign: 'left',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#E0F2FE')}
+            onMouseLeave={e => (e.currentTarget.style.background = '#F0F9FF')}
+          >
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: '#0062FF',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Truck size={22} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.98rem', color: '#0F172A' }}>🛵 Expédier un colis / Livraison</span>
+                <span style={{ fontSize: '0.62rem', background: '#0062FF', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#64748B' }}>Fiche coursier, repères & paiement à la livraison (COD)</div>
             </div>
           </button>
         </div>

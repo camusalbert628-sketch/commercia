@@ -605,6 +605,44 @@ input:focus, select:focus, textarea:focus {
   overflow-y: auto;
   box-shadow: var(--shadow-xl);
   animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.modal-content::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar,
+.modal-overlay::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+/* Global scrollbar hiding for ultra-clean mobile & web SaaS feel */
+html,
+body,
+*,
+*::before,
+*::after {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 @keyframes modalPop {

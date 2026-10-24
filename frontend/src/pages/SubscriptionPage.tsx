@@ -673,7 +673,7 @@ export const SubscriptionPage: React.FC = () => {
       {/* MODAL PAIEMENT RÉEL & PASSERELLE */}
       {showPayModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '520px' }}>
+          <div className="modal-content" style={{ maxWidth: '520px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ background: '#EFF6FF', color: '#0062FF', padding: '8px', borderRadius: '10px' }}>

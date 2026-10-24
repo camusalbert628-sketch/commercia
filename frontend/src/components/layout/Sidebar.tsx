@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Headphones,
   X,
+  Truck,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -175,6 +176,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             </NavLink>
 
             <NavLink
+              to="/deliveries"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Truck size={18} />
+              <span>Livraisons & Colis</span>
+              <span style={{ fontSize: '0.62rem', background: '#0062FF', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+            </NavLink>
+
+            <NavLink
               to="/copilot"
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
@@ -253,6 +263,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.72rem', color: '#94A3B8', lineHeight: 1.5 }}>
               <li>Ventes & encaissements illimités</li>
               <li>Gestion de stock & alertes ruptures</li>
+              <li>Livraisons & expéditions e-commerce</li>
               <li>Carnet de crédits clients & relances</li>
               <li>Copilote IA financier interactif</li>
             </ul>

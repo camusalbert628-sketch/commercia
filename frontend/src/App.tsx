@@ -27,6 +27,7 @@ const CopilotPage = lazy(() => import('./pages/CopilotPage').then(m => ({ defaul
 const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage').then(m => ({ default: m.SubscriptionPage })));
 const GrowthPage = lazy(() => import('./pages/GrowthPage').then(m => ({ default: m.GrowthPage })));
 const TreasuryPage = lazy(() => import('./pages/TreasuryPage').then(m => ({ default: m.TreasuryPage })));
+const DeliveriesPage = lazy(() => import('./pages/DeliveriesPage').then(m => ({ default: m.DeliveriesPage })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 
 function PageLoadingFallback() {
@@ -195,6 +196,16 @@ export function App() {
               <ProtectedRoute>
                 <ProRouteGuard featureName="Stock & Alertes Ruptures">
                   <ProductsPage />
+                </ProRouteGuard>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/deliveries"
+            element={
+              <ProtectedRoute>
+                <ProRouteGuard featureName="Livraisons & Expéditions E-commerce">
+                  <DeliveriesPage />
                 </ProRouteGuard>
               </ProtectedRoute>
             }
