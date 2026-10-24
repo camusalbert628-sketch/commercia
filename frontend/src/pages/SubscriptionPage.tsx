@@ -19,6 +19,10 @@ import {
   HelpCircle,
   Layers,
   ChevronRight,
+  Lock,
+  QrCode,
+  Smartphone,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
@@ -53,6 +57,15 @@ export const SubscriptionPage: React.FC = () => {
   const [momoPhone, setMomoPhone] = useState(user?.phone || '690123456');
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState('');
+
+  // Card specific states (Visa / Mastercard)
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState(`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'COMMERCANT COMMERCIA');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+
+  // Wave specific states
+  const [waveAction, setWaveAction] = useState<'phone' | 'qr'>('phone');
 
   // Payment Execution State
   const [paymentStep, setPaymentStep] = useState<'form' | 'waiting' | 'success'>('form');
@@ -91,15 +104,63 @@ export const SubscriptionPage: React.FC = () => {
     finalPrice = Math.max(0, basePrice - 5000);
   }
 
-  // Handle initiate payment
+  // Formatters for credit card
+  const handleCardNumberChange = (val: string) => {
+    const raw = val.replace(/\D/g, '').slice(0, 16);
+    const formatted = raw.replace(/(\d{4})(?=\d)/g, '$1 ');
+    setCardNumber(formatted);
+  };
+
+  const handleExpiryChange = (val: string) => {
+    const raw = val.replace(/\D/g, '').slice(0, 4);
+    if (raw.length >= 3) {
+      setCardExpiry(`${raw.slice(0, 2)}/${raw.slice(2, 4)}`);
+    } else {
+      setCardExpiry(raw);
+    }
+  };
+
+  // Handle initiate payment with tailored checks for each provider
   const handleInitiatePayment = async () => {
+    if (moyenPaiement === 'card') {
+      const cleanCard = cardNumber.replace(/\s/g, '');
+      if (cleanCard.length < 16) {
+        alert('Veuillez saisir un numéro de carte bancaire valide à 16 chiffres.');
+        return;
+      }
+      if (!cardHolder.trim()) {
+        alert('Veuillez renseigner le nom du titulaire de la carte.');
+        return;
+      }
+      if (cardExpiry.length < 5) {
+        alert('Veuillez renseigner la date d\'expiration (MM/AA).');
+        return;
+      }
+      if (cardCvv.length < 3) {
+        alert('Veuillez renseigner le cryptogramme de sécurité (CVV).');
+        return;
+      }
+    } else {
+      if (!momoPhone.trim()) {
+        alert('Veuillez renseigner le numéro de téléphone pour le débit.');
+        return;
+      }
+    }
+
     try {
       setIsInitiating(true);
       const res = await api.post<{ payment: PaymentItem; message: string }>('/payments/initiate', {
         planName: selectedPlan,
         billingCycle: periodicite,
         provider: moyenPaiement,
-        phoneNumber: momoPhone,
+        phoneNumber: moyenPaiement === 'card' ? `CARD-****${cardNumber.slice(-4)}` : momoPhone,
+        metadata: moyenPaiement === 'card' ? {
+          cardLast4: cardNumber.slice(-4),
+          cardHolder,
+          cardBrand: cardNumber.startsWith('4') ? 'Visa' : 'Mastercard',
+        } : {
+          waveAction: waveAction,
+        },
       });
 
       setCurrentPaymentRef(res.payment.reference);
@@ -827,23 +888,247 @@ export const SubscriptionPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Téléphone */}
-                <div>
-                  <label style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', marginBottom: '6px' }}>
-                    Numéro de compte pour le prélèvement *
-                  </label>
-                  <input
-                    type="text"
-                    value={momoPhone}
-                    onChange={e => setMomoPhone(e.target.value)}
-                    placeholder="Ex: 690123456 ou 670123456"
-                    style={{ width: '100%', padding: '10px' }}
-                    required
-                  />
-                  <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '4px' }}>
-                    Un message USSD avec demande de validation du code secret apparaîtra sur ce numéro.
+                {/* METHOD SPECIFIC FIELDS */}
+                {moyenPaiement === 'orange' && (
+                  <div style={{ background: '#FFF7ED', border: '1px solid #FFEDD5', borderRadius: '12px', padding: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <label style={{ fontWeight: 800, fontSize: '0.88rem', color: '#9A3412', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Smartphone size={16} color="#FF7900" />
+                        Numéro de compte Orange Money *
+                      </label>
+                      <span style={{ fontSize: '0.72rem', background: '#FF7900', color: '#FFFFFF', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        Orange Money CI / CM / SN
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="tel"
+                        value={momoPhone}
+                        onChange={e => setMomoPhone(e.target.value)}
+                        placeholder="Ex: 690 12 34 56"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #FDBA74', fontSize: '0.95rem', fontWeight: 600 }}
+                        required
+                        autoFocus
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: '#C2410C', marginTop: '8px', lineHeight: 1.4, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <span>📲</span>
+                      <span>
+                        Un prompt USSD de paiement sécurisé <strong>#150*50#</strong> ou une notification push apparaîtra instantanément sur votre téléphone pour valider le débit avec votre code PIN Orange Money.
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {moyenPaiement === 'mtn' && (
+                  <div style={{ background: '#FEFCE8', border: '1px solid #FEF08A', borderRadius: '12px', padding: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <label style={{ fontWeight: 800, fontSize: '0.88rem', color: '#854D0E', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Smartphone size={16} color="#CA8A04" />
+                        Numéro MTN Mobile Money *
+                      </label>
+                      <span style={{ fontSize: '0.72rem', background: '#EAB308', color: '#000000', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                        MTN MoMo Push
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="tel"
+                        value={momoPhone}
+                        onChange={e => setMomoPhone(e.target.value)}
+                        placeholder="Ex: 670 12 34 56 ou 650 00 11 22"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #FACC15', fontSize: '0.95rem', fontWeight: 600 }}
+                        required
+                        autoFocus
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: '#A16207', marginTop: '8px', lineHeight: 1.4, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                      <span>🟡</span>
+                      <span>
+                        Vous allez recevoir une demande de débit <strong>MTN MoMo (*126#)</strong> sur votre mobile. Tapez votre code PIN à 4 ou 5 chiffres pour confirmer l'activation de votre abonnement.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {moyenPaiement === 'wave' && (
+                  <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '12px', padding: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0369A1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <QrCode size={16} color="#0099FF" />
+                        Règlement Direct Wave
+                      </span>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setWaveAction('phone')}
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '0.74rem',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: waveAction === 'phone' ? '#0099FF' : '#E0F2FE',
+                            color: waveAction === 'phone' ? '#FFFFFF' : '#0369A1',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Par Numéro
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWaveAction('qr')}
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '0.74rem',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: waveAction === 'qr' ? '#0099FF' : '#E0F2FE',
+                            color: waveAction === 'qr' ? '#FFFFFF' : '#0369A1',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Scanner QR Code
+                        </button>
+                      </div>
+                    </div>
+
+                    {waveAction === 'phone' ? (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#0369A1', marginBottom: '4px' }}>
+                          Numéro de compte Wave *
+                        </label>
+                        <input
+                          type="tel"
+                          value={momoPhone}
+                          onChange={e => setMomoPhone(e.target.value)}
+                          placeholder="Ex: 690 12 34 56"
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #7DD3FC', fontSize: '0.95rem', fontWeight: 600 }}
+                          required
+                          autoFocus
+                        />
+                        <div style={{ fontSize: '0.76rem', color: '#0284C7', marginTop: '8px' }}>
+                          🌊 Débit instantané sans frais supplémentaires via le réseau Wave.
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '12px 8px', background: '#FFFFFF', borderRadius: '8px', border: '1px dashed #7DD3FC' }}>
+                        <div style={{ width: '120px', height: '120px', margin: '0 auto 8px auto', background: '#F8FAFC', border: '2px solid #0099FF', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <QrCode size={90} color="#0099FF" />
+                        </div>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A' }}>
+                          Scannez avec votre application Wave
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                          Ouvrez Wave sur votre smartphone et scannez ce code pour payer {finalPrice.toLocaleString('fr-FR')} FCFA
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {moyenPaiement === 'card' && (
+                  <div style={{ background: '#F8FAFC', border: '1.5px solid #CBD5E1', borderRadius: '14px', padding: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CreditCard size={18} color="#0062FF" />
+                        Paiement Sécurisé par Carte Bancaire
+                      </span>
+                      <span style={{ fontSize: '0.72rem', background: '#EFF6FF', color: '#0062FF', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <Lock size={11} /> 3D-Secure 2.0
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {/* Card Number */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                          Numéro de carte bancaire (16 chiffres) *
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            type="text"
+                            value={cardNumber}
+                            onChange={e => handleCardNumberChange(e.target.value)}
+                            placeholder="4000 1234 5678 9010"
+                            maxLength={19}
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px',
+                              paddingRight: '60px',
+                              borderRadius: '8px',
+                              border: '1.5px solid #CBD5E1',
+                              fontSize: '0.96rem',
+                              fontWeight: 600,
+                              letterSpacing: '1px',
+                            }}
+                            required
+                            autoFocus
+                          />
+                          <div style={{ position: 'absolute', right: '10px', top: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <img src="/logos/visa-mastercard.png" alt="Visa/Mastercard" style={{ height: '20px', objectFit: 'contain' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card Holder */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                          Nom du titulaire (tel qu'écrit sur la carte) *
+                        </label>
+                        <input
+                          type="text"
+                          value={cardHolder}
+                          onChange={e => setCardHolder(e.target.value.toUpperCase())}
+                          placeholder="EX: ALBERT CAMUS"
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #CBD5E1', fontSize: '0.88rem', fontWeight: 600, textTransform: 'uppercase' }}
+                          required
+                        />
+                      </div>
+
+                      {/* Expiry & CVV */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                            Expiration (MM/AA) *
+                          </label>
+                          <input
+                            type="text"
+                            value={cardExpiry}
+                            onChange={e => handleExpiryChange(e.target.value)}
+                            placeholder="MM/AA"
+                            maxLength={5}
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #CBD5E1', fontSize: '0.9rem', fontWeight: 600, textAlign: 'center' }}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                            CVV (au dos) *
+                          </label>
+                          <div style={{ position: 'relative' }}>
+                            <input
+                              type="password"
+                              value={cardCvv}
+                              onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                              placeholder="123"
+                              maxLength={3}
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid #CBD5E1', fontSize: '0.9rem', fontWeight: 600, textAlign: 'center' }}
+                              required
+                            />
+                            <Lock size={14} style={{ position: 'absolute', right: '10px', top: '13px', color: '#94A3B8' }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Lock size={12} color="#059669" />
+                      <span>Cryptage SSL 256-bit certifié PCI-DSS. Vos données bancaires sont traitées de façon ultra-sécurisée.</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Code promo */}
                 <div>
@@ -886,7 +1171,7 @@ export const SubscriptionPage: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 2: WAITING FOR USER CONFIRMATION ON PHONE */}
+            {/* STEP 2: TAILORED WAITING SCREEN PER PAYMENT METHOD */}
             {paymentStep === 'waiting' && (
               <div className="modal-body" style={{ textAlign: 'center', padding: '24px 16px' }}>
                 <div style={{
@@ -903,17 +1188,91 @@ export const SubscriptionPage: React.FC = () => {
                 }}>
                   <RefreshCw size={32} className="spin" />
                 </div>
-                <h4 style={{ fontSize: '1.2rem', margin: '0 0 8px 0', fontWeight: 800 }}>
-                  Validation requise sur votre téléphone
-                </h4>
-                <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '20px' }}>
-                  Une demande de débit de <strong>{finalPrice.toLocaleString('fr-FR')} FCFA</strong> a été transmise à votre numéro <strong>{momoPhone}</strong>. Veuillez saisir votre code secret sur le prompt de votre opérateur.
-                </p>
 
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px', textAlign: 'left', fontSize: '0.84rem', marginBottom: '20px' }}>
+                {/* 1. Orange Money Waiting */}
+                {moyenPaiement === 'orange' && (
+                  <>
+                    <img src="/logos/orange-money.png" alt="Orange Money" style={{ maxHeight: '36px', maxWidth: '160px', margin: '0 auto 12px auto', objectFit: 'contain' }} />
+                    <h4 style={{ fontSize: '1.2rem', margin: '0 0 8px 0', fontWeight: 800, color: '#EA580C' }}>
+                      Validation Orange Money requise
+                    </h4>
+                    <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '16px' }}>
+                      Une demande de débit de <strong>{finalPrice.toLocaleString('fr-FR')} FCFA</strong> a été transmise à votre numéro <strong>{momoPhone}</strong>.
+                    </p>
+                    <div style={{ background: '#FFF7ED', border: '1px solid #FFEDD5', borderRadius: '12px', padding: '14px', textAlign: 'left', fontSize: '0.84rem', marginBottom: '18px' }}>
+                      <div style={{ fontWeight: 700, color: '#9A3412', marginBottom: '6px' }}>Instructions sur votre mobile :</div>
+                      <div style={{ marginBottom: '4px' }}>1. Un prompt va s'afficher à l'écran de votre téléphone.</div>
+                      <div style={{ marginBottom: '4px' }}>2. Si rien n'apparaît, tapez <strong>#150*50#</strong> pour autoriser la transaction.</div>
+                      <div>3. Saisissez votre <strong>code PIN secret Orange Money</strong>.</div>
+                    </div>
+                  </>
+                )}
+
+                {/* 2. MTN MoMo Waiting */}
+                {moyenPaiement === 'mtn' && (
+                  <>
+                    <img src="/logos/mtn-momo.png" alt="MTN MoMo" style={{ maxHeight: '36px', maxWidth: '150px', margin: '0 auto 12px auto', objectFit: 'contain' }} />
+                    <h4 style={{ fontSize: '1.2rem', margin: '0 0 8px 0', fontWeight: 800, color: '#CA8A04' }}>
+                      Validation MTN MoMo en attente
+                    </h4>
+                    <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '16px' }}>
+                      Une notification de débit de <strong>{finalPrice.toLocaleString('fr-FR')} FCFA</strong> a été envoyée au <strong>{momoPhone}</strong>.
+                    </p>
+                    <div style={{ background: '#FEFCE8', border: '1px solid #FEF08A', borderRadius: '12px', padding: '14px', textAlign: 'left', fontSize: '0.84rem', marginBottom: '18px' }}>
+                      <div style={{ fontWeight: 700, color: '#854D0E', marginBottom: '6px' }}>Instructions sur votre mobile :</div>
+                      <div style={{ marginBottom: '4px' }}>1. Déverrouillez votre téléphone pour voir l'invite push MTN.</div>
+                      <div style={{ marginBottom: '4px' }}>2. Entrez votre <strong>code PIN MoMo</strong> à 4 ou 5 chiffres.</div>
+                      <div>3. Alternative manuelle : composez <strong>*126#</strong> &gt; Mes autorisations.</div>
+                    </div>
+                  </>
+                )}
+
+                {/* 3. Wave Waiting */}
+                {moyenPaiement === 'wave' && (
+                  <>
+                    <img src="/logos/wave.png" alt="Wave" style={{ maxHeight: '36px', maxWidth: '140px', margin: '0 auto 12px auto', objectFit: 'contain' }} />
+                    <h4 style={{ fontSize: '1.2rem', margin: '0 0 8px 0', fontWeight: 800, color: '#0284C7' }}>
+                      Paiement instantané Wave
+                    </h4>
+                    <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '16px' }}>
+                      Débit de <strong>{finalPrice.toLocaleString('fr-FR')} FCFA</strong> via Wave.
+                    </p>
+                    <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '12px', padding: '14px', textAlign: 'center', fontSize: '0.84rem', marginBottom: '18px' }}>
+                      <div style={{ width: '130px', height: '130px', margin: '0 auto 10px auto', background: '#FFFFFF', border: '2px solid #0099FF', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <QrCode size={100} color="#0099FF" />
+                      </div>
+                      <div style={{ fontWeight: 700, color: '#0369A1', marginBottom: '4px' }}>Ouvrez Wave &gt; Scannez le code QR</div>
+                      <div style={{ fontSize: '0.76rem', color: '#64748B' }}>Le compte commerçant sera instantanément activé dès validation dans votre appli.</div>
+                    </div>
+                  </>
+                )}
+
+                {/* 4. Visa / Mastercard Waiting */}
+                {moyenPaiement === 'card' && (
+                  <>
+                    <img src="/logos/visa-mastercard.png" alt="Visa/Mastercard" style={{ maxHeight: '36px', maxWidth: '150px', margin: '0 auto 12px auto', objectFit: 'contain' }} />
+                    <h4 style={{ fontSize: '1.2rem', margin: '0 0 8px 0', fontWeight: 800, color: '#0062FF' }}>
+                      Vérification Bancaire 3D-Secure 2.0
+                    </h4>
+                    <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '16px' }}>
+                      Carte se terminant par <strong>•••• {cardNumber.slice(-4) || '4242'}</strong> — Montant : <strong>{finalPrice.toLocaleString('fr-FR')} FCFA</strong>.
+                    </p>
+                    <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: '12px', padding: '14px', textAlign: 'left', fontSize: '0.84rem', marginBottom: '18px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, color: '#1E40AF', marginBottom: '6px' }}>
+                        <Lock size={16} />
+                        <span>Authentification sécurisée émetteur bancaire</span>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#334155', lineHeight: 1.4 }}>
+                        Votre établissement bancaire procède à la vérification de la transaction (SMS OTP ou confirmation sur l'application mobile de votre banque).
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '12px', textAlign: 'left', fontSize: '0.82rem', marginBottom: '16px' }}>
                   <div style={{ marginBottom: '4px' }}><strong>Référence :</strong> {currentPaymentRef}</div>
-                  <div style={{ marginBottom: '4px' }}><strong>Opérateur :</strong> {moyenPaiement.toUpperCase()}</div>
-                  <div><strong>Statut serveur :</strong> En attente du webhook de confirmation...</div>
+                  <div style={{ marginBottom: '4px' }}><strong>Moyen :</strong> {moyenPaiement.toUpperCase()}</div>
+                  <div style={{ color: '#059669', fontWeight: 600 }}>● Connexion passerelle de paiement active</div>
                 </div>
 
                 <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: '16px' }}>
@@ -974,10 +1333,16 @@ export const SubscriptionPage: React.FC = () => {
                   type="button"
                   className="btn btn-primary"
                   onClick={handleInitiatePayment}
-                  disabled={isInitiating || !momoPhone.trim()}
-                  style={{ minWidth: '170px' }}
+                  disabled={
+                    isInitiating ||
+                    (moyenPaiement === 'card'
+                      ? cardNumber.replace(/\s/g, '').length < 16 || !cardExpiry.trim() || cardCvv.length < 3
+                      : (waveAction === 'phone' || moyenPaiement !== 'wave') && !momoPhone.trim())
+                  }
+                  style={{ minWidth: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                 >
-                  {isInitiating ? 'Initialisation...' : 'Valider & Payer'}
+                  <Lock size={15} />
+                  <span>{isInitiating ? 'Initialisation...' : `Payer ${finalPrice.toLocaleString('fr-FR')} FCFA`}</span>
                 </button>
               </div>
             )}

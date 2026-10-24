@@ -13,13 +13,23 @@ router.post('/initiate', authenticate, async (req: AuthRequest, res: Response, n
   try {
     const schema = z.object({
       planName: z.enum(['pro', 'business']),
-      billingCycle: z.enum(['monthly', 'yearly']).default('monthly'),
-      paymentMethod: z.enum(['mobile_money', 'card']).default('mobile_money'),
+      billingCycle: z.enum(['monthly', 'yearly', 'mensuel', 'annuel']).default('monthly'),
+      paymentMethod: z.string().optional().default('mobile_money'),
+      provider: z.enum(['orange', 'mtn', 'wave', 'card']).optional(),
       phoneNumber: z.string().optional(),
       promoCode: z.string().optional(),
+      metadata: z.any().optional(),
     });
 
-    const data = schema.parse(req.body);
+    const parsed = schema.parse(req.body);
+    const normalizedCycle: 'monthly' | 'yearly' = (parsed.billingCycle === 'annuel' || parsed.billingCycle === 'yearly') ? 'yearly' : 'monthly';
+    const normalizedMethod: 'mobile_money' | 'card' = parsed.provider === 'card' ? 'card' : ((parsed.paymentMethod as any) === 'card' ? 'card' : 'mobile_money');
+    const data = {
+      ...parsed,
+      billingCycle: normalizedCycle,
+      paymentMethod: normalizedMethod,
+      provider: parsed.provider || (normalizedMethod === 'card' ? 'card' : 'orange'),
+    };
     const user = await req.prisma.user.findUnique({
       where: { id: req.userId },
       include: { subscription: { include: { plan: true } } },
