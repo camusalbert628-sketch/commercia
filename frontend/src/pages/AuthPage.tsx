@@ -27,13 +27,28 @@ export const AuthPage: React.FC = () => {
 
   // Initialize Google Identity Services if client ID is configured
   useEffect(() => {
-    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '210731042943-aaap4r2isg8upmn22qapoifnd15703tn.apps.googleusercontent.com';
     if (googleClientId && (window as any).google?.accounts?.id) {
       try {
         (window as any).google.accounts.id.initialize({
           client_id: googleClientId,
           callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
         });
+
+        // Also render the official Google button if target div is present
+        const googleBtnDiv = document.getElementById('googleSignInDiv');
+        if (googleBtnDiv) {
+          (window as any).google.accounts.id.renderButton(googleBtnDiv, {
+            theme: 'outline',
+            size: 'large',
+            width: '100%',
+            text: 'continue_with',
+            shape: 'rectangular',
+            logo_alignment: 'left',
+          });
+        }
       } catch (err) {
         console.warn('Google GSI init notice:', err);
       }
