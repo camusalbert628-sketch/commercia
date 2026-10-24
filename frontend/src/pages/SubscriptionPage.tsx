@@ -497,6 +497,12 @@ export const SubscriptionPage: React.FC = () => {
               fontSize: '0.75rem',
               fontWeight: 800,
               letterSpacing: '0.5px',
+              whiteSpace: 'nowrap',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              boxShadow: '0 4px 12px rgba(0, 98, 255, 0.35)',
+              zIndex: 2,
             }}>
               ⭐ LE CHOIX DES COMMERÇANTS
             </span>
@@ -518,6 +524,7 @@ export const SubscriptionPage: React.FC = () => {
               <li><strong>✅ Ventes illimitées chaque jour</strong></li>
               <li><strong>✅ Alertes stocks faibles & inventaires</strong></li>
               <li><strong>✅ Suivi des dettes clients & rappels WhatsApp</strong></li>
+              <li><strong>✅ Livraisons & Expéditions colis (COD)</strong></li>
               <li><strong>✅ Trésorerie prédictive à 30 jours</strong></li>
               <li><strong>✅ Copilote IA COMMERCIA illimité</strong></li>
               <li>✅ Reçus thermiques & factures normalisées</li>
