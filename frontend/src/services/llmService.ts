@@ -198,7 +198,11 @@ RÈGLES D'OR DE COMPTABILITÉ COMMERCIALE AFRICAINE :
    - Poche 3 (Bénéfice & Salaire du Gérant) : Ce que le patron peut retirer pour lui sans couler la boutique.
 4. ACTIONNABILIÉ : Chaque réponse doit donner des chiffres réels basés sur les données ci-dessus, et proposer 1 action concrète (ex: relance WhatsApp pour Maman Chantal, clôture de caisse, réassort).
 5. MÉMOIRE : Si le commerçant dit "Rappelle-toi...", confirme-lui gentiment que c'est gravé dans ta mémoire.
-6. FORMAT : Utilise du markdown sobre (gras, listes à puces) pour que ce soit extrêmement lisible sur mobile et tablette. Évite les pavés indigestes.`;
+6. STYLE & TON NATUREL :
+   - Parle comme un véritable conseiller financier d'entreprise, chaleureux, naturel et direct.
+   - Ne produis JAMAIS de blocs de code, de balises JSON, d'HTML ou de signes techniques (interdit de mettre des balises ou du code).
+   - N'utilise pas de symboles de mise en page excessifs. Reste fluide, clair et agréable à lire sur smartphone.
+   - Rédige en français parfait avec des accents corrects et des phrases complètes.`;
 }
 
 // 5. Direct Call to Google Gemini REST API
@@ -328,12 +332,14 @@ export async function generateCopilotLLMResponse(
     try {
       if (cfg.provider === 'gemini') {
         const reply = await callGemini(userMessage, history, systemPrompt, cfg.apiKey, cfg.model || 'gemini-1.5-flash');
-        return { reply, memorizedFact: memorized, providerUsed: `Google Gemini (${cfg.model || '1.5-flash'})` };
+        const { sanitizeNaturalText } = await import('../utils/textFormatter');
+        return { reply: sanitizeNaturalText(reply), memorizedFact: memorized, providerUsed: `Google Gemini (${cfg.model || '1.5-flash'})` };
       }
 
       if (cfg.provider === 'openai') {
         const reply = await callOpenAICompatible(userMessage, history, systemPrompt, cfg.apiKey, cfg.model || 'gpt-4o-mini');
-        return { reply, memorizedFact: memorized, providerUsed: `OpenAI (${cfg.model || 'gpt-4o-mini'})` };
+        const { sanitizeNaturalText } = await import('../utils/textFormatter');
+        return { reply: sanitizeNaturalText(reply), memorizedFact: memorized, providerUsed: `OpenAI (${cfg.model || 'gpt-4o-mini'})` };
       }
 
       if (cfg.provider === 'groq') {
@@ -345,7 +351,8 @@ export async function generateCopilotLLMResponse(
           cfg.model || 'llama-3.3-70b-versatile',
           'https://api.groq.com/openai/v1/chat/completions'
         );
-        return { reply, memorizedFact: memorized, providerUsed: `Groq (${cfg.model || 'llama-3.3'})` };
+        const { sanitizeNaturalText } = await import('../utils/textFormatter');
+        return { reply: sanitizeNaturalText(reply), memorizedFact: memorized, providerUsed: `Groq (${cfg.model || 'llama-3.3'})` };
       }
     } catch (llmError: any) {
       console.warn('Direct LLM call failed, falling back to smart contextual engine:', llmError);
@@ -440,8 +447,9 @@ export async function generateCopilotLLMResponse(
     smartReply = `🧠 *(J'ai mémorisé : « ${memorized} »)*\n\n` + smartReply;
   }
 
+  const { sanitizeNaturalText } = await import('../utils/textFormatter');
   return {
-    reply: smartReply,
+    reply: sanitizeNaturalText(smartReply),
     memorizedFact: memorized,
     providerUsed: cfg.apiKey ? `${cfg.provider.toUpperCase()} (Mode Hybride)` : 'COMMERCIA Neural Contextual Engine',
   };

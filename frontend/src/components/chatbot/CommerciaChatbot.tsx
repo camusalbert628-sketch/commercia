@@ -17,6 +17,7 @@ import {
 import { api } from '../../services/api';
 import { getLiveStoreContext, LiveStoreContext } from '../../services/aiKnowledgeEngine';
 import { useNavigate } from 'react-router-dom';
+import { renderNaturalFormattedText } from '../../utils/textFormatter';
 
 interface Message {
   id: string;
@@ -523,7 +524,7 @@ export const CommerciaChatbot: React.FC = () => {
                       wordBreak: 'break-word',
                     }}
                   >
-                    {renderFormattedText(m.text)}
+                    {renderNaturalFormattedText(m.text, m.sender === 'user')}
                   </div>
                   <div
                     style={{

@@ -27,6 +27,7 @@ import {
   AIMemoryItem,
   LLMConfig,
 } from '../services/llmService';
+import { renderNaturalFormattedText } from '../utils/textFormatter';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -346,11 +347,10 @@ export const CopilotPage: React.FC = () => {
                   border: m.role === 'assistant' ? '1px solid #E2E8F0' : 'none',
                   fontSize: '0.92rem',
                   lineHeight: 1.6,
-                  whiteSpace: 'pre-line',
                   boxShadow: m.role === 'user' ? '0 4px 12px rgba(0, 98, 255, 0.25)' : '0 2px 4px rgba(0,0,0,0.03)',
                 }}
               >
-                {m.content}
+                {renderNaturalFormattedText(m.content, m.role === 'user')}
               </div>
 
               {m.memorizedFact && (
