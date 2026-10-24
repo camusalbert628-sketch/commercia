@@ -719,13 +719,13 @@ export const SubscriptionPage: React.FC = () => {
                   <label style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', marginBottom: '8px' }}>
                     Moyen de paiement
                   </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <button
                       type="button"
                       onClick={() => setMoyenPaiement('orange')}
                       style={{
-                        padding: '10px',
-                        borderRadius: '8px',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
                         border: moyenPaiement === 'orange' ? '2px solid #FF7900' : '1px solid #CBD5E1',
                         background: moyenPaiement === 'orange' ? '#FFF7ED' : '#FFFFFF',
                         fontWeight: 700,
@@ -734,18 +734,25 @@ export const SubscriptionPage: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '6px',
+                        gap: '8px',
+                        minHeight: '52px',
+                        boxShadow: moyenPaiement === 'orange' ? '0 2px 8px rgba(255, 121, 0, 0.2)' : 'none',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      <span>🍊 Orange Money</span>
+                      <img
+                        src="/logos/orange-money.png"
+                        alt="Orange Money"
+                        style={{ maxHeight: '28px', maxWidth: '135px', objectFit: 'contain' }}
+                      />
                     </button>
                     <button
                       type="button"
                       onClick={() => setMoyenPaiement('mtn')}
                       style={{
-                        padding: '10px',
-                        borderRadius: '8px',
-                        border: moyenPaiement === 'mtn' ? '2px solid #FFCC00' : '1px solid #CBD5E1',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: moyenPaiement === 'mtn' ? '2px solid #EAB308' : '1px solid #CBD5E1',
                         background: moyenPaiement === 'mtn' ? '#FEFCE8' : '#FFFFFF',
                         fontWeight: 700,
                         fontSize: '0.84rem',
@@ -753,18 +760,25 @@ export const SubscriptionPage: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '6px',
+                        gap: '8px',
+                        minHeight: '52px',
+                        boxShadow: moyenPaiement === 'mtn' ? '0 2px 8px rgba(234, 179, 8, 0.2)' : 'none',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      <span>🟡 MTN MoMo</span>
+                      <img
+                        src="/logos/mtn-momo.png"
+                        alt="MTN MoMo"
+                        style={{ maxHeight: '28px', maxWidth: '130px', objectFit: 'contain' }}
+                      />
                     </button>
                     <button
                       type="button"
                       onClick={() => setMoyenPaiement('wave')}
                       style={{
-                        padding: '10px',
-                        borderRadius: '8px',
-                        border: moyenPaiement === 'wave' ? '2px solid #1DC3FF' : '1px solid #CBD5E1',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: moyenPaiement === 'wave' ? '2px solid #0099FF' : '1px solid #CBD5E1',
                         background: moyenPaiement === 'wave' ? '#F0F9FF' : '#FFFFFF',
                         fontWeight: 700,
                         fontSize: '0.84rem',
@@ -772,17 +786,24 @@ export const SubscriptionPage: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '6px',
+                        gap: '8px',
+                        minHeight: '52px',
+                        boxShadow: moyenPaiement === 'wave' ? '0 2px 8px rgba(0, 153, 255, 0.2)' : 'none',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      <span>🌊 Wave</span>
+                      <img
+                        src="/logos/wave.png"
+                        alt="Wave"
+                        style={{ maxHeight: '28px', maxWidth: '120px', objectFit: 'contain' }}
+                      />
                     </button>
                     <button
                       type="button"
                       onClick={() => setMoyenPaiement('card')}
                       style={{
-                        padding: '10px',
-                        borderRadius: '8px',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
                         border: moyenPaiement === 'card' ? '2px solid #0062FF' : '1px solid #CBD5E1',
                         background: moyenPaiement === 'card' ? '#EFF6FF' : '#FFFFFF',
                         fontWeight: 700,
@@ -791,10 +812,17 @@ export const SubscriptionPage: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '6px',
+                        gap: '8px',
+                        minHeight: '52px',
+                        boxShadow: moyenPaiement === 'card' ? '0 2px 8px rgba(0, 98, 255, 0.2)' : 'none',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      <span>💳 Visa / Mastercard</span>
+                      <img
+                        src="/logos/visa-mastercard.png"
+                        alt="Visa / Mastercard"
+                        style={{ maxHeight: '28px', maxWidth: '125px', objectFit: 'contain' }}
+                      />
                     </button>
                   </div>
                 </div>

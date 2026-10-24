@@ -272,29 +272,45 @@ export const PlansPage: React.FC = () => {
                           type="button"
                           onClick={() => setProvider('orange')}
                           style={{
-                            padding: '12px',
+                            padding: '10px 14px',
                             borderRadius: '10px',
                             fontWeight: 700,
                             border: provider === 'orange' ? '2px solid #FF7900' : '1px solid #CBD5E1',
                             background: provider === 'orange' ? '#FFF5EB' : '#FFFFFF',
-                            color: provider === 'orange' ? '#FF7900' : '#475569',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: '50px',
+                            cursor: 'pointer',
                           }}
                         >
-                          🟠 Orange Money
+                          <img
+                            src="/logos/orange-money.png"
+                            alt="Orange Money"
+                            style={{ maxHeight: '26px', maxWidth: '130px', objectFit: 'contain' }}
+                          />
                         </button>
                         <button
                           type="button"
                           onClick={() => setProvider('mtn')}
                           style={{
-                            padding: '12px',
+                            padding: '10px 14px',
                             borderRadius: '10px',
                             fontWeight: 700,
-                            border: provider === 'mtn' ? '2px solid #FFCC00' : '1px solid #CBD5E1',
+                            border: provider === 'mtn' ? '2px solid #EAB308' : '1px solid #CBD5E1',
                             background: provider === 'mtn' ? '#FFFDEB' : '#FFFFFF',
-                            color: provider === 'mtn' ? '#997A00' : '#475569',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minHeight: '50px',
+                            cursor: 'pointer',
                           }}
                         >
-                          🟡 MTN MoMo
+                          <img
+                            src="/logos/mtn-momo.png"
+                            alt="MTN MoMo"
+                            style={{ maxHeight: '26px', maxWidth: '125px', objectFit: 'contain' }}
+                          />
                         </button>
                       </div>
                     </div>
