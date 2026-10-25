@@ -1,9 +1,21 @@
-// COMMERCIA Text Sanitizer & Natural Formatter
-// Converts raw LLM outputs (markdown tags, encoding glitches, HTML artifacts, raw asterisks)
-// into clean, natural, human-readable French text with elegant typography.
+// COMMERCIA Text Sanitizer & High-End Visual Formatter
+// Transforms raw LLM outputs into elegant, professional, highly readable retail growth cards
+// with rich colors, stylized italics, glowing badges, and 1-click copyable scripts.
 
 import React, { useState } from 'react';
-import { Copy, CheckCircle2, MessageCircle, Video, Globe, PackageCheck, Sparkles, ChevronRight } from 'lucide-react';
+import {
+  Copy,
+  CheckCircle2,
+  MessageCircle,
+  Video,
+  Globe,
+  PackageCheck,
+  Sparkles,
+  Zap,
+  TrendingUp,
+  Target,
+  Megaphone,
+} from 'lucide-react';
 
 /**
  * Clean encoding glitches and artifacts that often appear in LLM responses
@@ -13,7 +25,7 @@ export function sanitizeNaturalText(text: string): string {
 
   let cleaned = text;
 
-  // 1. Fix escaped slashes and apostrophes (e.g. d\'urgence, l\'offre, c\'est)
+  // 1. Fix escaped slashes and apostrophes (e.g. d\'urgence, l\'offre, c\'est, j\'ai)
   cleaned = cleaned
     .replace(/\\'/g, "'")
     .replace(/\\"/g, '"')
@@ -68,7 +80,6 @@ export function sanitizeNaturalText(text: string): string {
  * Helper to parse bolding and clean leftover asterisks inline
  */
 function renderInlineFormatted(line: string, isUser = false): React.ReactNode[] {
-  // Strip any raw markdown heading hashes from inline
   let cleanLine = line.replace(/^#{1,6}\s*/, '').trim();
 
   const segments: React.ReactNode[] = [];
@@ -120,13 +131,11 @@ export function renderNaturalFormattedText(rawText: string, isUser = false): Rea
           return <div key={idx} style={{ height: '4px' }} />;
         }
 
-        // Clean any leading hashes (#, ##, ###)
         const isHeading = /^#{1,4}\s+/.test(line);
         if (isHeading) {
           line = line.replace(/^#{1,4}\s+/, '');
         }
 
-        // Clean bullets
         let isBullet = false;
         if (/^[\*\-•]\s+/.test(line)) {
           isBullet = true;
@@ -139,7 +148,6 @@ export function renderNaturalFormattedText(rawText: string, isUser = false): Rea
           }
         }
 
-        // Blockquote
         let isQuote = false;
         if (/^>\s*/.test(line)) {
           isQuote = true;
@@ -235,13 +243,197 @@ export function renderNaturalFormattedText(rawText: string, isUser = false): Rea
 }
 
 /**
- * Single Copyable Script Box with toast feedback
+ * Highlights prices (ex: 85 000 FCFA), quantities (ex: 145 pièces), products, and urgency in scripts
+ * Formats the sales pitch in elegant, natural, readable italics with vibrant color accents.
  */
-function CopyableScriptItem({ scriptText, label }: { scriptText: string; label?: string }) {
+function renderStylizedScriptText(text: string): React.ReactNode {
+  const clean = text.replace(/\*\*/g, '').replace(/#/g, '').trim();
+  const paragraphs = clean.split('\n').filter(p => p.trim().length > 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {paragraphs.map((p, pIdx) => {
+        const parts: React.ReactNode[] = [];
+        const tokenRegex = /(\d+[\s\d]*\s*FCFA|\b\d+\s*(?:pièces|unités|téléphones)(?:\s*(?:restantes?|en stock))?|Redmi\s*14C|🚨[^!]+!🚨|Offre\s+Flash|[“"][^”"]+[”"])/gi;
+
+        let lastPos = 0;
+        let match: RegExpExecArray | null;
+
+        while ((match = tokenRegex.exec(p)) !== null) {
+          if (match.index > lastPos) {
+            parts.push(p.substring(lastPos, match.index));
+          }
+
+          const matchedText = match[0];
+          if (/FCFA/i.test(matchedText)) {
+            // Price pill in luminous Emerald Green
+            parts.push(
+              <span
+                key={`price-${pIdx}-${match.index}`}
+                style={{
+                  background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
+                  color: '#FFFFFF',
+                  fontWeight: 800,
+                  fontSize: '0.86rem',
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  fontStyle: 'normal',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  margin: '0 3px',
+                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
+                  verticalAlign: 'baseline',
+                }}
+              >
+                <span>🏷️</span>
+                <span>{matchedText}</span>
+              </span>
+            );
+          } else if (/(?:pièce|unité|téléphone)/i.test(matchedText)) {
+            // Urgency & stock scarcity pill in radiant Amber Fire
+            parts.push(
+              <span
+                key={`stock-${pIdx}-${match.index}`}
+                style={{
+                  background: 'linear-gradient(135deg, #D97706 0%, #F59E0B 100%)',
+                  color: '#FFFFFF',
+                  fontWeight: 800,
+                  fontSize: '0.86rem',
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  fontStyle: 'normal',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  margin: '0 3px',
+                  boxShadow: '0 2px 6px rgba(245, 158, 11, 0.35)',
+                  verticalAlign: 'baseline',
+                }}
+              >
+                <span>🔥</span>
+                <span>{matchedText}</span>
+              </span>
+            );
+          } else if (/Redmi\s*14C/i.test(matchedText)) {
+            // Product tag in Royal Violet
+            parts.push(
+              <span
+                key={`prod-${pIdx}-${match.index}`}
+                style={{
+                  background: '#EDE9FE',
+                  color: '#6D28D9',
+                  fontWeight: 800,
+                  fontSize: '0.86rem',
+                  padding: '2px 8px',
+                  borderRadius: '8px',
+                  border: '1px solid #C4B5FD',
+                  fontStyle: 'normal',
+                  display: 'inline-block',
+                  margin: '0 2px',
+                }}
+              >
+                📱 {matchedText}
+              </span>
+            );
+          } else if (/Flash|🚨/i.test(matchedText)) {
+            // Flash offer in Crimson
+            parts.push(
+              <span
+                key={`flash-${pIdx}-${match.index}`}
+                style={{
+                  background: '#FEE2E2',
+                  color: '#B91C1C',
+                  fontWeight: 800,
+                  fontSize: '0.86rem',
+                  padding: '3px 8px',
+                  borderRadius: '8px',
+                  border: '1px solid #FCA5A5',
+                  fontStyle: 'normal',
+                  display: 'inline-block',
+                  margin: '0 2px',
+                }}
+              >
+                ⚡ {matchedText.replace(/🚨/g, '').trim()}
+              </span>
+            );
+          } else {
+            // Quoted text
+            parts.push(
+              <span key={`quote-${pIdx}-${match.index}`} style={{ fontWeight: 700, color: '#4338CA', fontStyle: 'italic' }}>
+                {matchedText}
+              </span>
+            );
+          }
+
+          lastPos = match.index + match[0].length;
+        }
+
+        if (lastPos < p.length) {
+          parts.push(p.substring(lastPos));
+        }
+
+        // Salutation line detection (e.g. "Chers membres VIP,", "Bonjour TikTok !", "Appel à tous les revendeurs !")
+        const isSalutation = pIdx === 0 && (p.includes('!') || p.includes(',') || /VIP|TikTok|revendeur|Marketplace|Bonjour|Chers/i.test(p));
+
+        if (isSalutation) {
+          return (
+            <div
+              key={pIdx}
+              style={{
+                fontSize: '1rem',
+                lineHeight: 1.5,
+                color: '#1E1B4B',
+                fontWeight: 800,
+                letterSpacing: '-0.01em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                borderBottom: '1px solid rgba(196, 181, 253, 0.4)',
+                paddingBottom: '6px',
+                marginBottom: '4px',
+              }}
+            >
+              <span style={{ fontSize: '1.1rem' }}>👋</span>
+              <span>{parts}</span>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={pIdx}
+            style={{
+              fontSize: '0.94rem',
+              lineHeight: 1.7,
+              color: '#3730A3',
+              fontStyle: 'italic',
+              fontWeight: 500,
+              letterSpacing: '0.01em',
+            }}
+          >
+            {parts}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Premium Copyable Script Box with toast feedback
+ */
+function PremiumScriptBox({ scriptText, channelName, badgeColor }: { scriptText: string; channelName: string; badgeColor: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(scriptText);
+    const plainText = scriptText
+      .replace(/\*\*/g, '')
+      .replace(/#/g, '')
+      .replace(/^>\s*/gm, '')
+      .trim();
+
+    navigator.clipboard.writeText(plainText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -249,186 +441,228 @@ function CopyableScriptItem({ scriptText, label }: { scriptText: string; label?:
   return (
     <div
       style={{
-        background: '#FAF5FF',
-        border: '1.5px dashed #DDD6FE',
-        borderRadius: '12px',
-        padding: '14px 16px',
-        marginTop: '10px',
+        background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 50%, #EDE9FE 100%)',
+        border: '1.5px dashed #A78BFA',
+        borderRadius: '14px',
+        padding: '16px 18px',
+        marginTop: '12px',
         position: 'relative',
+        boxShadow: '0 4px 14px rgba(124, 58, 237, 0.08)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-        <span style={{ fontSize: '0.74rem', fontWeight: 800, color: '#6D28D9', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          {label || '📢 Modèle d\'Annonce Prêt à l\'Emploi :'}
-        </span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div
+            style={{
+              width: '26px',
+              height: '26px',
+              borderRadius: '8px',
+              background: '#EDE9FE',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Megaphone size={15} color="#7C3AED" />
+          </div>
+          <span style={{ fontSize: '0.78rem', fontWeight: 900, color: '#4C1D95', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Script d'Annonce Prêt à Diffuser ({channelName}) :
+          </span>
+        </div>
         <button
           onClick={handleCopy}
           style={{
-            background: copied ? '#DCFCE7' : '#FFFFFF',
-            color: copied ? '#15803D' : '#6D28D9',
-            border: copied ? '1px solid #86EFAC' : '1px solid #DDD6FE',
-            borderRadius: '6px',
-            padding: '5px 10px',
-            fontSize: '0.74rem',
-            fontWeight: 700,
+            background: copied ? 'linear-gradient(135deg, #059669 0%, #10B981 100%)' : '#FFFFFF',
+            color: copied ? '#FFFFFF' : '#6D28D9',
+            border: copied ? '1.5px solid #059669' : '1.5px solid #C4B5FD',
+            borderRadius: '10px',
+            padding: '6px 14px',
+            fontSize: '0.80rem',
+            fontWeight: 800,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '5px',
+            gap: '6px',
+            boxShadow: copied ? '0 2px 8px rgba(16, 185, 129, 0.35)' : '0 2px 5px rgba(124, 58, 237, 0.1)',
             transition: 'all 0.2s ease',
           }}
         >
-          {copied ? <CheckCircle2 size={13} color="#16A34A" /> : <Copy size={13} />}
-          <span>{copied ? 'Copié !' : 'Copier ce texte'}</span>
+          {copied ? <CheckCircle2 size={15} color="#FFFFFF" /> : <Copy size={15} />}
+          <span>{copied ? 'Copié dans le presse-papier !' : 'Copier ce Script'}</span>
         </button>
       </div>
-      <div
-        style={{
-          fontSize: '0.86rem',
-          lineHeight: 1.55,
-          color: '#3B0764',
-          fontStyle: 'normal',
-          whiteSpace: 'pre-line',
-        }}
-      >
-        {scriptText}
+
+      <div style={{ padding: '4px 6px', background: 'rgba(255, 255, 255, 0.65)', borderRadius: '10px', border: '1px solid rgba(196, 181, 253, 0.3)' }}>
+        {renderStylizedScriptText(scriptText)}
       </div>
     </div>
   );
 }
 
 /**
- * Premium Structured Strategy Cards Renderer
- * Parses LLM strategy text and transforms it into high-converting cards with beautiful typography, badges, and 1-click copyable scripts.
+ * Line-by-line Structured Strategy Cards Parser & Renderer
+ * Takes any LLM strategy output and transforms it into 4 high-converting, colorful, beautifully styled cards!
  */
 export function renderProfessionalStrategyCards(rawText: string): React.ReactNode {
   const sanitized = sanitizeNaturalText(rawText);
 
-  // Split by numbered sections like "### 1.", "1.", "### 2.", "2."
-  const sectionRegex = /(?:^|\n)(?:#{1,4}\s*)?(\d+[\.\)]\s*[^\n]+)/g;
-  const sections: Array<{ title: string; body: string }> = [];
+  // Line-by-line robust parsing
+  const lines = sanitized.split('\n');
+  const cards: Array<{ number: string; title: string; strategy: string; script: string }> = [];
+  let intro = '';
+  let conclusion = '';
+  let currentCard: { number: string; title: string; strategy: string; script: string } | null = null;
+  let currentField: 'strategy' | 'script' = 'strategy';
 
-  let lastIndex = 0;
-  let currentTitle = '';
-  let match: RegExpExecArray | null;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
 
-  const matches: Array<{ title: string; index: number }> = [];
-  while ((match = sectionRegex.exec(sanitized)) !== null) {
-    matches.push({ title: match[1], index: match.index });
-  }
-
-  let introText = '';
-  if (matches.length > 0) {
-    introText = sanitized.substring(0, matches[0].index).trim();
-    for (let i = 0; i < matches.length; i++) {
-      const start = matches[i].index;
-      const end = i + 1 < matches.length ? matches[i + 1].index : sanitized.length;
-      const rawChunk = sanitized.substring(start, end);
-      const firstLineEnd = rawChunk.indexOf('\n');
-      const title = (firstLineEnd !== -1 ? rawChunk.substring(0, firstLineEnd) : rawChunk)
-        .replace(/^#{1,4}\s*/, '')
-        .replace(/\*\*/g, '')
-        .trim();
-      const body = firstLineEnd !== -1 ? rawChunk.substring(firstLineEnd).trim() : '';
-      sections.push({ title, body });
+    // Detect new card start (ex: "1. WhatsApp...", "2. TikTok...", "3. Facebook...", "4. Packs...")
+    const numMatch = line.match(/^(?:#{1,4}\s*)?(\d+)[\.\)\-]\s*(.*)/i);
+    if (numMatch) {
+      if (currentCard) {
+        cards.push(currentCard);
+      }
+      currentCard = {
+        number: numMatch[1],
+        title: numMatch[2].replace(/\*\*/g, '').replace(/#/g, '').trim(),
+        strategy: '',
+        script: '',
+      };
+      currentField = 'strategy';
+      continue;
     }
-  } else {
-    // Fallback if no numbered sections found: render with natural formatted text
-    return (
-      <div style={{ background: '#FFFFFF', padding: '16px', borderRadius: '12px' }}>
-        {renderNaturalFormattedText(sanitized)}
-      </div>
-    );
+
+    if (!currentCard) {
+      // Intro line before the first card
+      intro += (intro ? ' ' : '') + line;
+      continue;
+    }
+
+    // Detect field switch: Stratégie vs Script
+    if (/^(?:stratégie|démarche|approche)\s*[:：]/i.test(line)) {
+      currentField = 'strategy';
+      const clean = line.replace(/^(?:stratégie|démarche|approche)\s*[:：]\s*/i, '').trim();
+      if (clean) currentCard.strategy += (currentCard.strategy ? ' ' : '') + clean;
+      continue;
+    }
+
+    if (/^(?:script|modèle|annonce|texte)\s*[:：]/i.test(line)) {
+      currentField = 'script';
+      const clean = line.replace(/^(?:script|modèle|annonce|texte)\s*[:：]\s*/i, '').trim();
+      if (clean) currentCard.script += (currentCard.script ? '\n' : '') + clean;
+      continue;
+    }
+
+    // Detect conclusion line at the end
+    if (/^en utilisant ces/i.test(line) || /^avec ces/i.test(line) || /^ces stratégies/i.test(line)) {
+      conclusion += (conclusion ? ' ' : '') + line;
+      continue;
+    }
+
+    // Accumulate
+    if (currentField === 'strategy') {
+      currentCard.strategy += (currentCard.strategy ? ' ' : '') + line;
+    } else {
+      currentCard.script += (currentCard.script ? '\n' : '') + line;
+    }
   }
 
-  // Channel theme resolver
-  const getChannelTheme = (title: string, index: number) => {
+  if (currentCard) {
+    cards.push(currentCard);
+  }
+
+  // Fallback if cards could not be split by numbers: create at least 1 card
+  if (cards.length === 0) {
+    cards.push({
+      number: '1',
+      title: 'Plan d\'Écoulement Rapide Global',
+      strategy: sanitized,
+      script: '',
+    });
+  }
+
+  // Channel theme configuration
+  const getTheme = (title: string, num: string) => {
     const t = title.toLowerCase();
-    if (t.includes('whatsapp')) {
+    if (t.includes('whatsapp') || num === '1') {
       return {
-        icon: <MessageCircle size={18} color="#15803D" />,
         badge: 'WhatsApp Business VIP',
         badgeBg: '#DCFCE7',
-        badgeColor: '#15803D',
-        border: '1.5px solid #86EFAC',
-        headerBg: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+        badgeColor: '#166534',
+        border: '2px solid #86EFAC',
+        gradientHeader: 'linear-gradient(135deg, #065F46 0%, #047857 100%)',
+        accentBg: '#F0FDF4',
+        icon: <MessageCircle size={20} color="#FFFFFF" />,
+        ctaLabel: '24h à 48h • Vente Directe',
       };
     }
-    if (t.includes('tiktok') || t.includes('live') || t.includes('déballage')) {
+    if (t.includes('tiktok') || t.includes('live') || num === '2') {
       return {
-        icon: <Video size={18} color="#7C3AED" />,
         badge: 'TikTok Live & Déballage',
         badgeBg: '#EDE9FE',
-        badgeColor: '#7C3AED',
-        border: '1.5px solid #DDD6FE',
-        headerBg: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)',
+        badgeColor: '#6D28D9',
+        border: '2px solid #C4B5FD',
+        gradientHeader: 'linear-gradient(135deg, #581C87 0%, #7C3AED 100%)',
+        accentBg: '#FAF5FF',
+        icon: <Video size={20} color="#FFFFFF" />,
+        ctaLabel: 'Live Déballage Vidéo',
       };
     }
-    if (t.includes('facebook') || t.includes('marketplace') || t.includes('groupe')) {
+    if (t.includes('facebook') || t.includes('marketplace') || num === '3') {
       return {
-        icon: <Globe size={18} color="#1D4ED8" />,
-        badge: 'Facebook Tech & Groupes',
+        badge: 'Facebook Marketplace & Groupes',
         badgeBg: '#EFF6FF',
-        badgeColor: '#1D4ED8',
-        border: '1.5px solid #BFDBFE',
-        headerBg: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+        badgeColor: '#1E40AF',
+        border: '2px solid #93C5FD',
+        gradientHeader: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)',
+        accentBg: '#EFF6FF',
+        icon: <Globe size={20} color="#FFFFFF" />,
+        ctaLabel: 'Offre Flash Limitée',
       };
     }
     return {
-      icon: <PackageCheck size={18} color="#B45309" />,
-      badge: `Canal Stratégique #${index + 1}`,
+      badge: 'Packs Revendeurs & Gros',
       badgeBg: '#FEF3C7',
-      badgeColor: '#B45309',
-      border: '1.5px solid #FDE68A',
-      headerBg: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+      badgeColor: '#92400E',
+      border: '2px solid #FCD34D',
+      gradientHeader: 'linear-gradient(135deg, #92400E 0%, #D97706 100%)',
+      accentBg: '#FFFBEB',
+      icon: <PackageCheck size={20} color="#FFFFFF" />,
+      ctaLabel: 'Déstockage en Volume',
     };
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Introduction highlight note if present */}
-      {introText && (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+      {/* Intro banner */}
+      {intro && (
         <div
           style={{
             background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
-            border: '1.5px solid #DDD6FE',
-            borderRadius: '12px',
+            border: '1.5px solid #C4B5FD',
+            borderRadius: '14px',
             padding: '16px 20px',
-            fontSize: '0.90rem',
+            fontSize: '0.92rem',
             lineHeight: 1.6,
             color: '#4C1D95',
-            fontWeight: 500,
+            fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
+            boxShadow: '0 2px 6px rgba(124, 58, 237, 0.08)',
           }}
         >
-          <Sparkles size={22} color="#7C3AED" style={{ flexShrink: 0 }} />
-          <div>{introText.replace(/\*\*/g, '').replace(/#/g, '')}</div>
+          <Sparkles size={24} color="#7C3AED" style={{ flexShrink: 0 }} />
+          <div>{intro.replace(/\*\*/g, '').replace(/#/g, '')}</div>
         </div>
       )}
 
-      {/* Strategies Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '18px' }}>
-        {sections.map((sec, idx) => {
-          const theme = getChannelTheme(sec.title, idx);
-
-          // Separate Strategy description and Script
-          let strategyPart = sec.body;
-          let scriptPart = '';
-
-          const scriptIndex = sec.body.search(/(?:script|modèle|texte\s*à\s*publier)\s*[:：]/i);
-          if (scriptIndex !== -1) {
-            strategyPart = sec.body.substring(0, scriptIndex).trim();
-            scriptPart = sec.body.substring(scriptIndex).replace(/^(?:script|modèle|texte\s*à\s*publier)\s*[:：]\s*/i, '').trim();
-          }
-
-          // Clean markdown artifacts from script
-          const cleanScript = scriptPart
-            .replace(/\*\*/g, '')
-            .replace(/^>\s*/gm, '')
-            .replace(/\[([^\]]+)\]/g, '($1)') // [Au début du live] -> (Au début du live)
-            .trim();
+      {/* Cards 2-column Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+        {cards.map((c, idx) => {
+          const theme = getTheme(c.title, c.number);
 
           return (
             <div
@@ -438,78 +672,134 @@ export function renderProfessionalStrategyCards(rawText: string): React.ReactNod
                 borderRadius: '16px',
                 border: theme.border,
                 background: '#FFFFFF',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 padding: '0',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
               }}
             >
-              {/* Card Header */}
+              {/* Premium Gradient Header */}
               <div
                 style={{
-                  background: theme.headerBg,
-                  padding: '14px 18px',
+                  background: theme.gradientHeader,
+                  padding: '16px 20px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  borderBottom: '1px solid rgba(0,0,0,0.06)',
+                  color: '#FFFFFF',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div
                     style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '8px',
-                      background: '#FFFFFF',
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.2)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                      backdropFilter: 'blur(4px)',
                     }}
                   >
                     {theme.icon}
                   </div>
                   <div>
-                    <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: '#0F172A' }}>
-                      {sec.title}
+                    <span
+                      style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 900,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        color: 'rgba(255, 255, 255, 0.85)',
+                        display: 'block',
+                      }}
+                    >
+                      STRATÉGIE #{c.number.padStart(2, '0')} • {theme.badge}
+                    </span>
+                    <h4 style={{ margin: '2px 0 0 0', fontSize: '1.02rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.01em' }}>
+                      {c.title}
                     </h4>
                   </div>
                 </div>
+
                 <span
                   style={{
                     fontSize: '0.72rem',
                     fontWeight: 800,
-                    padding: '3px 9px',
-                    borderRadius: '10px',
-                    background: theme.badgeBg,
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    background: '#FFFFFF',
                     color: theme.badgeColor,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  {theme.badge}
+                  {theme.ctaLabel}
                 </span>
               </div>
 
               {/* Card Body */}
-              <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-                {/* Tactical approach */}
-                {strategyPart && (
-                  <div style={{ fontSize: '0.88rem', lineHeight: 1.55, color: '#334155' }}>
-                    {renderNaturalFormattedText(strategyPart)}
+              <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px', flex: 1 }}>
+                {/* Tactical Approach section */}
+                {c.strategy && (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                      <Target size={15} color="#4338CA" />
+                      <strong style={{ fontSize: '0.78rem', color: '#1E1B4B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Démarche Stratégique Commerciale :
+                      </strong>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '0.88rem',
+                        lineHeight: 1.6,
+                        color: '#334155',
+                        background: '#F8FAFC',
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        border: '1px solid #E2E8F0',
+                      }}
+                    >
+                      {c.strategy.replace(/\*\*/g, '').replace(/#/g, '')}
+                    </div>
                   </div>
                 )}
 
-                {/* Ready-to-use Script box */}
-                {cleanScript && (
-                  <CopyableScriptItem scriptText={cleanScript} label={`📢 Script d'accroche pour ${theme.badge} :`} />
+                {/* Ready-to-Use Script Callout box with highlighted prices & urgency */}
+                {c.script && (
+                  <PremiumScriptBox scriptText={c.script} channelName={theme.badge} badgeColor={theme.badgeColor} />
                 )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Conclusion note */}
+      {conclusion && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+            border: '1.5px solid #86EFAC',
+            borderRadius: '12px',
+            padding: '14px 18px',
+            fontSize: '0.88rem',
+            lineHeight: 1.5,
+            color: '#166534',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <TrendingUp size={20} color="#15803D" style={{ flexShrink: 0 }} />
+          <div>{conclusion.replace(/\*\*/g, '').replace(/#/g, '')}</div>
+        </div>
+      )}
     </div>
   );
 }
