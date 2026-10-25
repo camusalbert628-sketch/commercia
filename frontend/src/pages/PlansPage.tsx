@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Crown, Check, Zap, Smartphone, ShieldCheck, X } from 'lucide-react';
+import { Crown, Check, Zap, Smartphone, ShieldCheck, X, Sparkles, RefreshCw, CheckCircle } from 'lucide-react';
 import { api } from '../services/api';
 import { Plan } from '../types';
 import { useAuthStore } from '../store/authStore';
@@ -9,6 +9,9 @@ export const PlansPage: React.FC = () => {
   const [mySub, setMySub] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+
+  const [testActivating, setTestActivating] = useState(false);
+  const [testNotice, setTestNotice] = useState<string | null>(null);
 
   // Mobile Money modal state
   const [phone, setPhone] = useState('');
@@ -65,8 +68,188 @@ export const PlansPage: React.FC = () => {
     }
   };
 
+  const handleTestActivate = async (pName: 'free' | 'pro' | 'business') => {
+    try {
+      setTestActivating(true);
+      const res = await api.post<{ success: boolean; message: string }>('/plans/test-activate', {
+        planName: pName,
+      });
+      await fetchMe();
+      await fetchData();
+      setTestNotice(res.message || `Formule ${pName.toUpperCase()} activée avec succès en mode test !`);
+      setTimeout(() => setTestNotice(null), 5000);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Erreur lors de l\'activation du test');
+    } finally {
+      setTestActivating(false);
+    }
+  };
+
+  const currentPlanName = mySub?.plan || mySub?.planName || 'free';
+
   return (
     <div className="page-wrapper">
+      {/* 0. NOTIFICATION MESSAGE TEST */}
+      {testNotice && (
+        <div
+          style={{
+            background: '#ECFDF5',
+            border: '1.5px solid #10B981',
+            color: '#065F46',
+            padding: '14px 20px',
+            borderRadius: '12px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontWeight: 700,
+            fontSize: '0.92rem',
+            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+        >
+          <CheckCircle size={20} color="#10B981" />
+          <span>{testNotice}</span>
+        </div>
+      )}
+
+      {/* BANC D'ESSAI / TEST DES FORMULES */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #0F172A 0%, #1E1B4B 60%, #312E81 100%)',
+          borderRadius: '18px',
+          padding: '20px 24px',
+          marginBottom: '32px',
+          color: '#FFFFFF',
+          boxShadow: '0 12px 30px rgba(15, 23, 42, 0.28)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', maxWidth: '640px' }}>
+          <div
+            style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, #FF6B00 0%, #FF8A00 100%)',
+              color: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 6px 16px rgba(255, 107, 0, 0.4)',
+            }}
+          >
+            <Sparkles size={24} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#FFFFFF' }}>
+                Banc d'Essai : Testez Pro et Business en 1 Clic
+              </span>
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  color: '#FFFFFF',
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Évaluation Libre
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: '#CBD5E1', lineHeight: 1.45 }}>
+              Activez immédiatement la <strong>Formule Pro</strong> ou la <strong>Formule Business</strong> pour évaluer toutes les fonctionnalités en conditions réelles sans carte ni débit.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            disabled={testActivating || currentPlanName === 'pro'}
+            onClick={() => handleTestActivate('pro')}
+            style={{
+              background: currentPlanName === 'pro' ? '#10B981' : '#0062FF',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '10px 16px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              cursor: currentPlanName === 'pro' ? 'default' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 14px rgba(0, 98, 255, 0.35)',
+              opacity: testActivating ? 0.7 : 1,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Crown size={15} />
+            <span>{currentPlanName === 'pro' ? '✓ Pro Actif (Test)' : '⚡ Tester Pro'}</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={testActivating || currentPlanName === 'business'}
+            onClick={() => handleTestActivate('business')}
+            style={{
+              background: currentPlanName === 'business' ? '#10B981' : 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '10px 16px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              cursor: currentPlanName === 'business' ? 'default' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
+              opacity: testActivating ? 0.7 : 1,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Sparkles size={15} />
+            <span>{currentPlanName === 'business' ? '✓ Business Actif (Test)' : '💼 Tester Business'}</span>
+          </button>
+
+          {currentPlanName !== 'free' && (
+            <button
+              type="button"
+              disabled={testActivating}
+              onClick={() => handleTestActivate('free')}
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: '#E2E8F0',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                borderRadius: '12px',
+                padding: '10px 14px',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <RefreshCw size={13} />
+              <span>Remettre en Gratuit</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       <div style={{ textAlign: 'center', maxWidth: '700px', margin: '0 auto 40px' }}>
         <div
           style={{
@@ -208,14 +391,40 @@ export const PlansPage: React.FC = () => {
                   ))}
                 </div>
 
-                <button
-                  className={`btn ${isPro ? 'btn-accent' : isCurrent ? 'btn-outline' : 'btn-primary'} btn-lg`}
-                  disabled={isCurrent}
-                  onClick={() => setSelectedPlan(p)}
-                  style={{ width: '100%', fontWeight: 700 }}
-                >
-                  {isCurrent ? 'Plan Actif' : p.priceMonthly === 0 ? 'Choisir ce plan' : `S'abonner (${(p.priceMonthly || 0).toLocaleString('fr-FR')} FCFA)`}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button
+                    className={`btn ${isPro ? 'btn-accent' : isCurrent ? 'btn-outline' : 'btn-primary'} btn-lg`}
+                    disabled={isCurrent}
+                    onClick={() => setSelectedPlan(p)}
+                    style={{ width: '100%', fontWeight: 700 }}
+                  >
+                    {isCurrent ? 'Plan Actif' : p.priceMonthly === 0 ? 'Choisir ce plan' : `S'abonner (${(p.priceMonthly || 0).toLocaleString('fr-FR')} FCFA)`}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isCurrent || testActivating}
+                    onClick={() => handleTestActivate(p.name as any)}
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: '1px solid #CBD5E1',
+                      background: isCurrent ? '#F1F5F9' : '#FFFFFF',
+                      color: isCurrent ? '#64748B' : '#0F172A',
+                      fontWeight: 700,
+                      fontSize: '0.84rem',
+                      cursor: isCurrent ? 'default' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Sparkles size={14} color={isCurrent ? '#94A3B8' : '#FF6B00'} />
+                    <span>{isCurrent ? '✓ Plan Actuel' : `⚡ Tester ${p.displayName} (1 clic)`}</span>
+                  </button>
+                </div>
               </div>
             );
           })}

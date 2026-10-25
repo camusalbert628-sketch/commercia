@@ -1257,6 +1257,79 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         requiresPaymentConfirmation: true,
       };
     }
+
+    if ((endpoint === '/plans/test-activate' || endpoint === '/plans/activate-trial') && method === 'POST') {
+      const pName = body?.planName || 'pro';
+      const rawUser = localStorage.getItem('commercia_user');
+      const u = rawUser ? JSON.parse(rawUser) : currentUser;
+      const isPro = pName === 'pro' || pName === 'business';
+      const endDate = isPro ? new Date(Date.now() + 30 * 86400000).toISOString() : null;
+
+      if (u) {
+        u.subscription = {
+          planName: pName,
+          planDisplayName: pName === 'business' ? 'Business VIP' : (pName === 'pro' ? 'Pro Croissance' : 'Gratuit'),
+          status: isPro ? 'active' : 'free',
+          isPro,
+          startDate: isPro ? new Date().toISOString() : undefined,
+          endDate,
+          daysRemaining: isPro ? 30 : 0,
+          features: isPro
+            ? (pName === 'business'
+                ? ['Multi-boutiques & multi-caisses', 'Comptabilité analytique & marge', 'Ventes & stocks illimités', 'Copilote IA illimité', 'Support VIP 24/7']
+                : ['Ventes illimitées', 'Gestion de stock & alertes', 'Carnet de dettes & relances', 'Copilote IA Commerçant'])
+            : ['15 ventes max / jour', 'Calcul bénéfice journalier'],
+        };
+        localStorage.setItem('commercia_user', JSON.stringify(u));
+        if (currentUser && currentUser.id === u.id) {
+          currentUser.subscription = u.subscription;
+        }
+      }
+
+      // Sync subscription engine state
+      const subState = {
+        etat: isPro ? 'ACTIF' : 'AUCUN',
+        planId: `plan-${pName}`,
+        dateDebut: isPro ? new Date().toISOString() : null,
+        dateFinPeriode: endDate,
+        joursRestants: isPro ? 30 : 0,
+        modeRenouvellement: 'MANUEL',
+      };
+      try {
+        localStorage.setItem('commercia_subscription_state', JSON.stringify(subState));
+      } catch (_) {}
+
+      // Add a simulation payment in history so invoices work
+      if (isPro) {
+        const rawPayments = localStorage.getItem('commercia_payments');
+        const payments = rawPayments ? JSON.parse(rawPayments) : [];
+        const reference = `TEST-${pName.toUpperCase()}-${Date.now()}`;
+        payments.unshift({
+          id: 'pay-test-' + Date.now(),
+          reference,
+          amount: pName === 'business' ? 12000 : 4500,
+          currency: 'XAF',
+          status: 'completed',
+          provider: 'mode_test',
+          phoneNumber: u?.phone || '+237 690 000 000',
+          createdAt: new Date().toISOString(),
+          verifiedAt: new Date().toISOString(),
+          plan: {
+            name: pName,
+            displayName: pName === 'business' ? 'Formule Business VIP' : 'Formule Pro Croissance',
+          },
+        });
+        localStorage.setItem('commercia_payments', JSON.stringify(payments));
+      }
+
+      return {
+        success: true,
+        message: `Formule ${pName === 'business' ? 'Business VIP' : pName === 'pro' ? 'Pro' : 'Gratuite'} activée avec succès en mode test !`,
+        subscription: u?.subscription,
+        user: u,
+      };
+    }
+
     return [
       {
         id: 'plan-free',

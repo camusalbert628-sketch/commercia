@@ -227,4 +227,71 @@ router.post('/subscribe', authenticate, async (req: AuthRequest, res, next) => {
   }
 });
 
+// POST /api/plans/test-activate — Permet de tester instantanément les formules Pro, Business ou Gratuite
+router.post('/test-activate', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const schema = z.object({
+      planName: z.enum(['free', 'pro', 'business']),
+    });
+    const { planName } = schema.parse(req.body);
+
+    const user = await req.prisma.user.findUnique({ where: { id: req.userId! } });
+    if (!user) throw new AppError('Utilisateur introuvable', 404);
+
+    let plan = await req.prisma.plan.findUnique({ where: { name: planName } });
+    if (!plan) {
+      plan = await req.prisma.plan.create({
+        data: {
+          name: planName,
+          displayName: planName === 'business' ? 'Plan Business' : planName === 'pro' ? 'Plan Pro' : 'Gratuit',
+          description: planName === 'business' ? 'Multi-boutiques & VIP' : planName === 'pro' ? 'Croissance & Stock' : 'Plan découverte',
+          priceMonthly: planName === 'business' ? 12000 : planName === 'pro' ? 4500 : 0,
+          priceYearly: planName === 'business' ? 120000 : planName === 'pro' ? 45000 : 0,
+          features: JSON.stringify(['Ventes illimitées', 'Stock temps réel', 'Copilote IA illimité']),
+          limits: JSON.stringify({ salesPerDay: -1, stockEnabled: true, creditEnabled: true }),
+        },
+      });
+    }
+
+    const isPro = planName !== 'free';
+    const endDate = isPro ? new Date(Date.now() + 30 * 86400000) : null;
+
+    const sub = await req.prisma.subscription.upsert({
+      where: { userId: user.id },
+      update: {
+        planId: plan.id,
+        status: isPro ? 'active' : 'free',
+        startDate: isPro ? new Date() : undefined,
+        endDate,
+      },
+      create: {
+        userId: user.id,
+        planId: plan.id,
+        status: isPro ? 'active' : 'free',
+        startDate: isPro ? new Date() : undefined,
+        endDate,
+      },
+      include: { plan: true },
+    });
+
+    res.json({
+      success: true,
+      message: `Formule ${plan.displayName} activée en mode test avec succès !`,
+      subscription: {
+        plan: plan.name,
+        planName: plan.name,
+        displayName: plan.displayName,
+        planDisplayName: plan.displayName,
+        status: sub.status,
+        isPro,
+        endDate,
+        daysRemaining: isPro ? 30 : 0,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) return next(new AppError(error.errors[0].message, 400));
+    next(error);
+  }
+});
+
 export { router as plansRouter };

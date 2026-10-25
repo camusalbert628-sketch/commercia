@@ -284,6 +284,54 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       )}
 
+      {!hideBanner && planName === 'business' && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)',
+            border: '1px solid #D8B4FE',
+            borderRadius: '16px',
+            padding: '14px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '1.25rem' }}>👑</span>
+            <div>
+              <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#581C87' }}>
+                Formule Business VIP Active (Multi-boutiques & Multi-caisses)
+              </span>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: '#7E22CE' }}>
+                Accès total illimité débloqué : points de vente multiples, rôles caissiers, exports comptables OHADA et support VIP 24/7.
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Link
+              to="/subscription"
+              style={{
+                color: '#7C3AED',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                textDecoration: 'underline',
+              }}
+            >
+              Gérer l'abonnement Business →
+            </Link>
+            <button
+              onClick={() => setHideBanner(true)}
+              style={{ background: 'transparent', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: '4px' }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Welcome Banner & Action Buttons */}
       <div
         style={{
