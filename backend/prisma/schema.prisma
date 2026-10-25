@@ -81,6 +81,7 @@ model Business {
   cashMovements     CashMovement[]
   acquisitionChannels AcquisitionChannel[]
   acquisitionCampaigns AcquisitionCampaign[]
+  commercialLotCampaigns CommercialLotCampaign[]
 }
 
 
@@ -548,6 +549,137 @@ model AcquisitionCampaign {
   channel  AcquisitionChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
   sales    Sale[]
   expenses Expense[]
+}
+
+// ===================== MODULE PRO : GESTION DES LOTS COMMERCIAUX =====================
+
+model CommercialLotCampaign {
+  id                    String    @id @default(uuid())
+  businessId            String
+  name                  String
+  goodsType             String    // vetements, telephones, chaussures, cosmetiques, electronique, etc.
+  description           String?
+  supplierName          String?
+  originCountry         String?
+  purchaseDate          DateTime  @default(now())
+  purchaseCurrency      String    @default("XAF")
+  exchangeRate          Float     @default(1.0)
+  purchasePriceOriginal Float     @default(0)
+  purchasePriceXaf      Float     @default(0)
+  transportCost         Float     @default(0)
+  customsCost           Float     @default(0)
+  transactionFees       Float     @default(0)
+  packagingCost         Float     @default(0)
+  otherSupplyCosts      Float     @default(0)
+  totalLandedCost       Float     @default(0)
+  costAllocationMethod  String    @default("unit") // unit, value_weighted, custom
+  status                String    @default("active") // draft, active, paused, closed
+  closedAt              DateTime?
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  business  Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  items     LotItem[]
+  sales     LotSale[]
+  expenses  LotExpense[]
+  movements LotStockMovement[]
+
+  @@index([businessId, status])
+}
+
+model LotItem {
+  id                   String   @id @default(uuid())
+  campaignId           String
+  businessId           String
+  name                 String
+  reference            String?
+  category             String?
+  variant              String?
+  quantityReceived     Int      @default(0)
+  quantitySold         Int      @default(0)
+  quantityDefective    Int      @default(0)
+  quantityRemaining    Int      @default(0)
+  estimatedSellingPrice Float   @default(0)
+  unitCost             Float    @default(0)
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  campaign  CommercialLotCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  saleItems LotSaleItem[]
+  movements LotStockMovement[]
+
+  @@index([campaignId])
+}
+
+model LotSale {
+  id             String        @id @default(uuid())
+  campaignId     String
+  businessId     String
+  saleDate       DateTime      @default(now())
+  channel        String        @default("comptoir") // comptoir, whatsapp, facebook, instagram, site_web, autre
+  customerName   String?
+  customerPhone  String?
+  totalAmount    Float         @default(0)
+  discountAmount Float         @default(0)
+  netAmount      Float         @default(0)
+  variableCosts  Float         @default(0)
+  paymentMethod  String        @default("cash") // cash, mobile_money, bank_transfer, credit
+  paymentStatus  String        @default("paid") // paid, pending, cancelled, refunded
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  campaign CommercialLotCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  items    LotSaleItem[]
+
+  @@index([campaignId, saleDate])
+}
+
+model LotSaleItem {
+  id          String  @id @default(uuid())
+  saleId      String
+  lotItemId   String
+  quantity    Int     @default(1)
+  unitPrice   Float   @default(0)
+  unitCost    Float   @default(0)
+  totalPrice  Float   @default(0)
+  totalCost   Float   @default(0)
+  grossProfit Float   @default(0)
+
+  sale    LotSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  lotItem LotItem @relation(fields: [lotItemId], references: [id], onDelete: Cascade)
+}
+
+model LotExpense {
+  id          String   @id @default(uuid())
+  campaignId  String
+  businessId  String
+  amount      Float
+  category    String   @default("autre") // blanchisserie, pressing, reparation, publicite, transport, livraison, autre
+  description String?
+  expenseDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  campaign CommercialLotCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+}
+
+model LotStockMovement {
+  id         String   @id @default(uuid())
+  campaignId String
+  lotItemId  String
+  type       String   // sale, defective, adjustment, return
+  quantity   Int
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  campaign CommercialLotCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lotItem  LotItem               @relation(fields: [lotItemId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, lotItemId])
 }
 
 

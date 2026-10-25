@@ -28,6 +28,7 @@ const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage').then(m =>
 const GrowthPage = lazy(() => import('./pages/GrowthPage').then(m => ({ default: m.GrowthPage })));
 const TreasuryPage = lazy(() => import('./pages/TreasuryPage').then(m => ({ default: m.TreasuryPage })));
 const DeliveriesPage = lazy(() => import('./pages/DeliveriesPage').then(m => ({ default: m.DeliveriesPage })));
+const LotsPage = lazy(() => import('./pages/LotsPage').then(m => ({ default: m.LotsPage })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 
 function PageLoadingFallback() {
@@ -245,6 +246,14 @@ export function App() {
                 <ProRouteGuard featureName="Trésorerie & Scénarios">
                   <TreasuryPage />
                 </ProRouteGuard>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lots"
+            element={
+              <ProtectedRoute>
+                <LotsPage />
               </ProtectedRoute>
             }
           />

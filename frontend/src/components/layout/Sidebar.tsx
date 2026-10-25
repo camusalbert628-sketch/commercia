@@ -24,6 +24,7 @@ import {
   Truck,
   ShieldCheck,
   Store,
+  Boxes,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -212,6 +213,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
               <span style={{ fontSize: '0.62rem', background: '#10B981', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
             </NavLink>
 
+            <NavLink
+              to="/lots"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Boxes size={18} />
+              <span>Gestion des lots</span>
+              <span style={{ fontSize: '0.62rem', background: '#8B5CF6', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+            </NavLink>
+
             <div className="menu-category">Abonnement Pro</div>
             <NavLink
               to="/subscription"
@@ -293,6 +303,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
               <ArrowRight size={14} />
             </NavLink>
           </div>
+        )}
+
+        {!isPro && (
+          <NavLink
+            to="/lots"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            style={{ marginBottom: '8px' }}
+          >
+            <Boxes size={18} />
+            <span>Gestion des lots</span>
+            <span style={{ fontSize: '0.62rem', background: '#8B5CF6', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+          </NavLink>
         )}
 
         <div className="menu-category">Formules & Offres</div>
