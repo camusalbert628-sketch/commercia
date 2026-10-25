@@ -628,6 +628,8 @@ model LotSale {
   variableCosts  Float         @default(0)
   paymentMethod  String        @default("cash") // cash, mobile_money, bank_transfer, credit
   paymentStatus  String        @default("paid") // paid, pending, cancelled, refunded
+  amountPaid     Float         @default(0)
+  amountDue      Float         @default(0)
   notes          String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt

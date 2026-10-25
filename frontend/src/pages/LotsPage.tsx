@@ -752,15 +752,15 @@ export const LotsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 5. Valeur Estimée du Stock Restant */}
+            {/* 5. Coût de Revient du Stock Restant & Valeur Potentielle de Vente */}
             <div className="stat-card" style={{ borderLeft: '4px solid #FF6B00' }}>
               <div>
-                <div className="stat-label">Stock Restant (Valeur Cible)</div>
+                <div className="stat-label">Coût de Revient du Stock Restant</div>
                 <div className="stat-value" style={{ color: '#FF6B00' }}>
-                  {fmt(overview.summary.totalRemainingStockMarketValue)}
+                  {fmt(overview.summary.totalRemainingStockCost)}
                 </div>
                 <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
-                  Coût d'achat: {fmt(overview.summary.totalRemainingStockCost)}
+                  Valeur potentielle de vente : <strong style={{ color: '#0062FF' }}>{fmt(overview.summary.totalRemainingStockMarketValue)}</strong>
                 </div>
               </div>
               <div className="stat-icon" style={{ background: '#FFF7ED', color: '#FF6B00' }}>
@@ -784,15 +784,15 @@ export const LotsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 7. Taux Global de Récupération du Capital */}
+            {/* 7. Taux de Couverture de l'Investissement par les Encaissements */}
             <div className="stat-card" style={{ borderLeft: '4px solid #0284C7' }}>
               <div>
-                <div className="stat-label">Taux Récupération Capital</div>
+                <div className="stat-label">Couverture Investissement (Cash)</div>
                 <div className="stat-value" style={{ color: '#0284C7' }}>
                   {overview.summary.globalRecoveryRate}%
                 </div>
                 <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
-                  Remboursement investissement initial
+                  Amortissement par les encaissements réels
                 </div>
               </div>
               <div className="stat-icon" style={{ background: '#E0F2FE', color: '#0284C7' }}>
@@ -800,15 +800,15 @@ export const LotsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* 8. Campagnes sous surveillance */}
+            {/* 8. Alertes & Lots à Optimiser */}
             <div className="stat-card" style={{ borderLeft: '4px solid #F59E0B' }}>
               <div>
-                <div className="stat-label">Lots à Optimiser</div>
+                <div className="stat-label">Alertes & Lots à Optimiser</div>
                 <div className="stat-value" style={{ color: overview.campaignsNeedingAttention.length > 0 ? '#D97706' : '#10B981' }}>
                   {overview.campaignsNeedingAttention.length}
                 </div>
                 <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
-                  Récupération &lt; 60% après 5+ ventes
+                  Critères multicritères objectifs
                 </div>
               </div>
               <div className="stat-icon" style={{ background: '#FEF3C7', color: '#D97706' }}>
@@ -1522,12 +1522,12 @@ export const LotsPage: React.FC = () => {
 
                 <div className="stat-card" style={{ borderLeft: '4px solid #FF6B00' }}>
                   <div>
-                    <div className="stat-label">Stock Restant (Pièces)</div>
+                    <div className="stat-label">Coût Revient Stock Restant</div>
                     <div className="stat-value" style={{ color: '#FF6B00' }}>
-                      {campaignDetail.financials.totalQuantityRemaining} pcs
+                      {fmt(campaignDetail.financials.remainingStockCostValue)}
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
-                      Sur {campaignDetail.financials.totalQuantityReceived} reçues initialement
+                      {campaignDetail.financials.totalQuantityRemaining} articles restants en stock
                     </div>
                   </div>
                   <div className="stat-icon" style={{ background: '#FFF7ED', color: '#FF6B00' }}>
@@ -1537,12 +1537,12 @@ export const LotsPage: React.FC = () => {
 
                 <div className="stat-card" style={{ borderLeft: '4px solid #0284C7' }}>
                   <div>
-                    <div className="stat-label">Valeur Cible Stock Restant</div>
+                    <div className="stat-label">Valeur Potentielle de Vente</div>
                     <div className="stat-value" style={{ color: '#0284C7' }}>
                       {fmt(campaignDetail.financials.remainingStockMarketValue)}
                     </div>
-                    <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
-                      Coût restant: {fmt(campaignDetail.financials.remainingStockCostValue)}
+                    <div style={{ fontSize: '0.76rem', color: '#0284C7', marginTop: '4px' }}>
+                      Recette prévisionnelle restante
                     </div>
                   </div>
                   <div className="stat-icon" style={{ background: '#E0F2FE', color: '#0284C7' }}>
@@ -1557,7 +1557,7 @@ export const LotsPage: React.FC = () => {
                       {fmt(campaignDetail.financials.potentialFutureProfit)}
                     </div>
                     <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
-                      Si tout le stock restant est vendu
+                      Valeur de vente - Coût de revient
                     </div>
                   </div>
                   <div className="stat-icon" style={{ background: '#F5F3FF', color: '#8B5CF6' }}>
