@@ -70,12 +70,32 @@ export const LotsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'closed' | 'draft'>('all');
 
-  // Copilot LLM states for this lot campaign
+  // Copilot LLM states partitioned by campaign ID (Strict Lot Isolation)
   const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiCustomStrategy, setAiCustomStrategy] = useState<string | null>(null);
-  const [copilotMessages, setCopilotMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string; time: string }>>([]);
+  const [strategiesByCampaign, setStrategiesByCampaign] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('commercia_lot_ai_strategies_map');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [copilotMessagesByCampaign, setCopilotMessagesByCampaign] = useState<
+    Record<string, Array<{ role: 'user' | 'assistant'; text: string; time: string }>>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('commercia_lot_copilot_messages_map');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [copilotInput, setCopilotInput] = useState('');
   const [copilotSending, setCopilotSending] = useState(false);
+
+  // Active campaign isolated state
+  const aiCustomStrategy = selectedCampaignId ? (strategiesByCampaign[selectedCampaignId] || null) : null;
+  const copilotMessages = selectedCampaignId ? (copilotMessagesByCampaign[selectedCampaignId] || []) : [];
 
   // Detail view active tab
   const [detailTab, setDetailTab] = useState<
@@ -157,36 +177,57 @@ export const LotsPage: React.FC = () => {
   const [newItemPrice, setNewItemPrice] = useState(3000);
   const [newItemCost, setNewItemCost] = useState(1500);
 
-  // Copilot LLM Handlers for this Lot Campaign
+  // Copilot LLM Handlers for this Lot Campaign (Isolated by Campaign ID)
   const handleGenerateLLMStrategy = async () => {
     if (!campaignDetail) return;
     setAiGenerating(true);
     try {
       const activeBizId = localStorage.getItem('activeBusinessId') || user?.businesses?.[0]?.id || 'default';
+      const lotName = campaignDetail.campaign.name;
+      const lotGoodsType = campaignDetail.campaign.goodsType;
+      const targetPrice = Math.round(
+        campaignDetail.financials.avgSellingPrice ||
+        campaignDetail.campaign.items?.[0]?.estimatedSellingPrice ||
+        5000
+      );
+      const targetQtyRemaining =
+        campaignDetail.financials.totalQuantityRemaining ||
+        campaignDetail.campaign.items?.reduce((s, it) => s + it.quantityRemaining, 0) ||
+        1;
+
       const prompt = `Tu es le Directeur Commercial & Stratège Retail COMMERCIA.
-Génère 4 stratégies concrètes et percutantes d'écoulement éclair avec des scripts de vente prêts à l'emploi pour mon lot : "${campaignDetail.campaign.name}" (${campaignDetail.campaign.goodsType}).
+Génère 4 stratégies concrètes et percutantes d'écoulement éclair avec des scripts de vente prêts à l'emploi spécialement adaptés pour ce lot : "${lotName}" (${lotGoodsType}).
 
 DONNÉES CHIFFRÉES RÉELLES DE CE LOT :
 - Marchandise : ${campaignDetail.campaign.items?.map(it => `${it.name} (${it.quantityRemaining} pièces restantes en stock sur ${it.quantityReceived} reçues, prix unitaire ${it.estimatedSellingPrice.toLocaleString('fr-FR')} FCFA, coût de revient ${Math.round(it.unitCost).toLocaleString('fr-FR')} FCFA)`).join('; ')}
 - Investissement initial engagé : ${campaignDetail.financials.totalLandedCost.toLocaleString('fr-FR')} FCFA
 - Chiffre d'affaires déjà encaissé : ${campaignDetail.financials.totalRevenue.toLocaleString('fr-FR')} FCFA (${campaignDetail.financials.totalQuantitySold} vendus)
 - Capital restant à récupérer pour point mort : ${campaignDetail.financials.remainingToBreakeven.toLocaleString('fr-FR')} FCFA
-- Seuil de rentabilité : il reste seulement ${campaignDetail.financials.unitsToBreakeven} articles à vendre au prix moyen de ${Math.round(campaignDetail.financials.avgSellingPrice || 85000).toLocaleString('fr-FR')} FCFA pour rembourser 100% de la mise de départ !
+- Seuil de rentabilité : il reste seulement ${campaignDetail.financials.unitsToBreakeven} articles à vendre au prix moyen de ${targetPrice.toLocaleString('fr-FR')} FCFA pour rembourser 100% de la mise de départ !
 - Bénéfice net actuel réalisé : +${Math.round(campaignDetail.financials.realizedProfit).toLocaleString('fr-FR')} FCFA
 
 EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
 1. Rédige un texte 100% naturel, fluide et professionnel, sans aucun symbole dièse (#), sans astérisques bruts (*), et sans antislashs d'échappement (écris directement "d'urgence", "l'offre", "j'ai").
-2. Rédige 4 stratégies numérotées clairement (1., 2., 3., 4.) :
-   1. WhatsApp Business VIP - Groupes de Vente Exclusifs
-   2. TikTok Live Déballage Vidéo
-   3. Facebook Marketplace Tech - Offres Flash
-   4. Packs Revendeurs & Déstockage Massif
+2. Rédige 4 stratégies numérotées clairement adaptées à ce produit spécifique (${lotName} - ${lotGoodsType}) :
+   1. Canal 1 (Vente Directe VIP WhatsApp / Statuts)
+   2. Canal 2 (Live Déballage / Réseaux Sociaux TikTok ou Instagram)
+   3. Canal 3 (Vente Locale Flash Facebook / Marketplace ou Boutique)
+   4. Canal 4 (Packs Revendeurs / Vente en Gros et Demi-Balles)
 3. Pour chaque canal, donne :
-   - Stratégie : La démarche tactique en 2 ou 3 phrases percutantes.
-   - Script : L'annonce commerciale complète prête à poster avec le prix de 85 000 FCFA, l'urgence (stock restant de 145 pièces) et l'appel à l'action.`;
+   - Stratégie : La démarche tactique en 2 ou 3 phrases percutantes adaptées à ${lotName}.
+   - Script : L'annonce commerciale complète prête à poster mentionnant le prix de ${targetPrice.toLocaleString('fr-FR')} FCFA, l'urgence (stock restant de ${targetQtyRemaining} pièces) et l'appel à l'action immédiat.`;
 
       const res = await generateCopilotLLMResponse(prompt, [], activeBizId);
-      setAiCustomStrategy(res.reply);
+      const updatedMap = {
+        ...strategiesByCampaign,
+        [campaignDetail.campaign.id]: res.reply,
+      };
+      setStrategiesByCampaign(updatedMap);
+      try {
+        localStorage.setItem('commercia_lot_ai_strategies_map', JSON.stringify(updatedMap));
+      } catch (e) {
+        // Ignored
+      }
     } catch (err: any) {
       alert('Erreur Copilote LLM: ' + err.message);
     } finally {
@@ -198,8 +239,14 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
     if (!copilotInput.trim() || !campaignDetail) return;
     const msg = copilotInput.trim();
     const nowTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    const newHistory = [...copilotMessages, { role: 'user' as const, text: msg, time: nowTime }];
-    setCopilotMessages(newHistory);
+    const currentHist = copilotMessagesByCampaign[campaignDetail.campaign.id] || [];
+    const newHistory = [...currentHist, { role: 'user' as const, text: msg, time: nowTime }];
+
+    const updatedMessagesMap = {
+      ...copilotMessagesByCampaign,
+      [campaignDetail.campaign.id]: newHistory,
+    };
+    setCopilotMessagesByCampaign(updatedMessagesMap);
     setCopilotInput('');
     setCopilotSending(true);
 
@@ -207,15 +254,29 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
       const activeBizId = localStorage.getItem('activeBusinessId') || user?.businesses?.[0]?.id || 'default';
       const historyForLLM = newHistory.map(m => ({ role: m.role, content: m.text }));
       const res = await generateCopilotLLMResponse(msg, historyForLLM, activeBizId);
-      setCopilotMessages(prev => [
-        ...prev,
-        { role: 'assistant', text: res.reply, time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }
-      ]);
+      const finalHistory = [
+        ...newHistory,
+        { role: 'assistant' as const, text: res.reply, time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }
+      ];
+      const finalMap = {
+        ...copilotMessagesByCampaign,
+        [campaignDetail.campaign.id]: finalHistory,
+      };
+      setCopilotMessagesByCampaign(finalMap);
+      try {
+        localStorage.setItem('commercia_lot_copilot_messages_map', JSON.stringify(finalMap));
+      } catch (e) {
+        // Ignored
+      }
     } catch (err: any) {
-      setCopilotMessages(prev => [
-        ...prev,
-        { role: 'assistant', text: '⚠️ Erreur de communication avec le Copilote IA : ' + err.message, time: nowTime }
-      ]);
+      const errorHistory = [
+        ...newHistory,
+        { role: 'assistant' as const, text: '⚠️ Erreur de communication avec le Copilote IA : ' + err.message, time: nowTime }
+      ];
+      setCopilotMessagesByCampaign({
+        ...copilotMessagesByCampaign,
+        [campaignDetail.campaign.id]: errorHistory,
+      });
     } finally {
       setCopilotSending(false);
     }
@@ -1879,38 +1940,126 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                   </div>
                 </div>
 
-                {/* AI Custom Generated Strategy Box */}
-                {aiCustomStrategy && (
+                {/* AI Custom Generated Strategy Box - Isolated Strictly by Campaign ID */}
+                {aiCustomStrategy ? (
                   <div
                     style={{
                       marginTop: '16px',
                       background: '#FFFFFF',
-                      borderRadius: '12px',
+                      borderRadius: '16px',
                       border: '2px solid #7C3AED',
-                      padding: '18px 20px',
-                      boxShadow: '0 4px 14px rgba(124, 58, 237, 0.12)',
+                      padding: '20px 22px',
+                      boxShadow: '0 8px 24px rgba(124, 58, 237, 0.10)',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Bot size={22} color="#7C3AED" />
-                        <strong style={{ fontSize: '1.05rem', color: '#4C1D95' }}>
-                          🧠 Plan d'Action & Stratégies d'Écoulement du Copilote IA
-                        </strong>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '10px',
+                            background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 3px 10px rgba(124, 58, 237, 0.3)',
+                          }}
+                        >
+                          <Bot size={22} color="#FFFFFF" />
+                        </div>
+                        <div>
+                          <strong style={{ fontSize: '1.05rem', color: '#4C1D95', display: 'block' }}>
+                            🧠 Plan d'Action & Stratégies d'Écoulement du Copilote IA
+                          </strong>
+                          <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>
+                            Spécifiquement conçu pour : <strong>{campaignDetail.campaign.name}</strong> ({campaignDetail.campaign.goodsType})
+                          </span>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(aiCustomStrategy);
-                          alert('Stratégies et scripts copiés dans le presse-papier !');
-                        }}
-                        className="btn btn-secondary"
-                        style={{ fontSize: '0.76rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        <Copy size={14} />
-                        <span>Copier l'ensemble des scripts</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Voulez-vous réinitialiser et effacer la stratégie IA du lot "${campaignDetail.campaign.name}" ?`)) {
+                              const updatedMap = { ...strategiesByCampaign };
+                              delete updatedMap[campaignDetail.campaign.id];
+                              setStrategiesByCampaign(updatedMap);
+                              try {
+                                localStorage.setItem('commercia_lot_ai_strategies_map', JSON.stringify(updatedMap));
+                              } catch (e) {}
+                            }
+                          }}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.76rem', padding: '6px 12px', color: '#6B7280' }}
+                          title="Effacer la stratégie de ce lot pour en générer une nouvelle"
+                        >
+                          Réinitialiser
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(aiCustomStrategy);
+                            alert('Stratégies et scripts copiés dans le presse-papier !');
+                          }}
+                          className="btn btn-primary"
+                          style={{ fontSize: '0.76rem', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)' }}
+                        >
+                          <Copy size={14} />
+                          <span>Copier l'ensemble des scripts</span>
+                        </button>
+                      </div>
                     </div>
                     {renderProfessionalStrategyCards(aiCustomStrategy)}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      marginTop: '16px',
+                      background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 50%, #EDE9FE 100%)',
+                      borderRadius: '16px',
+                      border: '1.5px dashed #C4B5FD',
+                      padding: '28px 24px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '14px',
+                        background: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto 12px',
+                        boxShadow: '0 4px 12px rgba(124, 58, 237, 0.15)',
+                      }}
+                    >
+                      <Sparkles size={24} color="#7C3AED" />
+                    </div>
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '1.1rem', fontWeight: 800, color: '#4C1D95' }}>
+                      Aucune Stratégie IA Générée pour ce Lot
+                    </h4>
+                    <p style={{ margin: '0 auto 18px', fontSize: '0.88rem', color: '#6B7280', maxWidth: '580px', lineHeight: 1.5 }}>
+                      Chaque lot dispose de ses propres stratégies et scripts exclusifs. Cliquez ci-dessous pour analyser en temps réel la marchandise « <strong>{campaignDetail.campaign.name}</strong> » ({campaignDetail.campaign.goodsType}) et générer 4 canaux d'écoulement percutants.
+                    </p>
+                    <button
+                      onClick={handleGenerateLLMStrategy}
+                      disabled={aiGenerating}
+                      className="btn btn-primary"
+                      style={{
+                        padding: '10px 22px',
+                        fontSize: '0.88rem',
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
+                        boxShadow: '0 4px 14px rgba(124, 58, 237, 0.3)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      <Sparkles size={16} />
+                      <span>{aiGenerating ? 'Génération du plan en cours...' : `Générer la Stratégie IA pour "${campaignDetail.campaign.name}"`}</span>
+                    </button>
                   </div>
                 )}
               </div>

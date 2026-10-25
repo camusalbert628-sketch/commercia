@@ -245,16 +245,17 @@ export function renderNaturalFormattedText(rawText: string, isUser = false): Rea
 /**
  * Highlights prices (ex: 85 000 FCFA), quantities (ex: 145 pièces), products, and urgency in scripts
  * Formats the sales pitch in elegant, natural, readable italics with vibrant color accents.
+ * Ensures text is properly justified and badges NEVER overlap or touch adjacent lines.
  */
 function renderStylizedScriptText(text: string): React.ReactNode {
   const clean = text.replace(/\*\*/g, '').replace(/#/g, '').trim();
   const paragraphs = clean.split('\n').filter(p => p.trim().length > 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {paragraphs.map((p, pIdx) => {
         const parts: React.ReactNode[] = [];
-        const tokenRegex = /(\d+[\s\d]*\s*FCFA|\b\d+\s*(?:pièces|unités|téléphones)(?:\s*(?:restantes?|en stock))?|Redmi\s*14C|🚨[^!]+!🚨|Offre\s+Flash|[“"][^”"]+[”"])/gi;
+        const tokenRegex = /(\d+[\s\d]*\s*FCFA|\b\d+\s*(?:pièces?|unités?|articles?|habits?|vêtements?|robes?|téléphones?)(?:\s*(?:restantes?|en stock))?|Redmi\s*14C|🚨[^!]+!🚨|Offre\s+Flash|[“"][^”"]+[”"])/gi;
 
         let lastPos = 0;
         let match: RegExpExecArray | null;
@@ -266,7 +267,7 @@ function renderStylizedScriptText(text: string): React.ReactNode {
 
           const matchedText = match[0];
           if (/FCFA/i.test(matchedText)) {
-            // Price pill in luminous Emerald Green
+            // Price pill in luminous Emerald Green with strict middle alignment and clean spacing
             parts.push(
               <span
                 key={`price-${pIdx}-${match.index}`}
@@ -274,23 +275,24 @@ function renderStylizedScriptText(text: string): React.ReactNode {
                   background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)',
                   color: '#FFFFFF',
                   fontWeight: 800,
-                  fontSize: '0.86rem',
-                  padding: '3px 10px',
-                  borderRadius: '20px',
+                  fontSize: '0.84rem',
+                  lineHeight: '1.2',
+                  padding: '2px 9px',
+                  borderRadius: '16px',
                   fontStyle: 'normal',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
-                  margin: '0 3px',
-                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
-                  verticalAlign: 'baseline',
+                  margin: '2px 5px',
+                  verticalAlign: 'middle',
+                  boxShadow: '0 1px 3px rgba(5, 150, 105, 0.25)',
                 }}
               >
                 <span>🏷️</span>
                 <span>{matchedText}</span>
               </span>
             );
-          } else if (/(?:pièce|unité|téléphone)/i.test(matchedText)) {
+          } else if (/(?:pièce|unité|article|habit|vêtement|robe|téléphone)/i.test(matchedText)) {
             // Urgency & stock scarcity pill in radiant Amber Fire
             parts.push(
               <span
@@ -299,16 +301,17 @@ function renderStylizedScriptText(text: string): React.ReactNode {
                   background: 'linear-gradient(135deg, #D97706 0%, #F59E0B 100%)',
                   color: '#FFFFFF',
                   fontWeight: 800,
-                  fontSize: '0.86rem',
-                  padding: '3px 10px',
-                  borderRadius: '20px',
+                  fontSize: '0.84rem',
+                  lineHeight: '1.2',
+                  padding: '2px 9px',
+                  borderRadius: '16px',
                   fontStyle: 'normal',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
-                  margin: '0 3px',
-                  boxShadow: '0 2px 6px rgba(245, 158, 11, 0.35)',
-                  verticalAlign: 'baseline',
+                  margin: '2px 5px',
+                  verticalAlign: 'middle',
+                  boxShadow: '0 1px 3px rgba(217, 119, 6, 0.25)',
                 }}
               >
                 <span>🔥</span>
@@ -324,16 +327,21 @@ function renderStylizedScriptText(text: string): React.ReactNode {
                   background: '#EDE9FE',
                   color: '#6D28D9',
                   fontWeight: 800,
-                  fontSize: '0.86rem',
+                  fontSize: '0.84rem',
+                  lineHeight: '1.2',
                   padding: '2px 8px',
                   borderRadius: '8px',
                   border: '1px solid #C4B5FD',
                   fontStyle: 'normal',
-                  display: 'inline-block',
-                  margin: '0 2px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  margin: '2px 4px',
+                  verticalAlign: 'middle',
                 }}
               >
-                📱 {matchedText}
+                <span>📱</span>
+                <span>{matchedText}</span>
               </span>
             );
           } else if (/Flash|🚨/i.test(matchedText)) {
@@ -345,16 +353,21 @@ function renderStylizedScriptText(text: string): React.ReactNode {
                   background: '#FEE2E2',
                   color: '#B91C1C',
                   fontWeight: 800,
-                  fontSize: '0.86rem',
-                  padding: '3px 8px',
+                  fontSize: '0.84rem',
+                  lineHeight: '1.2',
+                  padding: '2px 8px',
                   borderRadius: '8px',
                   border: '1px solid #FCA5A5',
                   fontStyle: 'normal',
-                  display: 'inline-block',
-                  margin: '0 2px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  margin: '2px 4px',
+                  verticalAlign: 'middle',
                 }}
               >
-                ⚡ {matchedText.replace(/🚨/g, '').trim()}
+                <span>⚡</span>
+                <span>{matchedText.replace(/🚨/g, '').trim()}</span>
               </span>
             );
           } else {
@@ -388,13 +401,13 @@ function renderStylizedScriptText(text: string): React.ReactNode {
                 letterSpacing: '-0.01em',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '8px',
                 borderBottom: '1px solid rgba(196, 181, 253, 0.4)',
-                paddingBottom: '6px',
+                paddingBottom: '8px',
                 marginBottom: '4px',
               }}
             >
-              <span style={{ fontSize: '1.1rem' }}>👋</span>
+              <span style={{ fontSize: '1.15rem' }}>👋</span>
               <span>{parts}</span>
             </div>
           );
@@ -405,8 +418,9 @@ function renderStylizedScriptText(text: string): React.ReactNode {
             key={pIdx}
             style={{
               fontSize: '0.94rem',
-              lineHeight: 1.7,
-              color: '#3730A3',
+              lineHeight: 2.3,
+              textAlign: 'justify',
+              color: '#312E81',
               fontStyle: 'italic',
               fontWeight: 500,
               letterSpacing: '0.01em',
