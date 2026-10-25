@@ -575,6 +575,7 @@ model CommercialLotCampaign {
   costAllocationMethod  String    @default("unit") // unit, value_weighted, custom
   status                String    @default("active") // draft, active, paused, closed
   closedAt              DateTime?
+  depletedAt            DateTime?
   notes                 String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt

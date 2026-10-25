@@ -29,6 +29,16 @@ export const lotsService = {
     return api.get<LotCampaignDetailResponse>(`/lots/campaigns/${id}`);
   },
 
+  // Standalone channel velocity recommendations
+  async getChannelRecommendations(id: string): Promise<{
+    campaignId: string;
+    campaignName: string;
+    goodsType: string;
+    recommendations: any[];
+  }> {
+    return api.get(`/lots/campaigns/${id}/channel-recommendations`);
+  },
+
   // Create campaign (Wizard)
   async createCampaign(data: {
     name: string;

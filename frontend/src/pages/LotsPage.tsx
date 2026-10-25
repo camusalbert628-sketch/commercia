@@ -29,6 +29,12 @@ import {
   Zap,
   Globe,
   PieChart,
+  Clock,
+  Copy,
+  Check,
+  Flame,
+  MessageSquare,
+  Share2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -39,6 +45,7 @@ import {
   LotCampaignDetailResponse,
   CommercialLotCampaign,
   LotItem,
+  ChannelRecommendation,
 } from '../types/lots';
 
 export const LotsPage: React.FC = () => {
@@ -60,8 +67,9 @@ export const LotsPage: React.FC = () => {
 
   // Detail view active tab
   const [detailTab, setDetailTab] = useState<
-    'dashboard' | 'supply' | 'items' | 'stock' | 'sales' | 'expenses' | 'profitability' | 'reports'
+    'dashboard' | 'channels' | 'supply' | 'items' | 'stock' | 'sales' | 'expenses' | 'profitability' | 'reports'
   >('dashboard');
+  const [copiedScriptChannel, setCopiedScriptChannel] = useState<string | null>(null);
 
   // Modals state
   const [showWizardModal, setShowWizardModal] = useState(false);
@@ -888,20 +896,21 @@ export const LotsPage: React.FC = () => {
               <thead>
                 <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
                   <th style={{ padding: '14px 16px' }}>Campagne & Marchandises</th>
-                  <th style={{ padding: '14px 10px' }}>Date d'Achat</th>
+                  <th style={{ padding: '14px 10px' }}>Enregistrement (Date & Heure)</th>
                   <th style={{ padding: '14px 10px' }}>Investissement Total</th>
                   <th style={{ padding: '14px 10px' }}>Chiffre d'Affaires</th>
                   <th style={{ padding: '14px 10px' }}>Bénéfice Réalisé</th>
                   <th style={{ padding: '14px 10px' }}>Stock Restant</th>
                   <th style={{ padding: '14px 10px' }}>Remboursement</th>
-                  <th style={{ padding: '14px 10px' }}>Statut</th>
+                  <th style={{ padding: '14px 10px' }}>Statut & Épuisement</th>
+                  <th style={{ padding: '14px 10px' }}>Canal Vente Rapide</th>
                   <th style={{ padding: '14px 16px', textAlign: 'right' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCampaigns.length === 0 ? (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#64748B' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: '#64748B' }}>
                       Aucune campagne de lot trouvée. Cliquez sur « + Nouvelle Campagne » pour démarrer votre première gestion de lot.
                     </td>
                   </tr>
@@ -938,8 +947,16 @@ export const LotsPage: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: '14px 10px', color: '#64748B' }}>
-                        {camp.purchaseDate.slice(0, 10)}
+                      <td style={{ padding: '14px 10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={12} color="#0062FF" />
+                            {camp.createdAt ? new Date(camp.createdAt).toLocaleDateString('fr-FR') + ' à ' + new Date(camp.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : camp.purchaseDate.slice(0, 10)}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                            Acheté le {camp.purchaseDate.slice(0, 10)}
+                          </span>
+                        </div>
                       </td>
                       <td style={{ padding: '14px 10px', fontWeight: 700, color: '#0F172A' }}>
                         {fmt(camp.totalLandedCost)}
@@ -962,7 +979,7 @@ export const LotsPage: React.FC = () => {
                           Valeur: {fmt(camp.remainingStockMarketValue)}
                         </div>
                       </td>
-                      <td style={{ padding: '14px 10px', minWidth: '130px' }}>
+                      <td style={{ padding: '14px 10px', minWidth: '120px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', fontWeight: 700, marginBottom: '4px' }}>
                           <span>{camp.recoveryRate}%</span>
                           <span style={{ color: camp.isBreakevenReached ? '#16A34A' : '#D97706' }}>
@@ -980,38 +997,102 @@ export const LotsPage: React.FC = () => {
                         </div>
                       </td>
                       <td style={{ padding: '14px 10px' }}>
-                        <span
-                          style={{
-                            fontSize: '0.72rem',
-                            padding: '3px 8px',
-                            borderRadius: '12px',
-                            fontWeight: 700,
-                            background:
-                              camp.status === 'active'
-                                ? '#DCFCE7'
-                                : camp.status === 'closed'
-                                ? '#F1F5F9'
-                                : camp.status === 'paused'
-                                ? '#FEF3C7'
-                                : '#E2E8F0',
-                            color:
-                              camp.status === 'active'
-                                ? '#15803D'
-                                : camp.status === 'closed'
-                                ? '#64748B'
-                                : camp.status === 'paused'
-                                ? '#D97706'
-                                : '#475569',
-                          }}
-                        >
-                          {camp.status === 'active'
-                            ? 'En cours'
-                            : camp.status === 'closed'
-                            ? 'Clôturée'
-                            : camp.status === 'paused'
-                            ? 'En pause'
-                            : 'Brouillon'}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {camp.depletedAt || camp.depletionStats?.isDepleted ? (
+                            <>
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  fontWeight: 800,
+                                  background: '#DCFCE7',
+                                  color: '#15803D',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  width: 'fit-content',
+                                }}
+                              >
+                                <CheckCircle2 size={12} /> Épuisé
+                              </span>
+                              {camp.depletedAt && (
+                                <span style={{ fontSize: '0.72rem', color: '#15803D', fontWeight: 700 }}>
+                                  🏁 {new Date(camp.depletedAt).toLocaleDateString('fr-FR')} à {new Date(camp.depletedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                              {camp.depletionStats?.durationLabel && (
+                                <span style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                                  {camp.depletionStats.durationLabel}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  fontWeight: 700,
+                                  background:
+                                    camp.status === 'active'
+                                      ? '#EFF6FF'
+                                      : camp.status === 'paused'
+                                      ? '#FEF3C7'
+                                      : '#F1F5F9',
+                                  color:
+                                    camp.status === 'active'
+                                      ? '#1D4ED8'
+                                      : camp.status === 'paused'
+                                      ? '#D97706'
+                                      : '#64748B',
+                                  width: 'fit-content',
+                                }}
+                              >
+                                {camp.status === 'active'
+                                  ? 'En cours'
+                                  : camp.status === 'paused'
+                                  ? 'En pause'
+                                  : 'Brouillon'}
+                              </span>
+                              {camp.depletionStats?.durationLabel && (
+                                <span style={{ fontSize: '0.70rem', color: '#64748B' }}>
+                                  ⏳ {camp.depletionStats.durationLabel}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 10px' }}>
+                        {camp.topRecommendedChannel ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                color: '#6D28D9',
+                                background: '#F5F3FF',
+                                border: '1px solid #DDD6FE',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                width: 'fit-content',
+                              }}
+                            >
+                              <Zap size={12} color="#7C3AED" />
+                              {camp.topRecommendedChannel.channelName.split('&')[0]} ({camp.topRecommendedChannel.velocityScore}%)
+                            </span>
+                            <span style={{ fontSize: '0.70rem', color: '#059669', fontWeight: 600 }}>
+                              {camp.topRecommendedChannel.speedBadge}
+                            </span>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>—</span>
+                        )}
                       </td>
                       <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                         <button
@@ -1035,6 +1116,143 @@ export const LotsPage: React.FC = () => {
       {/* VIEW 2: DEDICATED INDEPENDENT CAMPAIGN VIEW (SECTION 5 DU CAHIER DES CHARGES) */}
       {currentView === 'detail' && campaignDetail && (
         <div>
+          {/* HORODATAGE CERTIFIÉ & CYCLE DE VIE DU LOT */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: '1.5px solid #E2E8F0',
+              borderRadius: '16px',
+              padding: '18px 22px',
+              marginBottom: '20px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '16px',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '28px', flexWrap: 'wrap' }}>
+              {/* Date & Heure exacte d'enregistrement */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    background: '#EFF6FF',
+                    color: '#0062FF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Clock size={22} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Date & Heure d'Enregistrement du Lot
+                  </div>
+                  <strong style={{ fontSize: '0.96rem', color: '#0F172A', display: 'block' }}>
+                    {campaignDetail.depletionStats?.registeredAtFormatted ||
+                      new Date(campaignDetail.campaign.createdAt).toLocaleString('fr-FR', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                  </strong>
+                  <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                    Acheté le {campaignDetail.campaign.purchaseDate.slice(0, 10)} auprès de {campaignDetail.campaign.supplierName || 'Fournisseur non spécifié'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Date Complète d'Épuisement */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    background: campaignDetail.depletionStats?.isDepleted ? '#DCFCE7' : '#FEF3C7',
+                    color: campaignDetail.depletionStats?.isDepleted ? '#15803D' : '#D97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  {campaignDetail.depletionStats?.isDepleted ? <CheckCircle2 size={22} /> : <AlertTriangle size={22} />}
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Date Complète d'Épuisement du Lot
+                  </div>
+                  <strong
+                    style={{
+                      fontSize: '0.96rem',
+                      display: 'block',
+                      color: campaignDetail.depletionStats?.isDepleted ? '#15803D' : '#D97706',
+                    }}
+                  >
+                    {campaignDetail.depletionStats?.isDepleted
+                      ? `Épuisé le ${campaignDetail.depletionStats.depletedAtFormatted || new Date(campaignDetail.campaign.depletedAt!).toLocaleString('fr-FR')}`
+                      : `Non Épuisé (${campaignDetail.financials.totalQuantityRemaining} articles restants)`}
+                  </strong>
+                  <span style={{ fontSize: '0.74rem', color: '#475569' }}>
+                    {campaignDetail.depletionStats?.durationLabel}
+                    {!campaignDetail.depletionStats?.isDepleted && campaignDetail.depletionStats?.estimatedDepletionLabel && (
+                      <> • <span style={{ color: '#0062FF', fontWeight: 600 }}>{campaignDetail.depletionStats.estimatedDepletionLabel}</span></>
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick recommendation CTA */}
+            {campaignDetail.channelRecommendations && campaignDetail.channelRecommendations.length > 0 && (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
+                  border: '1.5px solid #DDD6FE',
+                  borderRadius: '12px',
+                  padding: '10px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#6D28D9', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Zap size={13} /> CANAL RECOMMANDÉ POUR VENTE RAPIDE :
+                  </div>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#4C1D95' }}>
+                    {campaignDetail.channelRecommendations[0].channelName} ({campaignDetail.channelRecommendations[0].velocityScore}%)
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDetailTab('channels')}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '8px 14px',
+                    fontSize: '0.80rem',
+                    background: '#7C3AED',
+                    borderColor: '#7C3AED',
+                    whiteSpace: 'nowrap',
+                    fontWeight: 700,
+                  }}
+                >
+                  Voir Stratégies 🚀
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* TABS OF THE CAMPAIGN */}
           <div
             style={{
@@ -1047,6 +1265,7 @@ export const LotsPage: React.FC = () => {
           >
             {[
               { key: 'dashboard', label: '📊 Tableau de bord du lot' },
+              { key: 'channels', label: '🚀 Canaux Vente Rapide (Suggestions IA)' },
               { key: 'supply', label: '🚚 Coûts d\'Approvisionnement' },
               { key: 'items', label: '📦 Articles & Inventaire' },
               { key: 'stock', label: '🔄 Stock & Mouvements' },
@@ -1129,6 +1348,140 @@ export const LotsPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* FAST-SELLING CHANNELS SUMMARY CARD */}
+              {campaignDetail.channelRecommendations && campaignDetail.channelRecommendations.length > 0 && (
+                <div
+                  className="card"
+                  style={{
+                    padding: '20px 24px',
+                    marginBottom: '24px',
+                    borderRadius: '16px',
+                    border: '1.5px solid #E9D5FF',
+                    background: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 100%)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '10px',
+                          background: '#7C3AED',
+                          color: '#FFFFFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Zap size={20} />
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: '1.05rem', color: '#4C1D95' }}>
+                          ⚡ Canaux Recommandés pour Vendre Rapidement ce Lot
+                        </strong>
+                        <div style={{ fontSize: '0.82rem', color: '#6B21A8' }}>
+                          Suggestions algorithmiques d'écoulement éclair pour déstocker les {campaignDetail.financials.totalQuantityRemaining} articles restants au meilleur profit.
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setDetailTab('channels')}
+                      style={{
+                        background: '#7C3AED',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span>Voir les {campaignDetail.channelRecommendations.length} canaux & scripts complets</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+                    {campaignDetail.channelRecommendations.slice(0, 2).map((rec, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          background: '#FFFFFF',
+                          borderRadius: '12px',
+                          padding: '16px',
+                          border: '1px solid #E9D5FF',
+                          boxShadow: '0 2px 4px rgba(124, 58, 237, 0.05)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <strong style={{ fontSize: '0.94rem', color: '#1E1B4B' }}>{rec.channelName}</strong>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              background: '#F3E8FF',
+                              color: '#7C3AED',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                            }}
+                          >
+                            Score {rec.velocityScore}%
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#059669', fontWeight: 700, marginBottom: '6px' }}>
+                          {rec.speedBadge}
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: '#475569', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                          {rec.recommendedAction}
+                        </p>
+                        <div
+                          style={{
+                            background: '#F8FAFC',
+                            padding: '8px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.76rem',
+                            color: '#0F172A',
+                            borderLeft: '3px solid #7C3AED',
+                            marginBottom: '10px',
+                          }}
+                        >
+                          <strong>Offre suggérée :</strong> {rec.suggestedOffer}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(rec.copyableSalesScript);
+                              setCopiedScriptChannel(rec.channel);
+                              setTimeout(() => setCopiedScriptChannel(null), 2500);
+                            }}
+                            className="btn btn-secondary"
+                            style={{ fontSize: '0.75rem', padding: '6px 10px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                          >
+                            {copiedScriptChannel === rec.channel ? <CheckCircle2 size={13} color="#16A34A" /> : <Copy size={13} />}
+                            <span>{copiedScriptChannel === rec.channel ? 'Texte copié !' : 'Copier texte'}</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSaleChannel(rec.channel as any);
+                              setShowSaleModal(true);
+                            }}
+                            className="btn btn-primary"
+                            style={{ fontSize: '0.75rem', padding: '6px 10px', flex: 1, background: '#0062FF' }}
+                          >
+                            + Vente {rec.channel}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* KPI Cards of this Campaign */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px', marginBottom: '24px' }}>
@@ -1274,6 +1627,327 @@ export const LotsPage: React.FC = () => {
                     </button>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 1b: CANAUX DE VENTE RAPIDE (SUGGESTIONS ALGORITHMIQUES IA) */}
+          {detailTab === 'channels' && (
+            <div>
+              {/* Header card with summary metrics */}
+              <div
+                className="card"
+                style={{
+                  padding: '24px',
+                  marginBottom: '24px',
+                  borderRadius: '16px',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 50%, #EDE9FE 100%)',
+                  border: '1.5px solid #DDD6FE',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '14px',
+                        background: '#7C3AED',
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 4px 12px rgba(124, 58, 237, 0.25)',
+                      }}
+                    >
+                      <Zap size={24} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#4C1D95' }}>
+                        Canaux de Vente Recommandés pour Écoulement Rapide
+                      </h3>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem', color: '#6B21A8' }}>
+                        Analyse prédictive COMMERCIA basée sur votre type de marchandise ({campaignDetail.campaign.goodsType}), vos marges et votre niveau d'amortissement actuel.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      onClick={() => {
+                        setShowSaleModal(true);
+                      }}
+                      className="btn btn-primary"
+                      style={{
+                        background: 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                      }}
+                    >
+                      <Plus size={16} />
+                      <span>+ Enregistrer une Vente sur ce Lot</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status KPI summary row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+                  <div style={{ background: '#FFFFFF', padding: '12px 16px', borderRadius: '10px', border: '1px solid #E9D5FF' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#6B21A8', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Stock Restant à Déstocker
+                    </div>
+                    <strong style={{ fontSize: '1.15rem', color: '#0F172A' }}>
+                      {campaignDetail.financials.totalQuantityRemaining} pcs
+                    </strong>
+                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                      Valeur cible : {fmt(campaignDetail.financials.remainingStockMarketValue)}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#FFFFFF', padding: '12px 16px', borderRadius: '10px', border: '1px solid #E9D5FF' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#6B21A8', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Objectif Récupération Capital
+                    </div>
+                    <strong style={{ fontSize: '1.15rem', color: campaignDetail.financials.isBreakevenReached ? '#15803D' : '#D97706' }}>
+                      {campaignDetail.financials.isBreakevenReached ? 'Amorti à 100%' : `${fmt(campaignDetail.financials.remainingToBreakeven)} restants`}
+                    </strong>
+                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                      {campaignDetail.financials.isBreakevenReached ? 'Bénéfice 100% pur sur les ventes' : `~${campaignDetail.financials.unitsToBreakeven} articles pour point mort`}
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#FFFFFF', padding: '12px 16px', borderRadius: '10px', border: '1px solid #E9D5FF' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#6B21A8', fontWeight: 700, textTransform: 'uppercase' }}>
+                      Cadence & Épuisement
+                    </div>
+                    <strong style={{ fontSize: '1.15rem', color: '#0F172A' }}>
+                      {campaignDetail.depletionStats?.isDepleted ? 'Lot Déjà Épuisé' : (campaignDetail.depletionStats?.durationLabel || 'En cours')}
+                    </strong>
+                    <div style={{ fontSize: '0.74rem', color: '#0062FF', fontWeight: 600 }}>
+                      {campaignDetail.depletionStats?.isDepleted ? `Épuisé le ${campaignDetail.depletionStats.depletedAtFormatted}` : `Rythme : ${campaignDetail.depletionStats?.dailyVelocity || 0} pcs/jour`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Channels Cards Grid */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {campaignDetail.channelRecommendations?.map((rec, idx) => (
+                  <div
+                    key={rec.channel}
+                    className="card"
+                    style={{
+                      padding: '24px',
+                      borderRadius: '16px',
+                      border: idx === 0 ? '2px solid #7C3AED' : '1px solid #E2E8F0',
+                      boxShadow: idx === 0 ? '0 4px 14px rgba(124, 58, 237, 0.08)' : '0 1px 3px rgba(0,0,0,0.04)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {idx === 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '16px',
+                          right: '-32px',
+                          background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
+                          color: '#FFFFFF',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          padding: '4px 36px',
+                          transform: 'rotate(45deg)',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+                        }}
+                      >
+                        TOP CHOIX
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', marginBottom: '16px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                          <span
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '8px',
+                              background: '#F5F3FF',
+                              color: '#7C3AED',
+                              fontWeight: 900,
+                              fontSize: '0.85rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            #{idx + 1}
+                          </span>
+                          <h4 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
+                            {rec.channelName}
+                          </h4>
+                          <span
+                            style={{
+                              fontSize: '0.74rem',
+                              fontWeight: 800,
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              background: rec.priority === 'HAUTE' ? '#DCFCE7' : '#EFF6FF',
+                              color: rec.priority === 'HAUTE' ? '#15803D' : '#1D4ED8',
+                            }}
+                          >
+                            Priorité {rec.priority}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{rec.speedBadge}</span> • <span>Délai estimé : {rec.estimatedDaysToSell}</span>
+                        </div>
+                      </div>
+
+                      {/* Velocity score gauge */}
+                      <div style={{ textAlign: 'right', minWidth: '160px' }}>
+                        <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>
+                          Score de Rapidité d'Écoulement
+                        </div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#7C3AED' }}>
+                          {rec.velocityScore} / 100
+                        </div>
+                        <div style={{ width: '100%', height: '8px', background: '#F1F5F9', borderRadius: '4px', overflow: 'hidden', marginTop: '4px' }}>
+                          <div
+                            style={{
+                              width: `${rec.velocityScore}%`,
+                              height: '100%',
+                              background: 'linear-gradient(90deg, #7C3AED 0%, #A855F7 100%)',
+                              borderRadius: '4px',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Strategy and Action Playbook */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                      {/* Left: Tactical steps */}
+                      <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                        <strong style={{ fontSize: '0.90rem', color: '#0F172A', display: 'block', marginBottom: '6px' }}>
+                          🎯 Stratégie : {rec.strategyTitle}
+                        </strong>
+                        <p style={{ fontSize: '0.84rem', color: '#475569', margin: '0 0 12px 0', lineHeight: 1.45 }}>
+                          {rec.recommendedAction}
+                        </p>
+                        <div style={{ fontSize: '0.80rem', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>
+                          Plan d'action en 3 étapes :
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.80rem', color: '#334155', lineHeight: 1.6 }}>
+                          {rec.actionSteps.map((step, sIdx) => (
+                            <li key={sIdx}>{step}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Right: Commercial Offer & Rationale */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ background: '#F0FDF4', padding: '14px', borderRadius: '12px', border: '1px solid #BBF7D0' }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            💡 Offre Commerciale Incitative Conseillée
+                          </div>
+                          <div style={{ fontSize: '0.86rem', color: '#14532D', fontWeight: 600 }}>
+                            {rec.suggestedOffer}
+                          </div>
+                        </div>
+
+                        <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
+                            📊 Pourquoi ce canal sur ce lot ?
+                          </div>
+                          <div style={{ fontSize: '0.82rem', color: '#334155', lineHeight: 1.4 }}>
+                            {rec.financialRationale}
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '6px' }}>
+                            <strong>Cible :</strong> {rec.targetAudience}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sales Script Box with copy button & direct sale trigger */}
+                    <div
+                      style={{
+                        background: '#FAF5FF',
+                        border: '1px dashed #DDD6FE',
+                        borderRadius: '12px',
+                        padding: '14px 16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '12px',
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: '260px' }}>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#6D28D9', textTransform: 'uppercase', marginBottom: '4px' }}>
+                          📢 Modèle de texte commercial prêt à publier ({rec.channel}) :
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#4C1D95', fontStyle: 'italic', lineHeight: 1.4 }}>
+                          "{rec.copyableSalesScript}"
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(rec.copyableSalesScript);
+                            setCopiedScriptChannel(rec.channel);
+                            setTimeout(() => setCopiedScriptChannel(null), 2500);
+                          }}
+                          className="btn btn-secondary"
+                          style={{
+                            fontSize: '0.78rem',
+                            padding: '8px 14px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: '#FFFFFF',
+                          }}
+                        >
+                          {copiedScriptChannel === rec.channel ? (
+                            <>
+                              <CheckCircle2 size={15} color="#16A34A" />
+                              <span style={{ color: '#16A34A', fontWeight: 700 }}>Texte Copié !</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={15} />
+                              <span>Copier l'annonce</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setSaleChannel(rec.channel as any);
+                            setShowSaleModal(true);
+                          }}
+                          className="btn btn-primary"
+                          style={{
+                            fontSize: '0.78rem',
+                            padding: '8px 14px',
+                            background: '#0062FF',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <span>+ Vendre sur {rec.channel}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

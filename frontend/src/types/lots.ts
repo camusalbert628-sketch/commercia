@@ -95,6 +95,7 @@ export interface CommercialLotCampaign {
   costAllocationMethod: 'unit' | 'value_weighted' | 'custom';
   status: 'draft' | 'active' | 'paused' | 'closed';
   closedAt?: string | null;
+  depletedAt?: string | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -102,6 +103,41 @@ export interface CommercialLotCampaign {
   sales?: LotSale[];
   expenses?: LotExpense[];
   movements?: LotStockMovement[];
+}
+
+export interface DepletionStats {
+  isDepleted: boolean;
+  registeredAt: string;
+  registeredAtFormatted: string;
+  depletedAt: string | null;
+  depletedAtFormatted: string | null;
+  totalDurationDays: number | null;
+  totalDurationHours: number | null;
+  totalDurationMinutes: number | null;
+  durationLabel: string;
+  daysActive: number;
+  hoursActive: number;
+  dailyVelocity: number;
+  estimatedDaysToDeplete: number | null;
+  estimatedDepletionDate: string | null;
+  estimatedDepletionLabel: string | null;
+}
+
+export interface ChannelRecommendation {
+  channel: string;
+  channelName: string;
+  velocityScore: number;
+  speedBadge: string;
+  priority: 'HAUTE' | 'RECOMMANDÉE' | 'SECONDAIRE';
+  estimatedDaysToSell: string;
+  strategyTitle: string;
+  recommendedAction: string;
+  actionSteps: string[];
+  suggestedOffer: string;
+  copyableSalesScript: string;
+  targetAudience: string;
+  financialRationale: string;
+  historicalVolumeOnThisChannel?: number;
 }
 
 export interface CampaignSummaryItem {
@@ -115,6 +151,10 @@ export interface CampaignSummaryItem {
   purchaseCurrency: string;
   totalLandedCost: number;
   status: 'draft' | 'active' | 'paused' | 'closed';
+  createdAt: string;
+  depletedAt?: string | null;
+  depletionStats?: DepletionStats;
+  topRecommendedChannel?: ChannelRecommendation | null;
   totalQuantityReceived: number;
   totalQuantitySold: number;
   totalQuantityDefective: number;
@@ -178,4 +218,6 @@ export interface LotFinancials {
 export interface LotCampaignDetailResponse {
   campaign: CommercialLotCampaign;
   financials: LotFinancials;
+  depletionStats: DepletionStats;
+  channelRecommendations: ChannelRecommendation[];
 }
