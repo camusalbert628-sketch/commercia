@@ -43,6 +43,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { lotsService } from '../services/lotsService';
 import { generateCopilotLLMResponse, getLLMConfig } from '../services/llmService';
+import { renderProfessionalStrategyCards, renderNaturalFormattedText } from '../utils/textFormatter';
 import {
   LotsOverviewResponse,
   CampaignSummaryItem,
@@ -162,15 +163,27 @@ export const LotsPage: React.FC = () => {
     setAiGenerating(true);
     try {
       const activeBizId = localStorage.getItem('activeBusinessId') || user?.businesses?.[0]?.id || 'default';
-      const prompt = `Génère 4 stratégies tactiques percutantes d'écoulement éclair et des scripts de vente prêts à copier/coller pour mon lot : "${campaignDetail.campaign.name}" (${campaignDetail.campaign.goodsType}).
-Données réelles et chiffrées du lot :
-- Articles : ${campaignDetail.campaign.items?.map(it => `${it.name} (${it.quantityRemaining} restants en stock sur ${it.quantityReceived} reçus, prix unitaire de vente ${it.estimatedSellingPrice} FCFA, coût unitaire calculé ${it.unitCost} FCFA)`).join('; ')}
-- Investissement initial total : ${campaignDetail.financials.totalLandedCost} FCFA
-- Chiffre d'affaires déjà encaissé : ${campaignDetail.financials.totalRevenue} FCFA (${campaignDetail.financials.totalQuantitySold} vendus)
-- Capital restant à récupérer : ${campaignDetail.financials.remainingToBreakeven} FCFA
-- Seuil de rentabilité : seulement ${campaignDetail.financials.unitsToBreakeven} articles restants à vendre au prix moyen de ${campaignDetail.financials.avgSellingPrice || 85000} FCFA pour récupérer 100% de la mise de départ !
-- Bénéfice net actuel : ${campaignDetail.financials.realizedProfit} FCFA
-Donne des recommandations concrètes et non génériques pour l'Afrique francophone (WhatsApp Business VIP, TikTok Live Déballage, Facebook Marketplace Tech, Vente directe au comptoir / packs revendeurs) avec des accroches irrésistibles.`;
+      const prompt = `Tu es le Directeur Commercial & Stratège Retail COMMERCIA.
+Génère 4 stratégies concrètes et percutantes d'écoulement éclair avec des scripts de vente prêts à l'emploi pour mon lot : "${campaignDetail.campaign.name}" (${campaignDetail.campaign.goodsType}).
+
+DONNÉES CHIFFRÉES RÉELLES DE CE LOT :
+- Marchandise : ${campaignDetail.campaign.items?.map(it => `${it.name} (${it.quantityRemaining} pièces restantes en stock sur ${it.quantityReceived} reçues, prix unitaire ${it.estimatedSellingPrice.toLocaleString('fr-FR')} FCFA, coût de revient ${Math.round(it.unitCost).toLocaleString('fr-FR')} FCFA)`).join('; ')}
+- Investissement initial engagé : ${campaignDetail.financials.totalLandedCost.toLocaleString('fr-FR')} FCFA
+- Chiffre d'affaires déjà encaissé : ${campaignDetail.financials.totalRevenue.toLocaleString('fr-FR')} FCFA (${campaignDetail.financials.totalQuantitySold} vendus)
+- Capital restant à récupérer pour point mort : ${campaignDetail.financials.remainingToBreakeven.toLocaleString('fr-FR')} FCFA
+- Seuil de rentabilité : il reste seulement ${campaignDetail.financials.unitsToBreakeven} articles à vendre au prix moyen de ${Math.round(campaignDetail.financials.avgSellingPrice || 85000).toLocaleString('fr-FR')} FCFA pour rembourser 100% de la mise de départ !
+- Bénéfice net actuel réalisé : +${Math.round(campaignDetail.financials.realizedProfit).toLocaleString('fr-FR')} FCFA
+
+EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
+1. Rédige un texte 100% naturel, fluide et professionnel, sans aucun symbole dièse (#), sans astérisques bruts (*), et sans antislashs d'échappement (écris directement "d'urgence", "l'offre", "j'ai").
+2. Rédige 4 stratégies numérotées clairement (1., 2., 3., 4.) :
+   1. WhatsApp Business VIP - Groupes de Vente Exclusifs
+   2. TikTok Live Déballage Vidéo
+   3. Facebook Marketplace Tech - Offres Flash
+   4. Packs Revendeurs & Déstockage Massif
+3. Pour chaque canal, donne :
+   - Stratégie : La démarche tactique en 2 ou 3 phrases percutantes.
+   - Script : L'annonce commerciale complète prête à poster avec le prix de 85 000 FCFA, l'urgence (stock restant de 145 pièces) et l'appel à l'action.`;
 
       const res = await generateCopilotLLMResponse(prompt, [], activeBizId);
       setAiCustomStrategy(res.reply);
@@ -1878,11 +1891,11 @@ Donne des recommandations concrètes et non génériques pour l'Afrique francoph
                       boxShadow: '0 4px 14px rgba(124, 58, 237, 0.12)',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Bot size={22} color="#7C3AED" />
-                        <strong style={{ fontSize: '1.02rem', color: '#4C1D95' }}>
-                          🧠 Recommandations Stratégiques Sur-Mesure du Copilote IA (LLM configuré)
+                        <strong style={{ fontSize: '1.05rem', color: '#4C1D95' }}>
+                          🧠 Plan d'Action & Stratégies d'Écoulement du Copilote IA
                         </strong>
                       </div>
                       <button
@@ -1891,15 +1904,13 @@ Donne des recommandations concrètes et non génériques pour l'Afrique francoph
                           alert('Stratégies et scripts copiés dans le presse-papier !');
                         }}
                         className="btn btn-secondary"
-                        style={{ fontSize: '0.76rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        style={{ fontSize: '0.76rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
                       >
-                        <Copy size={13} />
-                        <span>Copier tout le plan</span>
+                        <Copy size={14} />
+                        <span>Copier l'ensemble des scripts</span>
                       </button>
                     </div>
-                    <div style={{ fontSize: '0.86rem', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                      {aiCustomStrategy}
-                    </div>
+                    {renderProfessionalStrategyCards(aiCustomStrategy)}
                   </div>
                 )}
               </div>
@@ -2217,7 +2228,7 @@ Donne des recommandations concrètes et non génériques pour l'Afrique francoph
                           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                         }}
                       >
-                        <div>{msg.text}</div>
+                        <div>{renderNaturalFormattedText(msg.text, msg.role === 'user')}</div>
                         <div
                           style={{
                             fontSize: '0.68rem',
