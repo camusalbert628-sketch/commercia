@@ -196,6 +196,12 @@ export const AuthPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!isLogin && !avatarUrl) {
+      setError('La photo de profil est obligatoire pour créer votre compte COMMERCIA. Veuillez importer une photo.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -215,7 +221,7 @@ export const AuthPage: React.FC = () => {
           firstName,
           lastName,
           phone: phone || undefined,
-          avatarUrl: avatarUrl || undefined,
+          avatarUrl: avatarUrl,
         });
         login({ accessToken: res.accessToken, refreshToken: res.refreshToken }, res.user);
         navigate('/onboarding');
@@ -515,11 +521,12 @@ export const AuthPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0F172A' }}>
-                      Photo de profil du commerçant
+                    <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      <span>Photo de profil du commerçant</span>
+                      <span style={{ color: '#EF4444', fontSize: '0.9rem' }}>*</span>
                     </div>
-                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                      Elle figurera directement sur votre tableau de bord
+                    <div style={{ fontSize: '0.74rem', color: avatarUrl ? '#16A34A' : '#EF4444', fontWeight: 600, marginTop: '2px' }}>
+                      {avatarUrl ? '✓ Photo sélectionnée avec succès' : 'Obligatoire • Insérée exclusivement à la création du compte'}
                     </div>
                   </div>
 

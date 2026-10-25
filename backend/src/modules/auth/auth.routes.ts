@@ -15,7 +15,7 @@ const registerSchema = z.object({
   firstName: z.string().min(1, 'Prénom requis'),
   lastName: z.string().min(1, 'Nom requis'),
   phone: z.string().optional(),
-  avatarUrl: z.string().optional(),
+  avatarUrl: z.string().min(1, 'La photo de profil est obligatoire pour la création du compte'),
 });
 
 const loginSchema = z.object({
@@ -442,12 +442,11 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response, next: Ne
   }
 });
 
-// PUT /api/auth/profile (mettre à jour avatar, prénom, nom, téléphone)
+// PUT /api/auth/profile (mettre à jour prénom, nom, téléphone - la photo reste exclusivement celle de la création)
 const updateProfileSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().optional(),
   phone: z.string().optional(),
-  avatarUrl: z.string().nullable().optional(),
 });
 
 router.put('/profile', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -459,7 +458,6 @@ router.put('/profile', authenticate, async (req: AuthRequest, res: Response, nex
         ...(data.firstName ? { firstName: data.firstName } : {}),
         ...(data.lastName !== undefined ? { lastName: data.lastName } : {}),
         ...(data.phone !== undefined ? { phone: data.phone } : {}),
-        ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
       },
     });
 

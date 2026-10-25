@@ -411,6 +411,7 @@ router.get('/history', authenticate, async (req: AuthRequest, res: Response, nex
         id: p.id,
         reference: p.reference,
         date: p.createdAt,
+        createdAt: p.createdAt,
         amount: p.amount,
         currency: p.currency,
         planName: p.plan?.displayName || 'Plan Pro',
@@ -423,6 +424,24 @@ router.get('/history', authenticate, async (req: AuthRequest, res: Response, nex
     });
 
     res.json(receipts);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/payments/:id — Supprimer une tentative de paiement (ou annuler)
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const payment = await req.prisma.payment.findUnique({ where: { id } });
+    if (!payment) {
+      return res.json({ success: true, message: 'Transaction introuvable ou déjà supprimée.' });
+    }
+    if (payment.userId !== req.userId) {
+      throw new AppError('Accès non autorisé.', 403);
+    }
+    await req.prisma.payment.delete({ where: { id } });
+    res.json({ success: true, message: 'Tentative de paiement supprimée avec succès.' });
   } catch (error) {
     next(error);
   }

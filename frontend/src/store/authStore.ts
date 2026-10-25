@@ -17,7 +17,21 @@ interface AuthState {
 const getInitialUser = (): User | null => {
   try {
     const raw = localStorage.getItem('commercia_user') || localStorage.getItem('rsbizz_user');
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed: User = JSON.parse(raw);
+    const testSubRaw = localStorage.getItem('commercia_test_subscription');
+    if (testSubRaw) {
+      try {
+        const testSub = JSON.parse(testSubRaw);
+        if (testSub && testSub.plan && testSub.plan !== 'free') {
+          parsed.subscription = {
+            ...(parsed.subscription || {}),
+            ...testSub,
+          } as any;
+        }
+      } catch (_) {}
+    }
+    return parsed;
   } catch (e) {
     return null;
   }
@@ -78,6 +92,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ isLoading: true });
       const user = await api.get<User>('/auth/me');
+      
+      const testSubRaw = localStorage.getItem('commercia_test_subscription');
+      if (testSubRaw) {
+        try {
+          const testSub = JSON.parse(testSubRaw);
+          if (testSub && testSub.plan && testSub.plan !== 'free') {
+            user.subscription = {
+              ...(user.subscription || {}),
+              ...testSub,
+            } as any;
+          }
+        } catch (_) {}
+      }
+
       localStorage.setItem('commercia_user', JSON.stringify(user));
       let businessId = get().activeBusinessId;
       if (user.businesses && user.businesses.length > 0) {

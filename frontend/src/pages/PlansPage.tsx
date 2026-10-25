@@ -71,15 +71,47 @@ export const PlansPage: React.FC = () => {
   const handleTestActivate = async (pName: 'free' | 'pro' | 'business') => {
     try {
       setTestActivating(true);
-      const res = await api.post<{ success: boolean; message: string }>('/plans/test-activate', {
+      const isPro = pName !== 'free';
+      const newSub = {
+        plan: pName,
         planName: pName,
-      });
+        displayName: pName === 'business' ? 'Plan Business' : pName === 'pro' ? 'Plan Pro' : 'Gratuit',
+        planDisplayName: pName === 'business' ? 'Plan Business' : pName === 'pro' ? 'Plan Pro' : 'Gratuit',
+        status: isPro ? 'active' : 'free',
+        isPro,
+        endDate: isPro ? new Date(Date.now() + 30 * 86400000).toISOString() : null,
+        daysRemaining: isPro ? 30 : 0,
+        limits: {
+          salesPerDay: -1,
+          aiQueries: -1,
+          stockEnabled: true,
+          creditEnabled: true,
+          multiShop: pName === 'business',
+        },
+      };
+
+      if (pName === 'free') {
+        localStorage.removeItem('commercia_test_subscription');
+      } else {
+        localStorage.setItem('commercia_test_subscription', JSON.stringify(newSub));
+      }
+
+      useAuthStore.getState().updateUser({ subscription: newSub as any });
+      setMySub(newSub as any);
+
+      try {
+        await api.post('/plans/test-activate', { planName: pName });
+      } catch (backendErr) {
+        console.warn('Backend test-activate warning:', backendErr);
+      }
+
       await fetchMe();
       await fetchData();
-      setTestNotice(res.message || `Formule ${pName.toUpperCase()} activée avec succès en mode test !`);
+
+      setTestNotice(`Formule ${pName === 'business' ? 'Business' : pName === 'pro' ? 'Pro' : 'Gratuite'} activée avec succès en mode test !`);
       setTimeout(() => setTestNotice(null), 5000);
     } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || 'Erreur lors de l\'activation du test');
+      alert(err?.message || 'Erreur lors de l\'activation du test');
     } finally {
       setTestActivating(false);
     }

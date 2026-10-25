@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, ShoppingBag } from 'lucide-react';
+import { X, Plus, Trash2, ShoppingBag, Globe, Truck, Store, Users, Package, MessageCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { Product, Customer, Sale } from '../../types';
 import { ReceiptModal } from './ReceiptModal';
@@ -10,12 +10,27 @@ interface SaleModalProps {
   onSaleCreated: () => void;
 }
 
+type CustomerQuality = 'comptoir' | 'en_ligne' | 'livraison' | 'fidele' | 'grossiste';
+
 export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCreated }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mobile_money' | 'bank_transfer' | 'credit'>('cash');
   const [customerId, setCustomerId] = useState('');
+  
+  // Customer Quality states
+  const [customerQuality, setCustomerQuality] = useState<CustomerQuality>('comptoir');
+  const [onlinePlatform, setOnlinePlatform] = useState<'whatsapp' | 'facebook' | 'tiktok' | 'instagram' | 'autre'>('whatsapp');
+  const [onlineCustomerName, setOnlineCustomerName] = useState('');
+  const [onlineCustomerPhone, setOnlineCustomerPhone] = useState('');
+  const [deliveryCustomerName, setDeliveryCustomerName] = useState('');
+  const [deliveryCustomerPhone, setDeliveryCustomerPhone] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [b2bName, setB2bName] = useState('');
+  const [b2bPhone, setB2bPhone] = useState('');
+  const [saveToCrm, setSaveToCrm] = useState(false);
+
   const [items, setItems] = useState<Array<{ name: string; quantity: number; unitPrice: number; productId?: string }>>([
     { name: '', quantity: 1, unitPrice: 0 },
   ]);
@@ -29,6 +44,16 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
     setItems([{ name: '', quantity: 1, unitPrice: 0 }]);
     setSelectedProductId('');
     setCustomerId('');
+    setCustomerQuality('comptoir');
+    setOnlinePlatform('whatsapp');
+    setOnlineCustomerName('');
+    setOnlineCustomerPhone('');
+    setDeliveryCustomerName('');
+    setDeliveryCustomerPhone('');
+    setDeliveryAddress('');
+    setB2bName('');
+    setB2bPhone('');
+    setSaveToCrm(false);
     setPaymentMethod('cash');
     setReceivedAmount('');
     setError('');
@@ -113,22 +138,77 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
       return;
     }
 
-    if (paymentMethod === 'credit' && !customerId) {
-      setError('Veuillez sélectionner un client pour une vente à crédit.');
+    // Determine customer info & notes based on selected quality
+    let saleNotes = '';
+    let customerNameToUse = '';
+    let customerPhoneToUse = '';
+
+    if (customerQuality === 'en_ligne') {
+      customerNameToUse = onlineCustomerName.trim() || 'Client en ligne';
+      customerPhoneToUse = onlineCustomerPhone.trim();
+      const platformLabels: Record<string, string> = {
+        whatsapp: 'WhatsApp',
+        facebook: 'Facebook',
+        tiktok: 'TikTok',
+        instagram: 'Instagram',
+        autre: 'Web',
+      };
+      const pLabel = platformLabels[onlinePlatform] || 'En Ligne';
+      saleNotes = `🌐 En Ligne (${pLabel})${customerNameToUse ? ` • ${customerNameToUse}` : ''}${customerPhoneToUse ? ` • Tel: ${customerPhoneToUse}` : ''}`;
+    } else if (customerQuality === 'livraison') {
+      customerNameToUse = deliveryCustomerName.trim() || 'Client Livraison';
+      customerPhoneToUse = deliveryCustomerPhone.trim();
+      saleNotes = `🚚 Livraison${customerNameToUse ? ` • ${customerNameToUse}` : ''}${deliveryAddress.trim() ? ` • Dest: ${deliveryAddress.trim()}` : ''}${customerPhoneToUse ? ` • Tel: ${customerPhoneToUse}` : ''}`;
+    } else if (customerQuality === 'grossiste') {
+      customerNameToUse = b2bName.trim() || 'Client Grossiste';
+      customerPhoneToUse = b2bPhone.trim();
+      saleNotes = `📦 Grossiste / Revendeur${customerNameToUse ? ` • ${customerNameToUse}` : ''}${customerPhoneToUse ? ` • Tel: ${customerPhoneToUse}` : ''}`;
+    } else if (customerQuality === 'fidele' || customerId) {
+      const selected = customers.find(c => c.id === customerId);
+      if (selected) {
+        customerNameToUse = selected.name;
+        customerPhoneToUse = selected.phone || '';
+        saleNotes = `⭐ Client Fidèle • ${selected.name}`;
+      }
+    }
+
+    if (paymentMethod === 'credit' && !customerId && !customerNameToUse) {
+      setError('Veuillez renseigner le client pour une vente à crédit.');
       return;
     }
 
     try {
       setLoading(true);
       const computedTotal = validItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice || 0), 0);
-      const selectedCustomer = customers.find(c => c.id === customerId);
+      let effectiveCustomerId = customerId;
+
+      // If user chose to save this new online/delivery client to CRM
+      if (!effectiveCustomerId && customerNameToUse && (saveToCrm || paymentMethod === 'credit')) {
+        try {
+          const createdCust = await api.post<Customer>('/customers', {
+            name: customerNameToUse,
+            phone: customerPhoneToUse || undefined,
+            notes: saleNotes,
+          });
+          if (createdCust && createdCust.id) {
+            effectiveCustomerId = createdCust.id;
+          }
+        } catch (crmErr) {
+          console.warn('Could not save customer in CRM:', crmErr);
+        }
+      }
+
+      const selectedCustomer = customers.find(c => c.id === effectiveCustomerId) || (
+        customerNameToUse ? ({ id: effectiveCustomerId || 'c-temp', name: customerNameToUse, phone: customerPhoneToUse } as any) : undefined
+      );
 
       const res = await api.post<{ message: string; sale?: Sale }>('/sales', {
         items: validItems,
         totalAmount: computedTotal,
         paidAmount: paymentMethod === 'credit' ? 0 : computedTotal,
         paymentMethod,
-        customerId: customerId || undefined,
+        customerId: effectiveCustomerId || undefined,
+        notes: saleNotes || undefined,
       });
 
       onSaleCreated();
@@ -142,6 +222,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
         status: 'completed',
         saleDate: new Date().toISOString(),
         customer: selectedCustomer,
+        notes: saleNotes,
         items: validItems.map((item, idx) => ({
           id: 'item-' + idx,
           name: item.name,
@@ -371,24 +452,236 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
               </div>
             )}
 
-            {/* Customer selector (required for credit or optional for tracking) */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                Client {paymentMethod === 'credit' && <span style={{ color: '#EF4444' }}>* (Obligatoire pour vente à crédit)</span>} :
-              </label>
-              <select
-                value={customerId}
-                onChange={e => setCustomerId(e.target.value)}
-                style={{ width: '100%' }}
-                required={paymentMethod === 'credit'}
-              >
-                <option value="">-- Client comptoir (Anonyme) --</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Doit: ${c.totalOwed} FCFA` : ''}
-                  </option>
-                ))}
-              </select>
+            {/* Customer Quality & Origin Selection */}
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#1E293B', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>Qualité & Type de Client :</span>
+                  {paymentMethod === 'credit' && <span style={{ color: '#EF4444', fontSize: '0.75rem' }}>* (Obligatoire pour crédit)</span>}
+                </label>
+                <span style={{ fontSize: '0.72rem', color: '#64748B', background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '2px 8px', borderRadius: '10px' }}>
+                  {customerQuality === 'comptoir' && 'Passage direct boutique'}
+                  {customerQuality === 'en_ligne' && 'Commandes Réseaux Sociaux & Web'}
+                  {customerQuality === 'livraison' && 'Expéditions et Colis'}
+                  {customerQuality === 'fidele' && 'Client Répertoire Enregistré'}
+                  {customerQuality === 'grossiste' && 'Revendeur / Gros volume'}
+                </span>
+              </div>
+
+              {/* Quality selector tabs */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', marginBottom: '12px' }}>
+                {[
+                  { id: 'comptoir', label: 'Comptoir', icon: Store },
+                  { id: 'en_ligne', label: 'En Ligne', icon: Globe },
+                  { id: 'livraison', label: 'Livraison', icon: Truck },
+                  { id: 'fidele', label: 'Fidèle', icon: Users },
+                  { id: 'grossiste', label: 'Grossiste', icon: Package },
+                ].map(q => {
+                  const Icon = q.icon;
+                  const isActive = customerQuality === q.id;
+                  return (
+                    <button
+                      key={q.id}
+                      type="button"
+                      onClick={() => {
+                        setCustomerQuality(q.id as CustomerQuality);
+                        if (q.id === 'comptoir') setCustomerId('');
+                      }}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        padding: '8px 4px',
+                        borderRadius: '8px',
+                        border: isActive ? '1.5px solid #0062FF' : '1px solid #E2E8F0',
+                        background: isActive ? '#EFF6FF' : '#FFFFFF',
+                        color: isActive ? '#0062FF' : '#475569',
+                        fontWeight: isActive ? 700 : 500,
+                        fontSize: '0.74rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Icon size={16} />
+                      <span>{q.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 1. Client Comptoir */}
+              {customerQuality === 'comptoir' && (
+                <div>
+                  <select
+                    value={customerId}
+                    onChange={e => setCustomerId(e.target.value)}
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                  >
+                    <option value="">-- Client comptoir libre (Anonyme) --</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Doit: ${c.totalOwed} FCFA` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* 2. Client En Ligne (Réseaux sociaux / Web) */}
+              {customerQuality === 'en_ligne' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'whatsapp', label: 'WhatsApp', color: '#10B981' },
+                      { id: 'facebook', label: 'Facebook', color: '#2563EB' },
+                      { id: 'tiktok', label: 'TikTok', color: '#0F172A' },
+                      { id: 'instagram', label: 'Instagram', color: '#E11D48' },
+                      { id: 'autre', label: 'Autre Web', color: '#64748B' },
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setOnlinePlatform(p.id as any)}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          border: onlinePlatform === p.id ? `1.5px solid ${p.color}` : '1px solid #CBD5E1',
+                          background: onlinePlatform === p.id ? `${p.color}15` : '#FFFFFF',
+                          color: onlinePlatform === p.id ? p.color : '#64748B',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ● {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Nom ou pseudo client (ex: Diane WhatsApp) *"
+                        value={onlineCustomerName}
+                        onChange={e => setOnlineCustomerName(e.target.value)}
+                        style={{ width: '100%', fontSize: '0.82rem', padding: '8px 10px' }}
+                        required={paymentMethod === 'credit'}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="tel"
+                        placeholder="Téléphone / WhatsApp"
+                        value={onlineCustomerPhone}
+                        onChange={e => setOnlineCustomerPhone(e.target.value)}
+                        style={{ width: '100%', fontSize: '0.82rem', padding: '8px 10px' }}
+                      />
+                    </div>
+                  </div>
+
+                  <label style={{ fontSize: '0.76rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={saveToCrm}
+                      onChange={e => setSaveToCrm(e.target.checked)}
+                    />
+                    <span>Sauvegarder ce client dans mon répertoire de contacts</span>
+                  </label>
+                </div>
+              )}
+
+              {/* 3. Client Livraison */}
+              {customerQuality === 'livraison' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Nom du destinataire *"
+                      value={deliveryCustomerName}
+                      onChange={e => setDeliveryCustomerName(e.target.value)}
+                      style={{ width: '100%', fontSize: '0.82rem', padding: '8px 10px' }}
+                      required={paymentMethod === 'credit'}
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Téléphone destinataire *"
+                      value={deliveryCustomerPhone}
+                      onChange={e => setDeliveryCustomerPhone(e.target.value)}
+                      style={{ width: '100%', fontSize: '0.82rem', padding: '8px 10px' }}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Lieu de livraison / Ville / Quartier / Agence de relais"
+                      value={deliveryAddress}
+                      onChange={e => setDeliveryAddress(e.target.value)}
+                      style={{ width: '100%', fontSize: '0.82rem', padding: '8px 10px' }}
+                    />
+                  </div>
+                  <label style={{ fontSize: '0.76rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={saveToCrm}
+                      onChange={e => setSaveToCrm(e.target.checked)}
+                    />
+                    <span>Sauvegarder les coordonnées de ce destinataire</span>
+                  </label>
+                </div>
+              )}
+
+              {/* 4. Client Fidèle / Répertoire */}
+              {customerQuality === 'fidele' && (
+                <div>
+                  <select
+                    value={customerId}
+                    onChange={e => setCustomerId(e.target.value)}
+                    style={{ width: '100%', fontSize: '0.85rem' }}
+                    required={paymentMethod === 'credit'}
+                  >
+                    <option value="">-- Choisir un client du carnet --</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Crédit en cours: ${c.totalOwed} FCFA` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* 5. Grossiste / Revendeur */}
+              {customerQuality === 'grossiste' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Nom grossiste / Boutique revendeuse *"
+                      value={b2bName}
+                      onChange={e => setB2bName(e.target.value)}
+                      style={{ width: '100%', fontSize: '0.82rem', padding: '8px 10px' }}
+                      required={paymentMethod === 'credit'}
+                    />
+                    <input
+                      type="tel"
+                      placeholder="Téléphone / Contact"
+                      value={b2bPhone}
+                      onChange={e => setB2bPhone(e.target.value)}
+                      style={{ width: '100%', fontSize: '0.82rem', padding: '8px 10px' }}
+                    />
+                  </div>
+                  <label style={{ fontSize: '0.76rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={saveToCrm}
+                      onChange={e => setSaveToCrm(e.target.checked)}
+                    />
+                    <span>Sauvegarder ce grossiste dans mes partenaires</span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Total Banner */}

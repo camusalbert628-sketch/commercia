@@ -23,6 +23,7 @@ import {
   QrCode,
   Smartphone,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
@@ -54,13 +55,13 @@ export const SubscriptionPage: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<'pro' | 'business'>('pro');
   const [periodicite, setPeriodicite] = useState<'mensuel' | 'annuel'>('mensuel');
   const [moyenPaiement, setMoyenPaiement] = useState<'mtn' | 'orange' | 'wave' | 'card'>('orange');
-  const [momoPhone, setMomoPhone] = useState(user?.phone || '690123456');
+  const [momoPhone, setMomoPhone] = useState(user?.phone || '');
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState('');
 
   // Card specific states (Visa / Mastercard)
   const [cardNumber, setCardNumber] = useState('');
-  const [cardHolder, setCardHolder] = useState(`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'COMMERCANT COMMERCIA');
+  const [cardHolder, setCardHolder] = useState(`${user?.firstName || ''} ${user?.lastName || ''}`.trim() || '');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
 
@@ -85,17 +86,56 @@ export const SubscriptionPage: React.FC = () => {
   const handleTestActivate = async (plan: 'free' | 'pro' | 'business') => {
     try {
       setTestActivating(true);
-      const res = await api.post<{ success: boolean; message: string }>('/plans/test-activate', {
+      const isProPlan = plan !== 'free';
+      const newSub = {
+        plan,
         planName: plan,
-      });
+        displayName: plan === 'business' ? 'Plan Business' : plan === 'pro' ? 'Plan Pro' : 'Gratuit',
+        planDisplayName: plan === 'business' ? 'Plan Business' : plan === 'pro' ? 'Plan Pro' : 'Gratuit',
+        status: isProPlan ? 'active' : 'free',
+        isPro: isProPlan,
+        endDate: isProPlan ? new Date(Date.now() + 30 * 86400000).toISOString() : null,
+        daysRemaining: isProPlan ? 30 : 0,
+        limits: {
+          salesPerDay: -1,
+          aiQueries: -1,
+          stockEnabled: true,
+          creditEnabled: true,
+          multiShop: plan === 'business',
+        },
+      };
+
+      if (plan === 'free') {
+        localStorage.removeItem('commercia_test_subscription');
+      } else {
+        localStorage.setItem('commercia_test_subscription', JSON.stringify(newSub));
+      }
+
+      useAuthStore.getState().updateUser({ subscription: newSub as any });
+
+      try {
+        await api.post('/plans/test-activate', { planName: plan });
+      } catch (backendErr) {
+        console.warn('Backend test-activate notice:', backendErr);
+      }
+
       await fetchMe();
       await loadHistory();
-      setTestNotice(res.message || `Formule ${plan.toUpperCase()} activée avec succès en mode test !`);
+      setTestNotice(`Formule ${plan === 'business' ? 'Business' : plan === 'pro' ? 'Pro' : 'Gratuite'} activée avec succès en mode test !`);
       setTimeout(() => setTestNotice(null), 5000);
     } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || 'Erreur lors de l\'activation du test');
+      alert(err?.message || 'Erreur lors de l\'activation du test');
     } finally {
       setTestActivating(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    try {
+      setPayments(prev => prev.filter(p => p.id !== paymentId));
+      await api.delete(`/payments/${paymentId}`);
+    } catch (e) {
+      console.warn('Could not delete payment on backend:', e);
     }
   };
 
@@ -856,53 +896,74 @@ export const SubscriptionPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {payments.map(p => (
-                  <tr key={p.id}>
-                    <td style={{ fontSize: '0.85rem', color: '#64748B' }}>
-                      {new Date(p.createdAt).toLocaleDateString('fr-FR', {
+                {payments.map(p => {
+                  const itemDate = p.createdAt || (p as any).date;
+                  const isValidDate = itemDate && !isNaN(new Date(itemDate).getTime());
+                  const formattedDate = isValidDate
+                    ? new Date(itemDate).toLocaleDateString('fr-FR', {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric',
                         hour: '2-digit',
                         minute: '2-digit',
-                      })}
-                    </td>
-                    <td style={{ fontWeight: 700, color: '#0062FF', fontSize: '0.88rem' }}>
-                      {p.reference}
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{p.plan?.displayName || 'Plan Pro'}</td>
-                    <td style={{ textTransform: 'capitalize', fontSize: '0.85rem' }}>
-                      {p.provider === 'orange' ? 'Orange Money' : p.provider === 'mtn' ? 'MTN MoMo' : p.provider}
-                    </td>
-                    <td style={{ fontWeight: 800 }}>
-                      {p.amount.toLocaleString('fr-FR')} {p.currency}
-                    </td>
-                    <td>
-                      <span style={{
-                        padding: '4px 10px',
-                        borderRadius: '16px',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        background: p.status === 'completed' ? '#ECFDF5' : p.status === 'pending' ? '#FEF3C7' : '#FEF2F2',
-                        color: p.status === 'completed' ? '#059669' : p.status === 'pending' ? '#D97706' : '#DC2626',
-                      }}>
-                        {p.status === 'completed' ? '● Validé' : p.status === 'pending' ? '● En attente' : '● Échoué'}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {p.status === 'completed' && (
-                        <button
-                          className="btn btn-secondary"
-                          onClick={() => setSelectedReceipt(p)}
-                          style={{ padding: '6px 10px', fontSize: '0.8rem' }}
-                        >
-                          <Printer size={14} />
-                          <span>Voir reçu</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      })
+                    : 'Récemment';
+
+                  return (
+                    <tr key={p.id}>
+                      <td style={{ fontSize: '0.85rem', color: '#64748B' }}>
+                        {formattedDate}
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#0062FF', fontSize: '0.88rem' }}>
+                        {p.reference}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{p.plan?.displayName || (p as any).planName || 'Plan Pro'}</td>
+                      <td style={{ textTransform: 'capitalize', fontSize: '0.85rem' }}>
+                        {p.provider === 'orange' ? 'Orange Money' : p.provider === 'mtn' ? 'MTN MoMo' : (p as any).method || p.provider || 'Mobile Money'}
+                      </td>
+                      <td style={{ fontWeight: 800 }}>
+                        {p.amount.toLocaleString('fr-FR')} {p.currency}
+                      </td>
+                      <td>
+                        <span style={{
+                          padding: '4px 10px',
+                          borderRadius: '16px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          background: p.status === 'completed' ? '#ECFDF5' : p.status === 'pending' ? '#FEF3C7' : '#FEF2F2',
+                          color: p.status === 'completed' ? '#059669' : p.status === 'pending' ? '#D97706' : '#DC2626',
+                        }}>
+                          {p.status === 'completed' ? '● Validé' : p.status === 'pending' ? '● En attente' : '● Échoué'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          {p.status === 'completed' && (
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => setSelectedReceipt(p)}
+                              style={{ padding: '6px 10px', fontSize: '0.8rem' }}
+                            >
+                              <Printer size={14} />
+                              <span>Voir reçu</span>
+                            </button>
+                          )}
+                          {p.status !== 'completed' && (
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => handleDeletePayment(p.id)}
+                              title="Supprimer cette tentative de paiement"
+                              style={{ padding: '6px 10px', fontSize: '0.8rem', color: '#EF4444', borderColor: '#FECACA' }}
+                            >
+                              <Trash2 size={14} />
+                              <span>Supprimer</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

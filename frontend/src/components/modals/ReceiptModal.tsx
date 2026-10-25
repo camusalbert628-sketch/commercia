@@ -163,6 +163,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 Client : {sale.customer.name} {sale.customer.phone ? `(${sale.customer.phone})` : ''}
               </div>
             )}
+            {sale.notes && (
+              <div
+                style={{
+                  marginTop: '6px',
+                  padding: '4px 8px',
+                  background: '#EFF6FF',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  color: '#1E40AF',
+                  display: 'block',
+                  fontWeight: 600,
+                }}
+              >
+                {sale.notes}
+              </div>
+            )}
           </div>
 
           {/* Ticket Items */}
