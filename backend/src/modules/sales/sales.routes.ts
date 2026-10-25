@@ -152,6 +152,87 @@ router.post('/', async (req: AuthRequest, res, next) => {
           },
         });
       }
+
+      // SYNCHRONISATION AUTOMATIQUE AVEC LES LOTS COMMERCIAUX :
+      // Si l'article vendu correspond au nom d'un article d'un lot actif de cette boutique,
+      // la vente et le mouvement de stock du lot sont décrémentés et comptabilisés en temps réel !
+      try {
+        const matchingLotItem = await req.prisma.lotItem.findFirst({
+          where: {
+            businessId,
+            campaign: { status: 'active' },
+            OR: [
+              { name: { contains: item.name.trim(), mode: 'insensitive' } },
+              { reference: { contains: item.name.trim(), mode: 'insensitive' } },
+            ],
+          },
+          include: { campaign: true },
+        });
+
+        if (matchingLotItem && matchingLotItem.quantityRemaining >= item.quantity) {
+          const campaignId = matchingLotItem.campaignId;
+          const lineTotal = item.unitPrice * item.quantity;
+          const lineCost = matchingLotItem.unitCost * item.quantity;
+          const grossProfit = lineTotal - lineCost;
+
+          await req.prisma.lotSale.create({
+            data: {
+              campaignId,
+              businessId,
+              saleDate: sale.saleDate,
+              channel: 'comptoir',
+              customerName: sale.customer ? sale.customer.name : null,
+              customerPhone: sale.customer ? sale.customer.phone : null,
+              totalAmount: lineTotal,
+              discountAmount: 0,
+              netAmount: lineTotal,
+              amountPaid: lineTotal,
+              amountDue: 0,
+              variableCosts: item.variableCosts * item.quantity,
+              paymentMethod: data.paymentMethod,
+              paymentStatus: 'paid',
+              notes: `Vente comptoir automatique synchronisée #${sale.id.slice(0, 8)}`,
+              items: {
+                create: [
+                  {
+                    lotItemId: matchingLotItem.id,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    unitCost: matchingLotItem.unitCost,
+                    totalPrice: lineTotal,
+                    totalCost: lineCost,
+                    grossProfit,
+                  },
+                ],
+              },
+            },
+          });
+
+          await req.prisma.lotItem.update({
+            where: { id: matchingLotItem.id },
+            data: {
+              quantitySold: { increment: item.quantity },
+              quantityRemaining: { decrement: item.quantity },
+            },
+          });
+
+          const totalInitial = matchingLotItem.quantityReceived;
+          const newSold = matchingLotItem.quantitySold + item.quantity;
+          const newRemaining = Math.max(0, matchingLotItem.quantityRemaining - item.quantity);
+
+          await req.prisma.lotStockMovement.create({
+            data: {
+              campaignId,
+              lotItemId: matchingLotItem.id,
+              type: 'sale',
+              quantity: -item.quantity,
+              reason: `Vente comptoir auto #${sale.id.slice(0, 8)} (${item.quantity}x ${matchingLotItem.name} à ${item.unitPrice.toLocaleString('fr-FR')} FCFA) — Initial: ${totalInitial} pcs, Restant: ${newRemaining} pcs, Vendu total: ${newSold} pcs`,
+            },
+          });
+        }
+      } catch (err) {
+        console.error('Error auto-syncing lot sale:', err);
+      }
     }
 
     // If credit sale, create customer debt

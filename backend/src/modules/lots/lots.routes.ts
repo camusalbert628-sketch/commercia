@@ -579,13 +579,17 @@ router.post('/campaigns/:id/sales', async (req: AuthRequest, res: Response, next
           },
         });
 
+        const totalInitial = lotItem.quantityReceived;
+        const newSold = (lotItem.quantitySold || 0) + itemInput.quantity;
+        const newRemaining = Math.max(0, (lotItem.quantityRemaining || 0) - itemInput.quantity);
+
         await tx.lotStockMovement.create({
           data: {
             campaignId,
             lotItemId: lotItem.id,
             type: 'sale',
             quantity: -itemInput.quantity,
-            reason: `Vente ${parsed.channel} - ${netAmount.toLocaleString('fr-FR')} FCFA`,
+            reason: `Vente ${parsed.channel.toUpperCase()} (${itemInput.quantity}x ${lotItem.name} à ${itemInput.unitPrice.toLocaleString('fr-FR')} FCFA) — Initial: ${totalInitial} pcs, Restant: ${newRemaining} pcs, Vendu total: ${newSold} pcs`,
           },
         });
       }

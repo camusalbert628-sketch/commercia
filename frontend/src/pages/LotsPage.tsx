@@ -35,10 +35,14 @@ import {
   Flame,
   MessageSquare,
   Share2,
+  Bot,
+  Send,
+  Loader2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { lotsService } from '../services/lotsService';
+import { generateCopilotLLMResponse, getLLMConfig } from '../services/llmService';
 import {
   LotsOverviewResponse,
   CampaignSummaryItem,
@@ -64,6 +68,13 @@ export const LotsPage: React.FC = () => {
   const [campaignDetail, setCampaignDetail] = useState<LotCampaignDetailResponse | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'closed' | 'draft'>('all');
+
+  // Copilot LLM states for this lot campaign
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiCustomStrategy, setAiCustomStrategy] = useState<string | null>(null);
+  const [copilotMessages, setCopilotMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string; time: string }>>([]);
+  const [copilotInput, setCopilotInput] = useState('');
+  const [copilotSending, setCopilotSending] = useState(false);
 
   // Detail view active tab
   const [detailTab, setDetailTab] = useState<
@@ -145,6 +156,58 @@ export const LotsPage: React.FC = () => {
   const [newItemPrice, setNewItemPrice] = useState(3000);
   const [newItemCost, setNewItemCost] = useState(1500);
 
+  // Copilot LLM Handlers for this Lot Campaign
+  const handleGenerateLLMStrategy = async () => {
+    if (!campaignDetail) return;
+    setAiGenerating(true);
+    try {
+      const activeBizId = localStorage.getItem('activeBusinessId') || user?.businesses?.[0]?.id || 'default';
+      const prompt = `Génère 4 stratégies tactiques percutantes d'écoulement éclair et des scripts de vente prêts à copier/coller pour mon lot : "${campaignDetail.campaign.name}" (${campaignDetail.campaign.goodsType}).
+Données réelles et chiffrées du lot :
+- Articles : ${campaignDetail.campaign.items?.map(it => `${it.name} (${it.quantityRemaining} restants en stock sur ${it.quantityReceived} reçus, prix unitaire de vente ${it.estimatedSellingPrice} FCFA, coût unitaire calculé ${it.unitCost} FCFA)`).join('; ')}
+- Investissement initial total : ${campaignDetail.financials.totalLandedCost} FCFA
+- Chiffre d'affaires déjà encaissé : ${campaignDetail.financials.totalRevenue} FCFA (${campaignDetail.financials.totalQuantitySold} vendus)
+- Capital restant à récupérer : ${campaignDetail.financials.remainingToBreakeven} FCFA
+- Seuil de rentabilité : seulement ${campaignDetail.financials.unitsToBreakeven} articles restants à vendre au prix moyen de ${campaignDetail.financials.avgSellingPrice || 85000} FCFA pour récupérer 100% de la mise de départ !
+- Bénéfice net actuel : ${campaignDetail.financials.realizedProfit} FCFA
+Donne des recommandations concrètes et non génériques pour l'Afrique francophone (WhatsApp Business VIP, TikTok Live Déballage, Facebook Marketplace Tech, Vente directe au comptoir / packs revendeurs) avec des accroches irrésistibles.`;
+
+      const res = await generateCopilotLLMResponse(prompt, [], activeBizId);
+      setAiCustomStrategy(res.reply);
+    } catch (err: any) {
+      alert('Erreur Copilote LLM: ' + err.message);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleSendCopilotChat = async () => {
+    if (!copilotInput.trim() || !campaignDetail) return;
+    const msg = copilotInput.trim();
+    const nowTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const newHistory = [...copilotMessages, { role: 'user' as const, text: msg, time: nowTime }];
+    setCopilotMessages(newHistory);
+    setCopilotInput('');
+    setCopilotSending(true);
+
+    try {
+      const activeBizId = localStorage.getItem('activeBusinessId') || user?.businesses?.[0]?.id || 'default';
+      const historyForLLM = newHistory.map(m => ({ role: m.role, content: m.text }));
+      const res = await generateCopilotLLMResponse(msg, historyForLLM, activeBizId);
+      setCopilotMessages(prev => [
+        ...prev,
+        { role: 'assistant', text: res.reply, time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }
+      ]);
+    } catch (err: any) {
+      setCopilotMessages(prev => [
+        ...prev,
+        { role: 'assistant', text: '⚠️ Erreur de communication avec le Copilote IA : ' + err.message, time: nowTime }
+      ]);
+    } finally {
+      setCopilotSending(false);
+    }
+  };
+
   // Load Overview Data
   const loadOverview = async () => {
     if (!isPro) {
@@ -170,6 +233,11 @@ export const LotsPage: React.FC = () => {
       const data = await lotsService.getCampaign(id);
       setCampaignDetail(data);
       setSelectedCampaignId(id);
+      try {
+        localStorage.setItem('commercia_active_lot_detail', JSON.stringify(data));
+      } catch (e) {
+        // Ignored
+      }
       setCurrentView('detail');
     } catch (err: any) {
       alert('Erreur lors du chargement de la campagne: ' + err.message);
@@ -1321,21 +1389,36 @@ export const LotsPage: React.FC = () => {
                     <div>
                       <strong style={{ fontSize: '1.05rem', color: '#0F172A' }}>
                         {campaignDetail.financials.isBreakevenReached
-                          ? '🎉 Félicitations : Seuil de Rentabilité Atteint !'
+                          ? '🎉 Félicitations : Seuil de Rentabilité Atteint (Capital 100% Récupéré) !'
                           : 'Progression de Remboursement du Lot :'}
                       </strong>
-                      <div style={{ fontSize: '0.84rem', color: '#475569' }}>
-                        {campaignDetail.financials.isBreakevenReached
-                          ? 'Votre investissement initial a été amorti à 100%. Chaque article vendu supplémentaire est désormais du bénéfice pur !'
-                          : `Reste ${fmt(campaignDetail.financials.remainingToBreakeven)} à encaisser (soit environ ${campaignDetail.financials.unitsToBreakeven} articles) pour récupérer l'intégralité de votre mise de départ.`}
+                      <div style={{ fontSize: '0.86rem', color: '#334155', marginTop: '4px', lineHeight: 1.5 }}>
+                        {campaignDetail.financials.isBreakevenReached ? (
+                          'Votre investissement initial de ' + fmt(campaignDetail.financials.totalLandedCost) + ' a été intégralement amorti. Chaque article supplémentaire vendu génère du bénéfice net pur !'
+                        ) : (
+                          <>
+                            <span>
+                              Reste <strong>{fmt(campaignDetail.financials.remainingToBreakeven)}</strong> à encaisser sur <strong>{fmt(campaignDetail.financials.totalLandedCost)}</strong> dépensés au départ (déjà <strong>{fmt(campaignDetail.financials.totalRevenue)}</strong> encaissés).
+                            </span>
+                            <div style={{ marginTop: '3px', color: '#1E40AF', fontWeight: 600 }}>
+                              Prix moyen de vente constaté : <strong>{fmt(campaignDetail.financials.avgSellingPrice || 85000)}</strong> • Il vous reste exactement <strong>{campaignDetail.financials.unitsToBreakeven} article(s)</strong> à vendre pour récupérer l'intégralité de la somme dépensée.
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 900, color: campaignDetail.financials.isBreakevenReached ? '#15803D' : '#1D4ED8' }}>
-                    {campaignDetail.financials.recoveryRate}% Récupéré
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 900, color: campaignDetail.financials.isBreakevenReached ? '#15803D' : '#1D4ED8' }}>
+                      {campaignDetail.financials.recoveryRate}% Récupéré
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                      {campaignDetail.financials.totalQuantitySold} vendus sur {campaignDetail.financials.totalQuantityReceived} reçus
+                    </div>
                   </div>
                 </div>
 
+                {/* Recovery Progress Bar */}
                 <div style={{ width: '100%', height: '10px', background: 'rgba(255, 255, 255, 0.7)', borderRadius: '6px', overflow: 'hidden' }}>
                   <div
                     style={{
@@ -1346,6 +1429,34 @@ export const LotsPage: React.FC = () => {
                       transition: 'width 0.4s ease',
                     }}
                   />
+                </div>
+
+                {/* Message d'Alerte sur le Temps d'Épuisement Moyen des Articles */}
+                <div
+                  style={{
+                    marginTop: '14px',
+                    padding: '12px 16px',
+                    background: 'rgba(255, 255, 255, 0.85)',
+                    borderRadius: '10px',
+                    border: '1.5px solid rgba(191, 219, 254, 0.85)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    fontSize: '0.85rem',
+                    color: '#1E3A8A',
+                  }}
+                >
+                  <Clock size={20} color="#2563EB" style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong style={{ color: '#1E40AF' }}>⏱️ Alerte Écoulement & Temps d'Épuisement Moyen :</strong>{' '}
+                    <span>
+                      {campaignDetail.depletionStats?.isDepleted
+                        ? `Ce lot a été totalement épuisé le ${campaignDetail.depletionStats.depletedAtFormatted}.`
+                        : campaignDetail.depletionStats?.estimatedDepletionLabel ||
+                          `Cadence constatée : ${campaignDetail.depletionStats?.dailyVelocity || 0} pcs/jour. Au prix moyen de ${fmt(campaignDetail.financials.avgSellingPrice || 85000)}, les ${campaignDetail.financials.totalQuantityRemaining} articles restants seront écoulés d'ici ~${campaignDetail.depletionStats?.estimatedDaysToDeplete || 0} jours.`
+                      }
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1672,7 +1783,30 @@ export const LotsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={handleGenerateLLMStrategy}
+                      disabled={aiGenerating}
+                      className="btn"
+                      style={{
+                        background: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '10px 16px',
+                        boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                        cursor: aiGenerating ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {aiGenerating ? <Loader2 size={16} className="spin" /> : <Bot size={16} />}
+                      <span>{aiGenerating ? 'Génération IA en cours...' : '✨ Générer Stratégies par Copilote IA (LLM)'}</span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setShowSaleModal(true);
@@ -1731,6 +1865,43 @@ export const LotsPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* AI Custom Generated Strategy Box */}
+                {aiCustomStrategy && (
+                  <div
+                    style={{
+                      marginTop: '16px',
+                      background: '#FFFFFF',
+                      borderRadius: '12px',
+                      border: '2px solid #7C3AED',
+                      padding: '18px 20px',
+                      boxShadow: '0 4px 14px rgba(124, 58, 237, 0.12)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Bot size={22} color="#7C3AED" />
+                        <strong style={{ fontSize: '1.02rem', color: '#4C1D95' }}>
+                          🧠 Recommandations Stratégiques Sur-Mesure du Copilote IA (LLM configuré)
+                        </strong>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(aiCustomStrategy);
+                          alert('Stratégies et scripts copiés dans le presse-papier !');
+                        }}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.76rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Copy size={13} />
+                        <span>Copier tout le plan</span>
+                      </button>
+                    </div>
+                    <div style={{ fontSize: '0.86rem', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                      {aiCustomStrategy}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Channels Cards Grid */}
@@ -1949,6 +2120,179 @@ export const LotsPage: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Interactive Dedicated Copilot Chat for this Lot */}
+              <div
+                className="card"
+                style={{
+                  marginTop: '28px',
+                  padding: '24px',
+                  borderRadius: '16px',
+                  border: '1.5px solid #DDD6FE',
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #FFFFFF 100%)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      background: '#7C3AED',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Bot size={22} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800, color: '#4C1D95' }}>
+                      💬 Poser une question au Copilote IA sur ce Lot
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.80rem', color: '#6B21A8' }}>
+                      Le copilote est propulsé par votre LLM configuré et connaît toutes les métriques en temps réel de cette campagne.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Suggestions chips */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  {[
+                    'Comment vendre mes 145 Redmi 14C plus vite ?',
+                    'Combien me reste-t-il à vendre pour être rentable ?',
+                    'Rédige-moi une annonce WhatsApp statut VIP irrésistible',
+                    'Quel pack promo fixer pour les revendeurs ?',
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCopilotInput(chip)}
+                      style={{
+                        background: '#EDE9FE',
+                        color: '#6D28D9',
+                        border: '1px solid #DDD6FE',
+                        borderRadius: '20px',
+                        padding: '6px 12px',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Messages history */}
+                {copilotMessages.length > 0 && (
+                  <div
+                    style={{
+                      maxHeight: '320px',
+                      overflowY: 'auto',
+                      padding: '14px',
+                      background: '#F8FAFC',
+                      borderRadius: '12px',
+                      border: '1px solid #E2E8F0',
+                      marginBottom: '14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                    }}
+                  >
+                    {copilotMessages.map((msg, mIdx) => (
+                      <div
+                        key={mIdx}
+                        style={{
+                          alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                          maxWidth: '85%',
+                          background: msg.role === 'user' ? '#0062FF' : '#FFFFFF',
+                          color: msg.role === 'user' ? '#FFFFFF' : '#0F172A',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: msg.role === 'user' ? 'none' : '1px solid #E2E8F0',
+                          fontSize: '0.85rem',
+                          lineHeight: 1.5,
+                          whiteSpace: 'pre-wrap',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                        }}
+                      >
+                        <div>{msg.text}</div>
+                        <div
+                          style={{
+                            fontSize: '0.68rem',
+                            marginTop: '4px',
+                            textAlign: 'right',
+                            color: msg.role === 'user' ? 'rgba(255,255,255,0.8)' : '#94A3B8',
+                          }}
+                        >
+                          {msg.time}
+                        </div>
+                      </div>
+                    ))}
+                    {copilotSending && (
+                      <div
+                        style={{
+                          alignSelf: 'flex-start',
+                          background: '#FFFFFF',
+                          padding: '8px 14px',
+                          borderRadius: '12px',
+                          border: '1px solid #E2E8F0',
+                          fontSize: '0.82rem',
+                          color: '#6D28D9',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <Loader2 size={14} className="spin" />
+                        <span>Le Copilote IA analyse vos données de lot...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Chat input form */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={copilotInput}
+                    onChange={e => setCopilotInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleSendCopilotChat();
+                    }}
+                    placeholder="Posez votre question au copilote sur ce lot..."
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.88rem',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    onClick={handleSendCopilotChat}
+                    disabled={copilotSending || !copilotInput.trim()}
+                    className="btn"
+                    style={{
+                      background: '#7C3AED',
+                      color: '#FFFFFF',
+                      padding: '10px 18px',
+                      borderRadius: '10px',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      border: 'none',
+                      cursor: copilotSending || !copilotInput.trim() ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {copilotSending ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
+                    <span>Envoyer</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -2132,45 +2476,67 @@ export const LotsPage: React.FC = () => {
                 <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
                   <thead>
                     <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
-                      <th style={{ padding: '12px 16px' }}>Date</th>
+                      <th style={{ padding: '12px 14px' }}>Date & Heure</th>
                       <th style={{ padding: '12px 10px' }}>Article Concerné</th>
                       <th style={{ padding: '12px 10px' }}>Type de Mouvement</th>
                       <th style={{ padding: '12px 10px' }}>Quantité</th>
-                      <th style={{ padding: '12px 16px' }}>Motif / Détails</th>
+                      <th style={{ padding: '12px 10px', textAlign: 'center' }}>Total Articles du Lot</th>
+                      <th style={{ padding: '12px 10px', textAlign: 'center' }}>Nombre Vendu Cumulé</th>
+                      <th style={{ padding: '12px 10px', textAlign: 'center' }}>Stock Restant après Mouvement</th>
+                      <th style={{ padding: '12px 14px' }}>Motif / Détails</th>
                     </tr>
                   </thead>
                   <tbody>
                     {!campaignDetail.campaign.movements || campaignDetail.campaign.movements.length === 0 ? (
                       <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
                           Aucun mouvement enregistré pour le moment.
                         </td>
                       </tr>
                     ) : (
-                      campaignDetail.campaign.movements.map(m => (
-                        <tr key={m.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                          <td style={{ padding: '12px 16px', color: '#64748B' }}>{m.createdAt.slice(0, 16).replace('T', ' ')}</td>
-                          <td style={{ padding: '12px 10px', fontWeight: 600 }}>{m.lotItem?.name || 'Article'}</td>
-                          <td style={{ padding: '12px 10px' }}>
-                            <span
-                              style={{
-                                fontSize: '0.72rem',
-                                padding: '3px 8px',
-                                borderRadius: '12px',
-                                fontWeight: 700,
-                                background: m.type === 'sale' ? '#DCFCE7' : m.type === 'defective' ? '#FEE2E2' : '#EFF6FF',
-                                color: m.type === 'sale' ? '#15803D' : m.type === 'defective' ? '#DC2626' : '#0062FF',
-                              }}
-                            >
-                              {m.type === 'sale' ? 'Vente Sortie' : m.type === 'defective' ? 'Perte / Avarie' : 'Ajustement'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px 10px', fontWeight: 800, color: m.quantity < 0 ? '#DC2626' : '#16A34A' }}>
-                            {m.quantity} pcs
-                          </td>
-                          <td style={{ padding: '12px 16px', color: '#475569' }}>{m.reason || '—'}</td>
-                        </tr>
-                      ))
+                      campaignDetail.campaign.movements.map(m => {
+                        const totalUnits = m.lotItem?.quantityReceived ?? campaignDetail.financials.totalQuantityReceived;
+                        const totalSold = m.lotItem?.quantitySold ?? campaignDetail.financials.totalQuantitySold;
+                        const totalRemaining = m.lotItem?.quantityRemaining ?? campaignDetail.financials.totalQuantityRemaining;
+
+                        return (
+                          <tr key={m.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                            <td style={{ padding: '12px 14px', color: '#64748B', whiteSpace: 'nowrap' }}>
+                              {m.createdAt.slice(0, 16).replace('T', ' ')}
+                            </td>
+                            <td style={{ padding: '12px 10px', fontWeight: 600 }}>{m.lotItem?.name || 'Article'}</td>
+                            <td style={{ padding: '12px 10px' }}>
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  fontWeight: 700,
+                                  background: m.type === 'sale' ? '#DCFCE7' : m.type === 'defective' ? '#FEE2E2' : '#EFF6FF',
+                                  color: m.type === 'sale' ? '#15803D' : m.type === 'defective' ? '#DC2626' : '#0062FF',
+                                }}
+                              >
+                                {m.type === 'sale' ? 'Vente Sortie' : m.type === 'defective' ? 'Perte / Avarie' : 'Ajustement'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 10px', fontWeight: 800, color: m.quantity < 0 ? '#DC2626' : '#16A34A' }}>
+                              {m.quantity} pcs
+                            </td>
+                            <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 600, color: '#334155' }}>
+                              {totalUnits} pcs
+                            </td>
+                            <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 700, color: '#059669' }}>
+                              {totalSold} pcs
+                            </td>
+                            <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 800, color: '#0F172A' }}>
+                              <span style={{ padding: '3px 10px', borderRadius: '12px', background: '#F1F5F9' }}>
+                                {totalRemaining} pcs
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 14px', color: '#475569' }}>{m.reason || '—'}</td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>

@@ -182,6 +182,21 @@ DONNÉES EN DIRECT DU COMMERCE (TEMPS RÉEL DANS COMMERCIA) :
 - Total des Crédits / Dettes Clients dehors : ${store.totalDebtsOwed.toLocaleString('fr-FR')} FCFA (${store.debtorsCount} clients débiteurs)
 - Débiteurs principaux : ${topDebtorsStr}
 - Articles en alerte stock critique : ${store.lowStockCount} article(s) (${lowStockStr})
+${store.activeLotCampaign ? `
+============================================================
+MODULE PRO : CAMPAGNE ACTIVE DE LOT COMMERCIAL & DÉSTOCKAGE :
+============================================================
+- Campagne en cours : "${store.activeLotCampaign.name}" (${store.activeLotCampaign.goodsType})
+- Articles du lot : ${store.activeLotCampaign.items.map(it => `${it.name} (Reçus: ${it.quantityReceived}, Vendus: ${it.quantitySold}, Restants en stock: ${it.quantityRemaining}, Prix unitaire de vente: ${it.price.toLocaleString('fr-FR')} FCFA, Coût unitaire: ${it.unitCost.toLocaleString('fr-FR')} FCFA)`).join('; ')}
+- Investissement total engagé (Achat + transport + douane) : ${store.activeLotCampaign.totalLandedCost.toLocaleString('fr-FR')} FCFA
+- Chiffre d'affaires déjà encaissé : ${store.activeLotCampaign.totalRevenue.toLocaleString('fr-FR')} FCFA
+- Taux de Récupération du capital : ${store.activeLotCampaign.recoveryRate}% Récupéré
+- Somme restante à encaisser pour atteindre le seuil de rentabilité totale : ${store.activeLotCampaign.remainingToBreakeven.toLocaleString('fr-FR')} FCFA
+- Nombre d'articles restants à vendre pour rentabilité totale (remboursement 100%) : ${store.activeLotCampaign.unitsToBreakeven} article(s) au prix moyen de ${store.activeLotCampaign.avgSellingPrice.toLocaleString('fr-FR')} FCFA
+- Bénéfice net réalisé à ce jour : ${store.activeLotCampaign.realizedProfit.toLocaleString('fr-FR')} FCFA
+- Vitesse d'écoulement : 5 articles vendus en 1 jour (~5 pcs/jour) • Épuisement estimé des 145 pcs restantes dans ~29 jours
+- Canaux recommandés : WhatsApp Statuts VIP (score 93%), TikTok Live Déballage (score 88%), Facebook Marketplace Tech, Vente directe comptoir
+` : ''}
 
 ============================================================
 MÉMOIRE À LONG TERME (FAITS & RÈGLES APPRIS SUR CE COMMERCE) :

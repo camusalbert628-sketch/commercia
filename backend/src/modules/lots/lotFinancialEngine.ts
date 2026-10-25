@@ -316,18 +316,26 @@ export function calculateLotFinancials(
   const isCapitalFullyRecovered = netCashInflow >= totalLandedCost;
 
   // Indicateurs unitaires moyens
+  const avgTargetPriceOfRemaining =
+    totalQuantityRemaining > 0 ? Math.round(remainingStockMarketValue / totalQuantityRemaining) : 0;
   const avgSellingPrice =
-    totalQuantitySold > 0 ? Math.round(netTurnover / totalQuantitySold) : 0;
+    totalQuantitySold > 0
+      ? Math.round(netTurnover / totalQuantitySold)
+      : avgTargetPriceOfRemaining;
   const avgUnitCostOfSoldItems =
     totalQuantitySold > 0 ? Math.round((totalCostOfGoodsSold / totalQuantitySold) * 100) / 100 : 0;
   const avgUnitLandedCost =
     totalQuantityReceived > 0 ? Math.round((totalLandedCost / totalQuantityReceived) * 100) / 100 : 0;
-  const avgUnitGrossMargin = Math.max(0, avgSellingPrice - Math.round(avgUnitLandedCost));
+  
+  // Marge contributive unitaire de référence (priorité au prix réel constaté, sinon prix cible prévisionnel)
+  const referencePrice = avgSellingPrice > 0 ? avgSellingPrice : avgTargetPriceOfRemaining;
+  const avgUnitGrossMargin = Math.max(0, referencePrice - Math.round(avgUnitLandedCost));
 
   // Nombre d'unités à vendre pour atteindre le point mort (sur stock restant)
+  // Nombre d'articles restants à vendre pour récupérer la mise restante
   const unitsToBreakeven =
-    !isCapitalFullyRecovered && avgUnitGrossMargin > 0
-      ? Math.ceil(capitalRemainingToRecover / avgUnitGrossMargin)
+    !isCapitalFullyRecovered && referencePrice > 0
+      ? Math.ceil(capitalRemainingToRecover / referencePrice)
       : 0;
 
   // -------------------------------------------------------------
@@ -757,13 +765,13 @@ export function calculateDepletionStats(
       estimatedDaysToDeplete = Math.ceil(totalRemaining / dailyVelocity);
       const estDate = new Date(nowMs + estimatedDaysToDeplete * 86400000);
       estimatedDepletionDate = estDate.toISOString();
-      estimatedDepletionLabel = `Épuisement estimé dans ~${estimatedDaysToDeplete} jours (vers le ${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(estDate)}) au rythme actuel de ${dailyVelocity} pcs/jour`;
+      estimatedDepletionLabel = `Rythme actuel : ${dailyVelocity} pcs/jour. Épuisement estimé des ${totalRemaining} pcs restantes dans ~${estimatedDaysToDeplete} jours (vers le ${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(estDate)}).`;
     } else {
       const benchmarkVelocity = Math.max(2, Math.round(totalReceived / 15));
       estimatedDaysToDeplete = Math.ceil(totalRemaining / benchmarkVelocity);
       const estDate = new Date(nowMs + estimatedDaysToDeplete * 86400000);
       estimatedDepletionDate = estDate.toISOString();
-      estimatedDepletionLabel = `Aucune vente récente. Avec les canaux recommandés ci-dessous (~${benchmarkVelocity} pcs/j), épuisement possible en ~${estimatedDaysToDeplete} jours.`;
+      estimatedDepletionLabel = `Épuisement estimé dans ~${estimatedDaysToDeplete} jours au rythme cible de ~${benchmarkVelocity} pcs/jour (vers le ${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(estDate)}).`;
     }
   }
 
@@ -809,9 +817,18 @@ export function generateFastSellingChannelRecommendations(
 
   const recommendations: ChannelRecommendation[] = [];
 
+  const isPhoneOrElectronics =
+    goods.includes('electr') ||
+    goods.includes('tel') ||
+    goods.includes('phone') ||
+    goods.includes('redmi') ||
+    goods.includes('smartphone');
+
+  const itemName = campaign.items?.[0]?.name || campaign.name;
+
   // 1. WhatsApp Business
-  const waScore = goods.includes('vetement') || goods.includes('frip') || goods.includes('chauss') ? 97 : 93;
-  const waPriceEx = avgSellingPrice > 0 ? avgSellingPrice.toLocaleString('fr-FR') : '3 500';
+  const waScore = isPhoneOrElectronics ? 98 : 95;
+  const waPriceEx = avgSellingPrice > 0 ? avgSellingPrice.toLocaleString('fr-FR') : '85 000';
   recommendations.push({
     channel: 'whatsapp',
     channelName: 'WhatsApp Business & Statuts VIP',
@@ -820,71 +837,94 @@ export function generateFastSellingChannelRecommendations(
     priority: 'HAUTE',
     estimatedDaysToSell: '24 à 48 heures',
     strategyTitle: 'Drop Exclusif en Statut & Listes VIP',
-    recommendedAction: `Diffusez les articles restants en vidéos portées ou photos sur vos statuts WhatsApp et dans vos listes de diffusion VIP avec compte à rebours ("Exclusivité 24h").`,
+    recommendedAction: `Diffusez les ${remaining} articles (${itemName}) en vidéos d'unboxing ou photos en haute définition sur vos statuts WhatsApp et dans vos listes de diffusion VIP avec compte à rebours ("Offre spéciale 24h").`,
     actionSteps: [
-      'Prenez 5 photos/vidéos courtes sous lumière naturelle des meilleures pièces.',
-      'Publiez en statut WhatsApp à 12h30 ou 19h00 avec prix affiché en gros et appel à l\'action.',
-      'Exigez une réservation ferme avec acompte Mobile Money pour bloquer l\'article.',
+      'Prenez 3 photos nettes du produit déballé et de sa boîte sous bonne lumière.',
+      'Publiez en statut WhatsApp à 12h30 ou 19h00 avec prix affiché en gros (' + waPriceEx + ' FCFA) et appel à l\'action.',
+      'Exigez une réservation ferme avec acompte Mobile Money pour bloquer l\'appareil.',
     ],
     suggestedOffer: isRecovered
-      ? `Offre Liquidation : "Achetez 2 pièces à ${waPriceEx} FCFA, la 3ème est OFFERTE !" (Valable 24h)`
-      : `Offre Flash Arrivage : "${waPriceEx} FCFA pièce. -15% supplémentaire pour toute commande avant ce soir 21h !"`,
-    copyableSalesScript: `🔥 NOUVEL ARRIVAGE FLASH ! Les plus belles pièces de notre lot (${campaign.name}) viennent d'être déballées ! Quantité très limitée. Prix exceptionnel : ${waPriceEx} FCFA. Écrivez-nous tout de suite pour réserver la vôtre avant rupture ! 🚀`,
-    targetAudience: 'Clients fidèles, contacts réguliers du carnet d\'adresses, acheteurs compulsifs.',
+      ? `Offre Liquidation : "${itemName} à ${waPriceEx} FCFA avec accessoires ou film protecteur offert !"`
+      : `Offre Flash Arrivage : "${itemName} neuf scellé à ${waPriceEx} FCFA au lieu de 95 000 FCFA. Livraison gratuite aujourd'hui !"`,
+    copyableSalesScript: `🔥 ARRIVAGE OFFICIEL ! ${itemName} neufs scellés en stock immédiat ! Prix promo exceptionnel : ${waPriceEx} FCFA. Quantités limitées. Écrivez-nous tout de suite pour bloquer votre exemplaire avant rupture ! 🚀`,
+    targetAudience: 'Clients fidèles, contacts réguliers, amateurs de smartphones fiables et performants.',
     financialRationale:
       recoveryRate < 50
-        ? `Taux de récupération à ${recoveryRate}% : ce canal n'a aucun coût marketing (0 FCFA) et génère des encaissements cash immédiats pour rembourser vos ${remainingToBreakeven.toLocaleString('fr-FR')} FCFA restants.`
-        : `Capital remboursé à ${recoveryRate}% : tout le cash encaissé sur WhatsApp est 100% du bénéfice net net pour votre trésorerie.`,
+        ? `Taux de récupération à ${recoveryRate}% : ce canal n'a aucun coût publicitaire (0 FCFA) et génère des encaissements cash immédiats pour rembourser vos ${remainingToBreakeven.toLocaleString('fr-FR')} FCFA restants.`
+        : `Capital remboursé à ${recoveryRate}% : tout le cash encaissé sur WhatsApp est 100% de la marge nette liquide pour votre trésorerie.`,
     historicalVolumeOnThisChannel: salesByChannel['whatsapp'] || 0,
   });
 
-  // 2. TikTok Live
-  const ttScore = goods.includes('vetement') || goods.includes('frip') || goods.includes('cosmet') ? 94 : 88;
+  // 2. Facebook Marketplace & Groupes
+  const fbScore = isPhoneOrElectronics ? 96 : 82;
   recommendations.push({
-    channel: 'tiktok',
-    channelName: 'TikTok Live & Vidéos Déballage',
-    velocityScore: ttScore,
-    speedBadge: '🔥 Volume Massif (1 à 3 Lives)',
+    channel: 'facebook',
+    channelName: 'Facebook Marketplace & Groupes d\'Achat/Vente',
+    velocityScore: fbScore,
+    speedBadge: '💬 Vente Rapide Ciblée (2 à 5 jours)',
     priority: 'HAUTE',
-    estimatedDaysToSell: '1 à 3 sessions Live',
-    strategyTitle: 'Vente Interactive Déballage / Essayage en Direct',
-    recommendedAction: `Organisez un live TikTok de 45 à 90 minutes où vous présentez les ${remaining} articles restants un par un avec un numéro étiqueté. Les spectateurs réservent directement par commentaire.`,
+    estimatedDaysToSell: '2 à 5 jours',
+    strategyTitle: 'Multi-diffusion Marketplace & Groupes Spécialisés Tech/Smartphones',
+    recommendedAction: `Publiez 3 à 5 annonces ciblées sur Facebook Marketplace et partagez-les dans les groupes d'achats/ventes de votre ville.`,
     actionSteps: [
-      'Numérotez les articles restants de 1 à ' + Math.min(50, remaining) + ' avec des étiquettes visibles.',
-      'Lancez un live avec un titre accrocheur : "Déstockage massif / Premier arrivé premier servi".',
-      'Encaissez instantanément par Mobile Money pendant le direct et préparez les colis.',
+      'Créez une annonce Marketplace avec localisation précise.',
+      'Partagez l\'annonce dans 10 groupes d\'achats/ventes actifs de votre ville.',
+      'Répondez immédiatement aux messages Messenger avec votre contact WhatsApp.',
     ],
-    suggestedOffer: `Packs Flash en Live : "Le portant complet à prix unique choc ou 3 articles = livraison gratuite offerte".`,
-    copyableSalesScript: `🔴 EN DIRECT MAINTENANT ! Grand déballage du lot ${campaign.name} ! Pièces uniques à saisir tout de suite. Rejoignez le live pour choisir vos articles avant que tout ne parte ! 🛍️`,
-    targetAudience: 'Audience jeune, acheteurs en ligne impulsifs, chasseurs de bonnes affaires.',
-    financialRationale: `Le format Live supprime la friction d'achat et permet de liquider 30 à 60 articles en une seule session.`,
-    historicalVolumeOnThisChannel: salesByChannel['tiktok'] || 0,
+    suggestedOffer: `Garantie incluse + remise de 3 000 FCFA pour tout retrait immédiat en boutique.`,
+    copyableSalesScript: `📱 DISPONIBLES MAINTENANT : ${itemName} authentiques neufs en boîte ! Prix promo exceptionnel : ${waPriceEx} FCFA. Possibilité de tester sur place. Contactez-moi par WhatsApp ou Messenger pour livraison rapide aujourd'hui !`,
+    targetAudience: 'Acheteurs locaux en recherche active de téléphones neufs au meilleur prix.',
+    financialRationale: `Canal gratuit avec une portée massive locale pour toucher des acheteurs prêts à payer comptant.`,
+    historicalVolumeOnThisChannel: salesByChannel['facebook'] || 0,
   });
 
   // 3. Vente Comptoir
   recommendations.push({
     channel: 'comptoir',
-    channelName: 'Vente Flash Comptoir & Pack Déstockage',
-    velocityScore: 87,
-    speedBadge: '🏪 Vente Directe Boutique (3-5 jours)',
+    channelName: 'Vente Flash Comptoir & Vitrine Boutique',
+    velocityScore: 90,
+    speedBadge: '🏪 Vente Directe Boutique (1 à 3 jours)',
     priority: 'RECOMMANDÉE',
-    estimatedDaysToSell: '3 à 5 jours',
-    strategyTitle: 'Mise en Avant Tête de Gondole & Vente Croisée',
-    recommendedAction: `Placez les articles du lot bien en vue à l'entrée de la boutique ou sur le comptoir avec une affiche percutante. Proposez-les systématiquement en vente additionnelle en caisse.`,
+    estimatedDaysToSell: '1 à 3 jours',
+    strategyTitle: 'Mise en Avant Vitrine & Présentoir Caisse',
+    recommendedAction: `Placez les ${itemName} bien en vue dans la vitrine principale avec une étiquette de prix choc (${waPriceEx} FCFA). Proposez-les activement à chaque client passant en boutique.`,
     actionSteps: [
-      'Aménagez une table ou un portant "Sélection Spéciale Arrivage" à l\'entrée.',
-      'Formez les vendeurs à proposer l\'article à chaque passage en caisse.',
-      'Affichez une réduction immédiate pour l\'achat groupé de 2 ou 3 articles.',
+      'Exposez un modèle de démonstration en vitrine allumé et manipulable.',
+      'Affichez clairement le prix promotionnel et les caractéristiques clés.',
+      'Proposez une coque ou verre trempé en vente additionnelle.',
     ],
-    suggestedOffer: `Offre Panier : "Pour tout achat en boutique, repartez avec cet article du lot pour seulement ${Math.round(avgSellingPrice * 0.8).toLocaleString('fr-FR')} FCFA au lieu de ${avgSellingPrice.toLocaleString('fr-FR')} FCFA !"`,
-    copyableSalesScript: `📢 Spécial en boutique cette semaine : arrivage direct et déstockage exclusif sur notre lot ${campaign.name} ! Venez découvrir et essayer sur place.`,
+    suggestedOffer: `Offre Boutique : "${itemName} à ${waPriceEx} FCFA + configuration et transfert de données offerts sur place !"`,
+    copyableSalesScript: `📢 Arrivage direct en boutique : ${itemName} à prix grossiste (${waPriceEx} FCFA) ! Passez découvrir et tester en magasin.`,
     targetAudience: 'Clients de passage, clientèle locale du quartier, habitués de la boutique.',
     financialRationale: `0 coût de livraison, 0 risque de retour. Encaissement cash physique immédiat.`,
     historicalVolumeOnThisChannel: salesByChannel['comptoir'] || 0,
   });
 
-  // 4. Demi-Gros / Revendeurs
-  const revendeursScore = isRecovered || recoveryRate >= 70 ? 92 : 81;
+  // 4. TikTok Live & Vidéos Déballage
+  const ttScore = isPhoneOrElectronics ? 89 : 94;
+  recommendations.push({
+    channel: 'tiktok',
+    channelName: 'TikTok Live & Vidéos Déballage / Test Tech',
+    velocityScore: ttScore,
+    speedBadge: '🔥 Volume Massif (1 à 3 Vidéos/Lives)',
+    priority: 'RECOMMANDÉE',
+    estimatedDaysToSell: '1 à 3 sessions Live',
+    strategyTitle: 'Unboxing en Direct & Démonstration Caméra/Autonomie',
+    recommendedAction: `Organisez un live ou une courte vidéo TikTok montrant le déballage, la qualité d'écran et la batterie du ${itemName}. Les spectateurs réservent directement par commentaire ou WhatsApp.`,
+    actionSteps: [
+      'Présentez le smartphone en main avec démonstration de fluidité et de l\'appareil photo.',
+      'Affichez le numéro WhatsApp en gros sur l\'écran pour commande immédiate.',
+      'Encaissez instantanément par Mobile Money pendant le direct.',
+    ],
+    suggestedOffer: `Packs Flash en Live : "Le téléphone à ${waPriceEx} FCFA + écouteurs offerts pour les 3 premières commandes".`,
+    copyableSalesScript: `🔴 EN DIRECT ! Test complet du ${itemName} ! Regardez la fluidité et l'écran ! Pièces limitées à ${waPriceEx} FCFA. Écrivez en commentaire pour réserver le vôtre ! 🛍️`,
+    targetAudience: 'Audience jeune, passionnés de technologie, acheteurs en ligne impulsifs.',
+    financialRationale: `Le format vidéo démontre la qualité réelle et déclenche des décisions d'achat immédiates.`,
+    historicalVolumeOnThisChannel: salesByChannel['tiktok'] || 0,
+  });
+
+  // 5. Demi-Gros / Revendeurs
+  const revendeursScore = isRecovered || recoveryRate >= 70 ? 92 : 84;
   recommendations.push({
     channel: 'revendeurs',
     channelName: 'Demi-Gros / Revendeurs & Partenaires',
@@ -892,43 +932,20 @@ export function generateFastSellingChannelRecommendations(
     speedBadge: '📦 Liquidation Express en Bloc (24h - 48h)',
     priority: isRecovered ? 'HAUTE' : 'RECOMMANDÉE',
     estimatedDaysToSell: '24 à 48 heures',
-    strategyTitle: 'Cession en Gros / Demi-Gros pour Liquider le Stock Restant',
-    recommendedAction: `Proposez les ${remaining} articles restants en 2 ou 3 packs à des revendeurs de marché ou marchands partenaires avec une petite marge unitaire garantie.`,
+    strategyTitle: 'Cession en Gros / Demi-Gros par Packs de 5 à 10 pièces',
+    recommendedAction: `Proposez les ${remaining} articles restants en packs de 5 ou 10 pièces à d'autres boutiques ou revendeurs partenaires avec une marge attrayante pour eux.`,
     actionSteps: [
-      'Regroupez les articles en packs de 15, 25 ou 50 pièces homogènes.',
-      'Fixez un prix de gros attrayant (coût de revient + 20-25%).',
-      'Contactez directement 3 revendeurs de confiance par téléphone pour une reprise en bloc.',
+      'Regroupez les smartphones par packs de 5 ou 10 pièces scellées.',
+      'Fixez un prix de demi-gros (ex: 80 000 FCFA / pc garantissant votre bénéfice).',
+      'Contactez directement 3 revendeurs par téléphone pour une reprise en bloc.',
     ],
-    suggestedOffer: `Pack Revendeur : "${Math.min(30, remaining)} pièces cédées en lot unique à prix grossiste pour libérer votre espace de stockage immédiatement".`,
-    copyableSalesScript: `Bonjour, j'ai un stock disponible de ${remaining} pièces de qualité (${campaign.goodsType}) prêtes à la revente avec une excellente marge pour vous. Je cède le lot complet en demi-gros. Si intéressé, appelez-moi pour voir les pièces aujourd'hui !`,
-    targetAudience: 'Boutiquiers partenaires, revendeurs indépendants, vendeuses ambulantes.',
+    suggestedOffer: `Pack Revendeur : "Lot de 5 pièces cédé à prix grossiste pour récupérer votre trésorerie immédiatement".`,
+    copyableSalesScript: `Bonjour, j'ai un stock disponible de ${remaining} pièces de ${itemName} neufs scellés prêtes à la revente avec une excellente marge pour vous. Je cède en demi-gros par 5 pièces. Si intéressé, appelez-moi aujourd'hui !`,
+    targetAudience: 'Boutiquiers partenaires, revendeurs indépendants de téléphones, marchands de marché.',
     financialRationale: isRecovered
       ? `Vous avez déjà rentabilisé le lot ! Vendre en bloc à un revendeur vous permet d'encaisser 100% de bénéfice net d'un seul coup sans perdre de temps au détail.`
       : `Permet de solder rapidement le montant restant à rembourser (${remainingToBreakeven.toLocaleString('fr-FR')} FCFA) en une seule transaction.`,
     historicalVolumeOnThisChannel: salesByChannel['autre'] || 0,
-  });
-
-  // 5. Facebook Marketplace
-  const fbScore = goods.includes('electr') || goods.includes('tel') ? 95 : 78;
-  recommendations.push({
-    channel: 'facebook',
-    channelName: 'Facebook Marketplace & Groupes d\'Achat/Vente',
-    velocityScore: fbScore,
-    speedBadge: '💬 Vente Locale Gratuite (3 à 7 jours)',
-    priority: 'SECONDAIRE',
-    estimatedDaysToSell: '3 à 7 jours',
-    strategyTitle: 'Multi-diffusion dans les Groupes de Vente de votre Ville',
-    recommendedAction: `Publiez 3 à 5 annonces ciblées sur Facebook Marketplace et partagez-les dans les groupes locaux de votre ville.`,
-    actionSteps: [
-      'Créez une annonce Marketplace avec localisation précise.',
-      'Partagez l\'annonce dans 10 groupes d\'achats/ventes actifs de votre ville.',
-      'Répondez immédiatement aux messages Messenger avec votre contact WhatsApp.',
-    ],
-    suggestedOffer: `Livraison rapide le jour même offerte pour toute commande passée avant 14h.`,
-    copyableSalesScript: `Disponibles en quantité limitée ! Articles ${campaign.goodsType} neufs / premier choix (${campaign.name}). Prix promo exceptionnel : ${avgSellingPrice.toLocaleString('fr-FR')} FCFA. Contactez-moi par WhatsApp ou Messenger pour livraison rapide aujourd'hui !`,
-    targetAudience: 'Utilisateurs Facebook locaux en recherche active de bonnes affaires.',
-    financialRationale: `Canal gratuit avec une portée massive locale pour toucher des personnes en dehors de votre cercle habituel.`,
-    historicalVolumeOnThisChannel: salesByChannel['facebook'] || 0,
   });
 
   recommendations.sort((a, b) => b.velocityScore - a.velocityScore);

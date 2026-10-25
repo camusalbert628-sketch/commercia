@@ -132,6 +132,7 @@ router.post('/chat', requireProSubscription, async (req: AuthRequest, res, next)
       debtors,
       lowStockProducts,
       topProducts,
+      activeLotCampaigns,
     ] = await Promise.all([
       req.prisma.sale.findMany({
         where: { businessId, saleDate: { gte: startOfToday } },
@@ -163,7 +164,17 @@ router.post('/chat', requireProSubscription, async (req: AuthRequest, res, next)
         orderBy: { _sum: { totalPrice: 'desc' } },
         take: 3,
       }),
+      req.prisma.commercialLotCampaign.findMany({
+        where: { businessId, status: { in: ['active', 'paused'] } },
+        include: {
+          items: true,
+          sales: { include: { items: true } },
+          expenses: true,
+        },
+      }),
     ]);
+
+    const activeLots = (activeLotCampaigns || []) as any[];
 
     const metricsToday = calculateFinancialMetrics({
       sales: salesToday,
@@ -180,7 +191,46 @@ router.post('/chat', requireProSubscription, async (req: AuthRequest, res, next)
     const lower = data.message.toLowerCase();
     let reply = '';
 
-    if (lower.includes('bénéfice') || lower.includes('profit') || lower.includes('combien j\'ai gagné') || lower.includes('gagné')) {
+    if (
+      lower.includes('lot') ||
+      lower.includes('campagne') ||
+      lower.includes('redmi') ||
+      lower.includes('téléphone') ||
+      lower.includes('telephone') ||
+      lower.includes('14c') ||
+      lower.includes('remboursement') ||
+      lower.includes('point mort')
+    ) {
+      if (activeLots.length > 0) {
+        const lotSummaries = activeLots.map((lot: any) => {
+          const totalLandedCost = lot.totalLandedCost || 0;
+          const salesTotal = (lot.sales || []).reduce((acc: number, s: any) => acc + (s.netAmount || s.totalAmount || 0), 0);
+          const totalUnitsSold = (lot.items || []).reduce((acc: number, it: any) => acc + (it.quantitySold || 0), 0);
+          const totalUnitsRemaining = (lot.items || []).reduce((acc: number, it: any) => acc + (it.quantityRemaining || 0), 0);
+          const recoveryRate = totalLandedCost > 0 ? Math.min(100, Math.round((salesTotal / totalLandedCost) * 1000) / 10) : 0;
+          const remainingToBreakeven = Math.max(0, totalLandedCost - salesTotal);
+          const avgPrice = totalUnitsSold > 0 ? Math.round(salesTotal / totalUnitsSold) : ((lot.items?.[0]?.estimatedSellingPrice) || 85000);
+          const unitsToBreakeven = avgPrice > 0 ? Math.ceil(remainingToBreakeven / avgPrice) : 0;
+          const itemNames = (lot.items || []).map((it: any) => `${it.name} (${it.quantityRemaining} restants sur ${it.quantityReceived})`).join(', ');
+
+          return (
+            `📦 **Campagne : ${lot.name}** (${lot.goodsType || 'Marchandise'})\n` +
+            `• **Investissement total engagé** : **${totalLandedCost.toLocaleString('fr-FR')} FCFA**\n` +
+            `• **Chiffre d'affaires déjà encaissé** : **${salesTotal.toLocaleString('fr-FR')} FCFA** (${totalUnitsSold} articles vendus)\n` +
+            `• **Progression du Remboursement** : **${recoveryRate}% récupéré**\n` +
+            `• **Reste à récupérer pour amortissement 100%** : **${remainingToBreakeven.toLocaleString('fr-FR')} FCFA**\n` +
+            `• **Prix moyen de vente constaté** : **${avgPrice.toLocaleString('fr-FR')} FCFA**\n` +
+            `• **Nombre d'articles pour point mort** : **${unitsToBreakeven} article(s)** à vendre pour couvrir la somme restante !\n` +
+            `• **Stock restant en magasin** : **${totalUnitsRemaining} articles** (${itemNames})\n` +
+            `💡 **Conseil d'écoulement rapide Copilote** : Activez vos canaux prioritaires (WhatsApp Statuts VIP & Live déballage TikTok). Vos marges sont excellentes et seulement ${unitsToBreakeven} vente(s) supplémentaire(s) vous permettront de basculer en bénéfice 100% net !`
+          );
+        }).join('\n\n---\n\n');
+
+        reply = `🚀 **Analyse Copilote de vos Lots Commerciaux Pro :**\n\n${lotSummaries}`;
+      } else {
+        reply = `📦 Vous n'avez aucune campagne de lot active pour le moment. Vous pouvez créer un nouveau lot commercial depuis l'onglet **Gestion des lots** !`;
+      }
+    } else if (lower.includes('bénéfice') || lower.includes('profit') || lower.includes('combien j\'ai gagné') || lower.includes('gagné')) {
       reply = `📊 **Situation de vos bénéfices :**\n\n` +
         `• **Aujourd'hui** : Chiffre d'affaires de **${metricsToday.revenue.toLocaleString('fr-FR')} FCFA** et dépenses de **${(metricsToday.operatingExpenses + metricsToday.inventoryExpenses).toLocaleString('fr-FR')} FCFA**.\n` +
         `• **Bénéfice net estimé du jour** : **${metricsToday.estimatedNetProfit.toLocaleString('fr-FR')} FCFA** (Taux de marge brute : ${metricsToday.grossMarginPercent}%).\n` +
