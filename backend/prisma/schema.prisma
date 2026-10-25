@@ -79,6 +79,8 @@ model Business {
   auditLogs         AuditLog[]
   cashSessions      CashSession[]
   cashMovements     CashMovement[]
+  acquisitionChannels AcquisitionChannel[]
+  acquisitionCampaigns AcquisitionCampaign[]
 }
 
 
@@ -116,10 +118,14 @@ model Sale {
   id            String   @id @default(uuid())
   businessId    String
   customerId    String?
+  channelId     String?
+  campaignId    String?
   totalAmount   Float
   paidAmount    Float
+  discountAmount Float   @default(0)
+  variableCosts Float    @default(0)
   paymentMethod String   @default("cash") // cash, mobile_money, bank_transfer, credit
-  status        String   @default("completed") // completed, pending, cancelled
+  status        String   @default("completed") // completed, pending, cancelled, refunded, delivered
   notes         String?
   saleDate      DateTime @default(now())
   createdAt     DateTime @default(now())
@@ -127,18 +133,21 @@ model Sale {
 
   business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer Customer? @relation(fields: [customerId], references: [id])
+  channel  AcquisitionChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  campaign AcquisitionCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   items    SaleItem[]
 }
 
 model SaleItem {
-  id         String @id @default(uuid())
-  saleId     String
-  productId  String?
-  name       String
-  quantity   Int    @default(1)
-  unitPrice  Float
-  costPrice  Float  @default(0)
-  totalPrice Float
+  id            String @id @default(uuid())
+  saleId        String
+  productId     String?
+  name          String
+  quantity      Int    @default(1)
+  unitPrice     Float
+  costPrice     Float  @default(0)
+  variableCosts Float  @default(0)
+  totalPrice    Float
 
   sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id])
@@ -150,15 +159,21 @@ model Expense {
   id          String   @id @default(uuid())
   businessId  String
   categoryId  String?
+  channelId   String?
+  campaignId  String?
   amount      Float
   description String?
-  category    String   @default("autre") // marchandise, transport, loyer, electricite, telephone, salaires, livraison, autre
+  category    String   @default("autre") // marchandise, transport, loyer, electricite, telephone, salaires, livraison, publicite, autre
+  isAcquisition Boolean @default(false)
+  isFixedCost   Boolean @default(false)
   expenseDate DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   business        Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   expenseCategory ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  channel         AcquisitionChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  campaign        AcquisitionCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
 }
 
 model ExpenseCategory {
@@ -176,21 +191,24 @@ model ExpenseCategory {
 // ===================== CLIENTS =====================
 
 model Customer {
-  id          String   @id @default(uuid())
-  businessId  String
-  name        String
-  phone       String?
-  email       String?
-  notes       String?
-  totalBought Float    @default(0)
-  totalOwed   Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(uuid())
+  businessId     String
+  firstChannelId String?
+  name           String
+  phone          String?
+  email          String?
+  notes          String?
+  totalBought    Float    @default(0)
+  totalOwed      Float    @default(0)
+  acquiredAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  business Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  sales    Sale[]
-  debts    CustomerDebt[]
-  payments CustomerPayment[]
+  business     Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  firstChannel AcquisitionChannel? @relation(fields: [firstChannelId], references: [id], onDelete: SetNull)
+  sales        Sale[]
+  debts        CustomerDebt[]
+  payments     CustomerPayment[]
 }
 
 model CustomerDebt {
@@ -227,13 +245,18 @@ model Product {
   id              String   @id @default(uuid())
   businessId      String
   name            String
+  reference       String?
+  category        String?
   description     String?
   costPrice       Float    @default(0)
   sellingPrice    Float    @default(0)
+  variableCosts   Float    @default(0) // charges variables unitaires (transport, emballage, commission, etc.)
+  variableCostsBreakdown String?      // JSON breakdown: { transport: 0, packaging: 0, delivery: 0, fees: 0, commission: 0, other: 0 }
   quantity        Int      @default(0)
   unit            String   @default("unité")
   lowStockAlert   Int      @default(5)
   isActive        Boolean  @default(true)
+  isArchived      Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -481,4 +504,50 @@ model CashMovement {
   session  CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   business Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
 }
+
+// ===================== CANAUX D'ACQUISITION & CAC =====================
+
+model AcquisitionChannel {
+  id          String   @id @default(uuid())
+  businessId  String
+  name        String
+  type        String   @default("other") // paid_social, organic, search, direct, referral, influencer, affiliation, other
+  description String?
+  color       String?  @default("#0062FF")
+  icon        String?  @default("Globe")
+  isActive    Boolean  @default(true)
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business  Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  campaigns AcquisitionCampaign[]
+  sales     Sale[]
+  expenses  Expense[]
+  customers Customer[]
+
+  @@unique([businessId, name])
+}
+
+model AcquisitionCampaign {
+  id            String    @id @default(uuid())
+  businessId    String
+  channelId     String
+  name          String
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  budgetPlanned Float     @default(0)
+  actualSpend   Float     @default(0)
+  leadsCount    Int       @default(0)
+  status        String    @default("active") // active, completed, paused, draft
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  business Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  channel  AcquisitionChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sales    Sale[]
+  expenses Expense[]
+}
+
 

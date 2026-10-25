@@ -56,10 +56,16 @@ router.post('/', async (req: AuthRequest, res, next) => {
       amount: z.number().positive('Le montant doit être supérieur à zéro'),
       category: z.string().default('autre'),
       categoryId: z.string().optional(),
+      channelId: z.string().optional(),
+      campaignId: z.string().optional(),
+      isAcquisition: z.boolean().default(false),
+      isFixedCost: z.boolean().default(false),
       description: z.string().optional(),
       expenseDate: z.string().optional(),
     });
     const data = schema.parse(req.body);
+
+    const isAcquisitionFinal = data.isAcquisition || data.category === 'publicite' || !!data.channelId || !!data.campaignId;
 
     const expense = await req.prisma.expense.create({
       data: {
@@ -67,11 +73,16 @@ router.post('/', async (req: AuthRequest, res, next) => {
         amount: data.amount,
         category: data.category,
         categoryId: data.categoryId || null,
+        channelId: data.channelId || null,
+        campaignId: data.campaignId || null,
+        isAcquisition: isAcquisitionFinal,
+        isFixedCost: data.isFixedCost,
         description: data.description || null,
         expenseDate: data.expenseDate ? new Date(data.expenseDate) : new Date(),
       },
       include: {
         expenseCategory: true,
+        channel: true,
       },
     });
 

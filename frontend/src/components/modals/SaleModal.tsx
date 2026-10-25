@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, ShoppingBag, Globe, Truck, Store, Users, Package, MessageCircle } from 'lucide-react';
+import { X, Plus, Trash2, ShoppingBag, Globe, Truck, Store, Users, Package, MessageCircle, Target } from 'lucide-react';
 import { api } from '../../services/api';
 import { Product, Customer, Sale } from '../../types';
 import { ReceiptModal } from './ReceiptModal';
+import { growthService } from '../../services/growthService';
+import { AcquisitionChannel } from '../../types/growth';
 
 interface SaleModalProps {
   isOpen: boolean;
@@ -15,6 +17,9 @@ type CustomerQuality = 'comptoir' | 'en_ligne' | 'livraison' | 'fidele' | 'gross
 export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCreated }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [channels, setChannels] = useState<AcquisitionChannel[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState('');
+  const [saleVariableCosts, setSaleVariableCosts] = useState<number | ''>('');
   const [selectedProductId, setSelectedProductId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mobile_money' | 'bank_transfer' | 'credit'>('cash');
   const [customerId, setCustomerId] = useState('');
@@ -44,6 +49,8 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
     setItems([{ name: '', quantity: 1, unitPrice: 0 }]);
     setSelectedProductId('');
     setCustomerId('');
+    setSelectedChannelId('');
+    setSaleVariableCosts('');
     setCustomerQuality('comptoir');
     setOnlinePlatform('whatsapp');
     setOnlineCustomerName('');
@@ -72,6 +79,9 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
       setSuccessMsg('');
       api.get<Product[]>('/products').then(setProducts).catch(() => {});
       api.get<Customer[]>('/customers').then(setCustomers).catch(() => {});
+      growthService.getChannels().then(chans => {
+        setChannels(chans);
+      }).catch(() => {});
     }
   }, [isOpen]);
 
@@ -208,6 +218,8 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
         paidAmount: paymentMethod === 'credit' ? 0 : computedTotal,
         paymentMethod,
         customerId: effectiveCustomerId || undefined,
+        channelId: selectedChannelId || undefined,
+        variableCosts: typeof saleVariableCosts === 'number' ? saleVariableCosts : 0,
         notes: saleNotes || undefined,
       });
 
@@ -682,6 +694,43 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                   </label>
                 </div>
               )}
+            </div>
+
+            {/* Canal d'acquisition & Charges variables de la commande */}
+            <div style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '12px', padding: '12px 16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                    <Target size={14} color="#0062FF" />
+                    <span>Canal d'acquisition (Source) :</span>
+                  </label>
+                  <select
+                    value={selectedChannelId}
+                    onChange={e => setSelectedChannelId(e.target.value)}
+                    style={{ width: '100%', fontSize: '0.82rem', padding: '8px' }}
+                  >
+                    <option value="">-- Attribuer à un canal --</option>
+                    {channels.map(ch => (
+                      <option key={ch.id} value={ch.id}>
+                        {ch.name} ({ch.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Charges variables commande (FCFA) :
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Ex: 500 (livraison vendeur, emballage)"
+                    value={saleVariableCosts === '' ? '' : saleVariableCosts}
+                    onChange={e => setSaleVariableCosts(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))}
+                    style={{ width: '100%', fontSize: '0.82rem', padding: '8px' }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Total Banner */}

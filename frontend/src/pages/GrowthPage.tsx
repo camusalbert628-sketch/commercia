@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
   Users,
@@ -10,162 +10,544 @@ import {
   Calendar,
   Plus,
   Upload,
+  Download,
   ArrowUpRight,
   ArrowDownRight,
-  HelpCircle,
   FileText,
   CheckCircle,
   Lock,
+  RefreshCw,
+  ShoppingBag,
+  Edit3,
+  Trash2,
+  Printer,
+  ShieldCheck,
+  AlertTriangle,
+  Zap,
+  Globe,
+  Sliders,
+  PieChart,
+  HelpCircle,
+  Package,
 } from 'lucide-react';
-import {
-  getAcquisitionChannels,
-  saveAcquisitionChannels,
-  getAcquisitionCampaigns,
-  hasPremiumAccess,
-  calculateTreasuryOverview,
-} from '../services/premiumService';
-import { AcquisitionChannel, AcquisitionCampaign } from '../types/premium';
 import { useNavigate } from 'react-router-dom';
+import { growthService } from '../services/growthService';
+import { hasPremiumAccess } from '../services/premiumService';
+import {
+  AcquisitionChannelData,
+  AcquisitionCampaignData,
+  GrowthSummary,
+  BreakEvenAnalysis,
+  ProductProfitabilityData,
+  AnalysisPeriodKey,
+  GrowthAnalyticsResponse,
+} from '../types/growth';
 
 export const GrowthPage: React.FC = () => {
-  const [channels, setChannels] = useState<AcquisitionChannel[]>(getAcquisitionChannels());
-  const [campaigns, setCampaigns] = useState<AcquisitionCampaign[]>(getAcquisitionCampaigns());
-  const [activeTab, setActiveTab] = useState<'apercu' | 'canaux' | 'campagnes' | 'evolution'>('apercu');
-  const [showAddCampaignModal, setShowAddCampaignModal] = useState(false);
-  const [showCsvModal, setShowCsvModal] = useState(false);
-  const [editingChannel, setEditingChannel] = useState<AcquisitionChannel | null>(null);
-
-  // New campaign form
-  const [campName, setCampName] = useState('');
-  const [campPlatform, setCampPlatform] = useState<'Facebook' | 'Instagram' | 'TikTok' | 'Autre'>('Facebook');
-  const [campBudget, setCampBudget] = useState(25000);
-  const [campContacts, setCampContacts] = useState(60);
-  const [syncWithTreasury, setSyncWithTreasury] = useState(true);
-  const [csvSuccess, setCsvSuccess] = useState(false);
-
   const navigate = useNavigate();
   const access = hasPremiumAccess();
-  const treasury = calculateTreasuryOverview();
 
-  // Summary Metrics recalculated from channels
-  const totalBudget = channels.reduce((sum, c) => sum + (c.budget || 0), 0);
-  const totalContacts = channels.reduce((sum, c) => sum + (c.contacts || 0), 0);
-  const totalConverted = channels.reduce((sum, c) => sum + (c.clientsConvertis || 0), 0);
-  const totalMargin = channels.reduce((sum, c) => sum + (c.margeBruteGeneree || 0), 0);
-  const averageCac = totalConverted > 0 ? Math.round(totalBudget / totalConverted) : 0;
-  const overallConversionRate = totalContacts > 0 ? Number(((totalConverted / totalContacts) * 100).toFixed(1)) : 0;
-  const overallRoas = totalBudget > 0 ? Number(((totalMargin / totalBudget) * 100).toFixed(0)) : 0;
+  // Period filter state
+  const [period, setPeriod] = useState<AnalysisPeriodKey>('current_month');
+  const [customStartDate, setCustomStartDate] = useState(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
+  );
+  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().slice(0, 10));
 
-  // Best performing channel
-  const sortedChannels = [...channels].sort((a, b) => (b.rentabilite || 0) - (a.rentabilite || 0));
-  const bestChannel = sortedChannels[0]?.nom || 'WhatsApp';
+  // Active view tab
+  const [activeTab, setActiveTab] = useState<
+    'synthese' | 'canaux' | 'campagnes' | 'produits' | 'pointMort' | 'copilote' | 'importExport'
+  >('synthese');
 
-  // Budget pub possible selon la trésorerie (Partie C.2)
-  const budgetPubPossible = Math.max(0, Math.round(treasury.tresorerieDisponible * 0.15));
+  // Data states
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [analytics, setAnalytics] = useState<GrowthAnalyticsResponse | null>(null);
+  const [channelsList, setChannelsList] = useState<AcquisitionChannelData[]>([]);
+  const [campaigns, setCampaigns] = useState<AcquisitionCampaignData[]>([]);
+  const [productsProf, setProductsProf] = useState<ProductProfitabilityData[]>([]);
+  const [aiReport, setAiReport] = useState<{
+    periodLabel: string;
+    recommendations: string[];
+    dataUsed: { totalSalesAnalyzed: number; totalExpensesAnalyzed: number; activeChannelsCount: number };
+  } | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleCreateCampaign = (e: React.FormEvent) => {
+  // Modals state
+  const [showAddChannelModal, setShowAddChannelModal] = useState(false);
+  const [showAddCampaignModal, setShowAddCampaignModal] = useState(false);
+  const [showEditChannelModal, setShowEditChannelModal] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<AcquisitionChannelData | null>(null);
+  const [showCsvImportModal, setShowCsvImportModal] = useState(false);
+
+  // New Channel Form state
+  const [newChanName, setNewChanName] = useState('');
+  const [newChanType, setNewChanType] = useState('Autre');
+  const [newChanDescription, setNewChanDescription] = useState('');
+
+  // New Campaign Form state
+  const [newCampName, setNewCampName] = useState('');
+  const [newCampChannelId, setNewCampChannelId] = useState('');
+  const [newCampBudget, setNewCampBudget] = useState<number | ''>('');
+  const [newCampActualSpend, setNewCampActualSpend] = useState<number | ''>('');
+  const [newCampLeads, setNewCampLeads] = useState<number | ''>('');
+  const [newCampStartDate, setNewCampStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newCampEndDate, setNewCampEndDate] = useState('');
+  const [newCampNotes, setNewCampNotes] = useState('');
+
+  // CSV Import State
+  const [csvContent, setCsvContent] = useState('');
+  const [csvPreviewRows, setCsvPreviewRows] = useState<any[]>([]);
+  const [csvValidationErrors, setCsvValidationErrors] = useState<string[]>([]);
+  const [csvImportLoading, setCsvImportLoading] = useState(false);
+  const [csvImportResult, setCsvImportResult] = useState<any | null>(null);
+
+  // Load all analytics data
+  const fetchData = async () => {
+    try {
+      setRefreshing(true);
+      setErrorMsg('');
+
+      const [analyticsData, rawChannels, campaignsData, productsData, aiData] = await Promise.all([
+        growthService.getAnalytics(
+          period,
+          period === 'custom' ? customStartDate : undefined,
+          period === 'custom' ? customEndDate : undefined
+        ),
+        growthService.getChannels(),
+        growthService.getCampaigns(),
+        growthService.getProductsProfitability(),
+        growthService.getAiAnalysis(
+          period,
+          period === 'custom' ? customStartDate : undefined,
+          period === 'custom' ? customEndDate : undefined
+        ),
+      ]);
+
+      setAnalytics(analyticsData);
+      setChannelsList(rawChannels);
+      setCampaigns(campaignsData);
+      setProductsProf(productsData);
+      setAiReport(aiData);
+    } catch (err: any) {
+      console.error('Failed to load growth data:', err);
+      setErrorMsg(err.message || 'Impossible de charger les données de croissance.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [period, customStartDate, customEndDate]);
+
+  // Handle Channel Creation
+  const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newCamp: AcquisitionCampaign = {
-      id: 'camp-' + Date.now(),
-      nom: campName,
-      plateforme: campPlatform,
-      dateDebut: new Date().toISOString().slice(0, 10),
-      statut: 'active',
-      budgetTotal: Number(campBudget),
-      contactsTotal: Number(campContacts),
-      clientsConvertis: Math.round(Number(campContacts) * 0.15),
-      cac: Math.round(Number(campBudget) / Math.max(1, Math.round(Number(campContacts) * 0.15))),
-    };
-    setCampaigns([newCamp, ...campaigns]);
-    setShowAddCampaignModal(false);
-    setCampName('');
-    alert(`Campagne "${campName}" ajoutée avec succès ! ${syncWithTreasury ? 'Le budget a également été planifié dans le module Trésorerie.' : ''}`);
+    if (!newChanName.trim()) return;
+
+    try {
+      await growthService.createChannel({
+        name: newChanName.trim(),
+        type: newChanType,
+        description: newChanDescription.trim() || undefined,
+      });
+
+      setShowAddChannelModal(false);
+      setNewChanName('');
+      setNewChanDescription('');
+      fetchData();
+    } catch (err: any) {
+      alert('Erreur création canal : ' + err.message);
+    }
   };
 
-  const handleCsvImport = () => {
-    // Simulated mapping from Facebook Ads Manager export
-    setCsvSuccess(true);
-    setTimeout(() => {
-      setCsvSuccess(false);
-      setShowCsvModal(false);
-      alert('✅ 2 campagnes importées avec succès depuis l\'export Facebook Ads Manager !');
-    }, 1000);
+  // Handle Channel Update
+  const handleUpdateChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingChannel) return;
+
+    try {
+      await growthService.updateChannel(editingChannel.id, {
+        name: editingChannel.name,
+        type: editingChannel.type,
+      });
+
+      setShowEditChannelModal(false);
+      setEditingChannel(null);
+      fetchData();
+    } catch (err: any) {
+      alert('Erreur modification canal : ' + err.message);
+    }
   };
 
-  const handleUpdateChannelSeuil = (channelId: string, seuilManuel: number | null) => {
-    const updated = channels.map(c => {
-      if (c.id === channelId) {
-        return {
-          ...c,
-          seuilCacManuel: seuilManuel,
-          seuilCacEffectif: seuilManuel !== null ? seuilManuel : 3000,
-          statut: c.clientsConvertis < 5
-            ? ('DONNEES_INSUFFISANTES' as const)
-            : (c.cac || 0) <= (seuilManuel !== null ? seuilManuel : 3000)
-            ? ('RENTABLE' as const)
-            : ('A_OPTIMISER' as const),
-        };
+  // Handle Campaign Creation
+  const handleCreateCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCampName.trim() || !newCampChannelId) {
+      alert('Veuillez renseigner le nom de la campagne et choisir un canal.');
+      return;
+    }
+
+    try {
+      await growthService.createCampaign({
+        name: newCampName.trim(),
+        channelId: newCampChannelId,
+        budgetPlanned: typeof newCampBudget === 'number' ? newCampBudget : 0,
+        actualSpend: typeof newCampActualSpend === 'number' ? newCampActualSpend : 0,
+        leadsCount: typeof newCampLeads === 'number' ? newCampLeads : 0,
+        startDate: newCampStartDate || undefined,
+        endDate: newCampEndDate || undefined,
+        notes: newCampNotes.trim() || undefined,
+      });
+
+      setShowAddCampaignModal(false);
+      setNewCampName('');
+      setNewCampBudget('');
+      setNewCampActualSpend('');
+      setNewCampLeads('');
+      setNewCampNotes('');
+      fetchData();
+    } catch (err: any) {
+      alert('Erreur création campagne : ' + err.message);
+    }
+  };
+
+  // CSV file parser and preview
+  const handleCsvFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setCsvContent(text);
+
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (lines.length > 0) {
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+        const rows: any[] = [];
+        const errors: string[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+          const rowObj: any = {};
+          headers.forEach((h, idx) => {
+            rowObj[h] = values[idx] || '';
+          });
+          rows.push(rowObj);
+        }
+
+        if (lines.length <= 1) {
+          errors.push('Le fichier CSV est vide ou ne contient que les en-têtes.');
+        }
+
+        setCsvPreviewRows(rows);
+        setCsvValidationErrors(errors);
       }
-      return c;
-    });
-    setChannels(updated);
-    saveAcquisitionChannels(updated);
-    setEditingChannel(null);
+    };
+    reader.readAsText(file);
   };
+
+  const handleExecuteCsvImport = async () => {
+    if (!csvContent.trim() || csvPreviewRows.length === 0) {
+      alert('Veuillez sélectionner un fichier CSV valide contenant des données.');
+      return;
+    }
+
+    try {
+      setCsvImportLoading(true);
+      const res = await growthService.importCampaignsCsv(csvPreviewRows, false);
+      setCsvImportResult(res);
+      fetchData();
+    } catch (err: any) {
+      alert('Erreur importation CSV : ' + err.message);
+    } finally {
+      setCsvImportLoading(false);
+    }
+  };
+
+  // Export CSV of performance data
+  const handleExportCsv = () => {
+    if (!analytics || !analytics.channels) return;
+
+    const headers = [
+      'Canal',
+      'Type',
+      'Budget Prévu (FCFA)',
+      'Dépenses Réelles (FCFA)',
+      'Prospects',
+      'Nouveaux Clients',
+      'Commandes',
+      'Articles Vendus',
+      'Chiffre Affaires Net (FCFA)',
+      'Coût Marchandises (FCFA)',
+      'Charges Variables (FCFA)',
+      'Bénéfice Net Après Acquisition (FCFA)',
+      'CAC (FCFA/Client)',
+      'ROAS (%)',
+      'Taux Conversion (%)',
+      'Statut Rentabilité',
+    ];
+
+    const rows = analytics.channels.map(c => [
+      `"${c.name}"`,
+      `"${c.type}"`,
+      c.budgetPlanned,
+      c.acquisitionSpend,
+      c.leadsCount,
+      c.newCustomersCount,
+      c.ordersCount,
+      c.itemsSold,
+      c.netRevenue,
+      c.cogs,
+      c.variableCosts,
+      c.profitAfterAcquisition,
+      c.cac !== null ? c.cac : 'Non calculable',
+      c.roas !== null ? `${c.roas}%` : 'Non calculable',
+      c.conversionRate !== null ? `${c.conversionRate}%` : 'Non calculable',
+      c.isProfitable ? '"Rentable"' : '"Déficitaire"',
+    ]);
+
+    const csvContentData = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContentData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `commercia_croissance_cac_${period}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
+  // Format FCFA helper
+  const fmt = (num?: number | null) => {
+    if (num === undefined || num === null) return '0 FCFA';
+    return `${Math.round(num).toLocaleString('fr-FR')} FCFA`;
+  };
+
+  const summary = analytics?.summary;
+  const breakEven = analytics?.breakEven;
+  const periodInfo = analytics?.period;
 
   return (
-    <div className="page-wrapper">
-      {/* HEADER WITH TABS & ACTIONS */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+    <div className="page-wrapper growth-module-container" style={{ paddingBottom: '60px' }}>
+      {/* HEADER WITH TITLE, STATUS & ACTION BUTTONS */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '16px',
+          marginBottom: '20px',
+        }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{ fontSize: '1.75rem', margin: 0 }}>Croissance Clients & CAC</h1>
-            <span style={{ background: '#EFF6FF', color: '#0062FF', border: '1px solid #BFDBFE', padding: '3px 10px', borderRadius: '16px', fontSize: '0.78rem', fontWeight: 800 }}>
-              MODULE PREMIUM A
+            <h1 style={{ fontSize: '1.75rem', margin: 0, fontWeight: 800, color: '#0F172A' }}>
+              Croissance Clients & CAC
+            </h1>
+            <span
+              style={{
+                background: '#EFF6FF',
+                color: '#0062FF',
+                border: '1px solid #BFDBFE',
+                padding: '3px 10px',
+                borderRadius: '16px',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+              }}
+            >
+              MODULE EXPERT CROISSANCE
             </span>
           </div>
           <p style={{ color: '#64748B', fontSize: '0.92rem', margin: '4px 0 0 0' }}>
-            Identifiez précisément quels canaux (WhatsApp, Facebook, Bouche-à-oreille) vous rapportent des clients rentables
+            Calcul rigoureux du Coût d'Acquisition Client (CAC), rentabilité par canal, charges variables et point mort.
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-secondary" onClick={() => setShowCsvModal(true)}>
-            <Upload size={16} />
-            <span>Importer CSV Facebook</span>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={fetchData}
+            title="Rafraîchir les calculs"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <RefreshCw size={15} className={refreshing ? 'spin' : ''} />
+            <span>Rafraîchir</span>
           </button>
-          <button className="btn btn-primary" onClick={() => setShowAddCampaignModal(true)}>
+
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowCsvImportModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Upload size={15} />
+            <span>Importer CSV</span>
+          </button>
+
+          <button
+            className="btn btn-secondary"
+            onClick={handleExportCsv}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Download size={15} />
+            <span>Exporter CSV</span>
+          </button>
+
+          <button
+            className="btn btn-secondary"
+            onClick={handlePrintReport}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Printer size={15} />
+            <span>Imprimer Rapport</span>
+          </button>
+
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowAddCampaignModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
             <Plus size={16} />
             <span>Nouvelle Campagne</span>
           </button>
         </div>
       </div>
 
-      {/* SOFT PAYWALL WARNING IF NOT PREMIUM */}
+      {/* SOFT PAYWALL IF FREE PLAN */}
       {access === 'none' && (
-        <div style={{ background: '#FFFBEB', border: '2px solid #F59E0B', borderRadius: '14px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+        <div
+          style={{
+            background: '#FFFBEB',
+            border: '2px solid #F59E0B',
+            borderRadius: '14px',
+            padding: '16px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '14px',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Lock size={24} color="#D97706" />
             <div>
-              <strong style={{ color: '#92400E', fontSize: '1rem' }}>Aperçu avec données de démonstration</strong>
+              <strong style={{ color: '#92400E', fontSize: '1rem' }}>
+                Fonctionnalités avancées réservées aux comptes Pro & Business
+              </strong>
               <div style={{ color: '#B45309', fontSize: '0.86rem' }}>
-                Ce module fait partie de la suite COMMERCIA Premium. Activez votre essai de 14 jours pour connecter vos ventes réelles.
+                Activez votre abonnement pour débloquer l'attribution multi-canal illimitée, l'analyse prédictive et les recommandations du Copilote IA.
               </div>
             </div>
           </div>
-          <button className="btn btn-primary" style={{ background: '#D97706' }} onClick={() => navigate('/subscription')}>
-            Passer en Premium (14 jours offerts)
+          <button
+            className="btn btn-primary"
+            style={{ background: '#D97706' }}
+            onClick={() => navigate('/subscription')}
+          >
+            Débloquer l'accès complet
           </button>
         </div>
       )}
 
-      {/* TABS NAVIGATION */}
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '2px solid #E2E8F0', marginBottom: '24px', overflowX: 'auto' }}>
+      {/* PERIOD SELECTOR BAR (SECTION 2 DU CAHIER DES CHARGES) */}
+      <div
+        className="card"
+        style={{
+          padding: '12px 18px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '12px',
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Calendar size={18} color="#0062FF" />
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1E293B' }}>
+            Période d'analyse :
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {[
+            { key: 'today', label: "Aujourd'hui" },
+            { key: 'yesterday', label: 'Hier' },
+            { key: 'last_7_days', label: '7 derniers jours' },
+            { key: 'last_30_days', label: '30 derniers jours' },
+            { key: 'current_month', label: 'Mois en cours' },
+            { key: 'previous_month', label: 'Mois précédent' },
+            { key: 'quarter', label: 'Trimestre' },
+            { key: 'custom', label: 'Période personnalisée' },
+          ].map(p => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key as AnalysisPeriodKey)}
+              style={{
+                fontSize: '0.8rem',
+                fontWeight: period === p.key ? 700 : 500,
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: period === p.key ? '1.5px solid #0062FF' : '1px solid #E2E8F0',
+                background: period === p.key ? '#EFF6FF' : '#FFFFFF',
+                color: period === p.key ? '#0062FF' : '#475569',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {period === 'custom' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+            <span style={{ fontSize: '0.8rem', color: '#64748B' }}>Du</span>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={e => setCustomStartDate(e.target.value)}
+              style={{ fontSize: '0.82rem', padding: '5px 8px', borderRadius: '6px', border: '1px solid #CBD5E1' }}
+            />
+            <span style={{ fontSize: '0.8rem', color: '#64748B' }}>Au</span>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={e => setCustomEndDate(e.target.value)}
+              style={{ fontSize: '0.82rem', padding: '5px 8px', borderRadius: '6px', border: '1px solid #CBD5E1' }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* NAVIGATION TABS */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '8px',
+          borderBottom: '2px solid #E2E8F0',
+          marginBottom: '24px',
+          overflowX: 'auto',
+        }}
+      >
         {[
-          { key: 'apercu', label: '📊 Aperçu du Mois' },
-          { key: 'canaux', label: '🎯 Vue Détaillée par Canal' },
-          { key: 'campagnes', label: '🚀 Campagnes Publicitaires' },
-          { key: 'evolution', label: '📈 Évolution 12 Mois' },
+          { key: 'synthese', label: '📊 Synthèse & Performance' },
+          { key: 'canaux', label: '🌐 Canaux d\'Acquisition' },
+          { key: 'campagnes', label: '🎯 Campagnes Publicitaires' },
+          { key: 'produits', label: '📦 Rentabilité Produits & Services' },
+          { key: 'pointMort', label: '⚖️ Seuil de Rentabilité (Point Mort)' },
+          { key: 'copilote', label: '🤖 Copilote IA Stratégique' },
+          { key: 'importExport', label: '📥 Import / Export CSV' },
         ].map(tab => (
           <button
             key={tab.key}
@@ -188,453 +570,1132 @@ export const GrowthPage: React.FC = () => {
         ))}
       </div>
 
-      {/* TAB 1 : APERÇU DU MOIS (A.7.1) */}
-      {activeTab === 'apercu' && (
-        <>
-          {/* 4 Cards */}
-          <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginBottom: '20px' }}>
+      {/* TAB 1: SYNTHÈSE & PERFORMANCE GLOBALE */}
+      {activeTab === 'synthese' && summary && (
+        <div>
+          {/* AI SYNTHESIS BANNER */}
+          <div
+            className="card"
+            style={{
+              padding: '16px 20px',
+              marginBottom: '24px',
+              background: 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%)',
+              border: '1px solid #BFDBFE',
+              borderRadius: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <Sparkles size={20} color="#0062FF" />
+              <strong style={{ color: '#0F172A', fontSize: '1rem' }}>
+                Synthèse Stratégique COMMERCIA ({periodInfo?.label}) :
+              </strong>
+            </div>
+            <p style={{ color: '#334155', fontSize: '0.94rem', margin: 0, lineHeight: 1.6 }}>
+              Sur cette période, vous avez investi <strong>{fmt(summary.totalAcquisitionSpend)}</strong> en acquisition et généré{' '}
+              <strong>{summary.totalNewCustomers} nouveaux clients uniques</strong> (soit un CAC moyen global de{' '}
+              <strong>{summary.globalCac !== null ? `${Math.round(summary.globalCac).toLocaleString('fr-FR')} FCFA/client` : 'Non calculable'}</strong>).
+              Le chiffre d'affaires net réalisé s'élève à <strong>{fmt(summary.totalNetRevenue)}</strong> pour un bénéfice net après acquisition de{' '}
+              <strong style={{ color: (summary.totalProfitAfterAcquisition || 0) >= 0 ? '#16A34A' : '#DC2626' }}>
+                {fmt(summary.totalProfitAfterAcquisition)}
+              </strong>
+              {analytics?.bestChannel ? (
+                <>
+                  . Votre canal le plus rentable est <strong>{analytics.bestChannel.name}</strong> avec{' '}
+                  <strong>{fmt(analytics.bestChannel.profitAfterAcquisition)}</strong> de marge nette générée.
+                </>
+              ) : null}
+            </p>
+          </div>
+
+          {/* 12 MANDATORY KPI CARDS (SECTION 8 DU CAHIER DES CHARGES) */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '16px',
+              marginBottom: '28px',
+            }}
+          >
+            {/* 1. Budget Pub Dépensé */}
             <div className="stat-card" style={{ borderLeft: '4px solid #0062FF' }}>
               <div>
-                <div className="stat-label">Budget marketing du mois</div>
-                <div className="stat-value" style={{ color: '#0062FF' }}>{totalBudget.toLocaleString('fr-FR')} FCFA</div>
-                <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>Sur {channels.length} canaux d'acquisition</div>
+                <div className="stat-label">Budget Pub Dépensé</div>
+                <div className="stat-value" style={{ color: '#0062FF' }}>{fmt(summary.totalAcquisitionSpend)}</div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>Dépenses réelles engagées</div>
               </div>
               <div className="stat-icon" style={{ background: '#EFF6FF', color: '#0062FF' }}>
-                <DollarSign size={24} />
+                <DollarSign size={22} />
               </div>
             </div>
 
+            {/* 2. Nouveaux Clients Acquis */}
             <div className="stat-card" style={{ borderLeft: '4px solid #10B981' }}>
               <div>
-                <div className="stat-label">Nouveaux clients convertis</div>
-                <div className="stat-value" style={{ color: '#10B981' }}>{totalConverted} clients</div>
-                <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: '4px' }}>Taux de conv : {overallConversionRate}%</div>
+                <div className="stat-label">Nouveaux Clients Acquis</div>
+                <div className="stat-value" style={{ color: '#10B981' }}>{summary.totalNewCustomers}</div>
+                <div style={{ fontSize: '0.76rem', color: '#059669', marginTop: '4px' }}>
+                  Clients uniques ayant acheté
+                </div>
               </div>
               <div className="stat-icon" style={{ background: '#ECFDF5', color: '#10B981' }}>
-                <Users size={24} />
+                <Users size={22} />
               </div>
             </div>
 
+            {/* 3. CAC Moyen Global */}
             <div className="stat-card" style={{ borderLeft: '4px solid #FF6B00' }}>
               <div>
-                <div className="stat-label">CAC Moyen (Coût par client)</div>
-                <div className="stat-value" style={{ color: '#FF6B00' }}>{averageCac.toLocaleString('fr-FR')} FCFA</div>
-                <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>Seuil maxi toléré : 3 000 FCFA</div>
+                <div className="stat-label">CAC Moyen Global</div>
+                <div className="stat-value" style={{ color: '#FF6B00' }}>
+                  {summary.globalCac !== null ? `${Math.round(summary.globalCac).toLocaleString('fr-FR')} FCFA` : 'Non calculable'}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  Coût par nouveau client réel
+                </div>
               </div>
               <div className="stat-icon" style={{ background: '#FFF7ED', color: '#FF6B00' }}>
-                <Target size={24} />
+                <Target size={22} />
               </div>
             </div>
 
+            {/* 4. Chiffre d'Affaires Net Attribué */}
             <div className="stat-card" style={{ borderLeft: '4px solid #8B5CF6' }}>
               <div>
-                <div className="stat-label">Retour sur publicité (ROAS)</div>
-                <div className="stat-value" style={{ color: '#8B5CF6' }}>{overallRoas}%</div>
-                <div style={{ fontSize: '0.78rem', color: '#6D28D9', marginTop: '4px' }}>Marge : {totalMargin.toLocaleString('fr-FR')} FCFA</div>
+                <div className="stat-label">Chiffre d'Affaires Net</div>
+                <div className="stat-value" style={{ color: '#8B5CF6' }}>{fmt(summary.totalNetRevenue)}</div>
+                <div style={{ fontSize: '0.76rem', color: '#6D28D9', marginTop: '4px' }}>
+                  {summary.totalOrders} commandes payées
+                </div>
               </div>
               <div className="stat-icon" style={{ background: '#F5F3FF', color: '#8B5CF6' }}>
-                <TrendingUp size={24} />
+                <ShoppingBag size={22} />
+              </div>
+            </div>
+
+            {/* 5. Coût des Marchandises (COGS) */}
+            <div className="stat-card" style={{ borderLeft: '4px solid #64748B' }}>
+              <div>
+                <div className="stat-label">Coût Marchandises (COGS)</div>
+                <div className="stat-value" style={{ color: '#334155' }}>{fmt(summary.totalCogs)}</div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  {summary.totalItemsSold} articles sortis
+                </div>
+              </div>
+              <div className="stat-icon" style={{ background: '#F1F5F9', color: '#475569' }}>
+                <Package size={22} />
+              </div>
+            </div>
+
+            {/* 6. Charges Variables Totales */}
+            <div className="stat-card" style={{ borderLeft: '4px solid #E11D48' }}>
+              <div>
+                <div className="stat-label">Charges Variables</div>
+                <div className="stat-value" style={{ color: '#E11D48' }}>{fmt(summary.totalVariableCosts)}</div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  Livraison, emballage, commissions
+                </div>
+              </div>
+              <div className="stat-icon" style={{ background: '#FFE4E6', color: '#E11D48' }}>
+                <Sliders size={22} />
+              </div>
+            </div>
+
+            {/* 7. Bénéfice Après Acquisition */}
+            <div
+              className="stat-card"
+              style={{
+                borderLeft: `4px solid ${(summary.totalProfitAfterAcquisition || 0) >= 0 ? '#10B981' : '#EF4444'}`,
+                background: (summary.totalProfitAfterAcquisition || 0) >= 0 ? '#F0FDF4' : '#FEF2F2',
+              }}
+            >
+              <div>
+                <div className="stat-label">Bénéfice Après Acquisition</div>
+                <div
+                  className="stat-value"
+                  style={{ color: (summary.totalProfitAfterAcquisition || 0) >= 0 ? '#15803D' : '#DC2626' }}
+                >
+                  {fmt(summary.totalProfitAfterAcquisition)}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  CA - COGS - Variables - Pub
+                </div>
+              </div>
+              <div
+                className="stat-icon"
+                style={{
+                  background: (summary.totalProfitAfterAcquisition || 0) >= 0 ? '#DCFCE7' : '#FEE2E2',
+                  color: (summary.totalProfitAfterAcquisition || 0) >= 0 ? '#15803D' : '#DC2626',
+                }}
+              >
+                <TrendingUp size={22} />
+              </div>
+            </div>
+
+            {/* 8. ROAS Global */}
+            <div className="stat-card" style={{ borderLeft: '4px solid #3B82F6' }}>
+              <div>
+                <div className="stat-label">ROAS (Rendement Pub)</div>
+                <div className="stat-value" style={{ color: '#3B82F6' }}>
+                  {summary.globalRoas !== null ? `${summary.globalRoas}%` : 'Non calculable'}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  Chiffre d'Affaires / Dépenses Pub
+                </div>
+              </div>
+              <div className="stat-icon" style={{ background: '#EFF6FF', color: '#3B82F6' }}>
+                <PieChart size={22} />
+              </div>
+            </div>
+
+            {/* 9. Taux de Conversion */}
+            <div className="stat-card" style={{ borderLeft: '4px solid #14B8A6' }}>
+              <div>
+                <div className="stat-label">Taux de Conversion</div>
+                <div className="stat-value" style={{ color: '#0D9488' }}>
+                  {summary.globalConversionRate !== null ? `${summary.globalConversionRate}%` : 'Non calculable'}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  Clients acquis / Prospects ({summary.totalLeads})
+                </div>
+              </div>
+              <div className="stat-icon" style={{ background: '#CCFBF1', color: '#0D9488' }}>
+                <Zap size={22} />
+              </div>
+            </div>
+
+            {/* 10. Panier Moyen (AOV) */}
+            <div className="stat-card" style={{ borderLeft: '4px solid #F59E0B' }}>
+              <div>
+                <div className="stat-label">Panier Moyen (AOV)</div>
+                <div className="stat-value" style={{ color: '#D97706' }}>
+                  {fmt(summary.averageOrderValue)}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  Par commande admissible
+                </div>
+              </div>
+              <div className="stat-icon" style={{ background: '#FEF3C7', color: '#D97706' }}>
+                <ShoppingBag size={22} />
+              </div>
+            </div>
+
+            {/* 11. Marge Contributive Globale */}
+            <div className="stat-card" style={{ borderLeft: '4px solid #065F46' }}>
+              <div>
+                <div className="stat-label">Marge Contributive</div>
+                <div className="stat-value" style={{ color: '#065F46' }}>
+                  {fmt(summary.globalContributionMargin)}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  CA net - Coûts variables totaux
+                </div>
+              </div>
+              <div className="stat-icon" style={{ background: '#D1FAE5', color: '#065F46' }}>
+                <TrendingUp size={22} />
+              </div>
+            </div>
+
+            {/* 12. Seuil de Rentabilité (Point Mort) */}
+            <div className="stat-card" style={{ borderLeft: '4px solid #7C3AED' }}>
+              <div>
+                <div className="stat-label">Seuil de Rentabilité</div>
+                <div className="stat-value" style={{ color: '#7C3AED' }}>
+                  {breakEven?.breakEvenRevenue !== null ? fmt(breakEven?.breakEvenRevenue) : 'En cours'}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
+                  {breakEven?.breakEvenUnits !== null ? `${breakEven?.breakEvenUnits} unités min.` : 'Charges fixes à couvrir'}
+                </div>
+              </div>
+              <div className="stat-icon" style={{ background: '#EDE9FE', color: '#7C3AED' }}>
+                <ShieldCheck size={22} />
               </div>
             </div>
           </div>
 
-          {/* Phrase de Synthèse Générée & Conseil Trésorerie (Parties A.7.1 & C.2) */}
-          <div className="card" style={{ padding: '16px 20px', marginBottom: '24px', background: 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)', border: '1px solid #CBD5E1' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-              <Sparkles size={18} color="#0062FF" />
-              <strong style={{ color: '#0F172A', fontSize: '0.98rem' }}>Synthèse d'Acquisition COMMERCIA :</strong>
+          {/* SECTION CLASSEMENT DES CANAUX PAR RENTABILITÉ RÉELLE (SECTION 8) */}
+          <div className="card" style={{ padding: '20px', marginBottom: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
+                  Classement des Canaux par Rentabilité Réelle
+                </h3>
+                <p style={{ color: '#64748B', fontSize: '0.84rem', margin: '4px 0 0 0' }}>
+                  Le classement privilégie le bénéfice net après coûts variables et acquisition (pas seulement le ROAS ou le volume brut).
+                </p>
+              </div>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                onClick={() => setActiveTab('canaux')}
+              >
+                Gérer les canaux ({channelsList.length})
+              </button>
             </div>
-            <p style={{ color: '#334155', fontSize: '0.92rem', margin: 0, lineHeight: 1.5 }}>
-              « Ce mois-ci, vous avez acquis <strong>{totalConverted} nouveaux clients</strong> pour un budget de <strong>{totalBudget.toLocaleString('fr-FR')} FCFA</strong>, soit un coût d'acquisition moyen de <strong>{averageCac.toLocaleString('fr-FR')} FCFA par client</strong>. Votre meilleur canal est <strong>{bestChannel}</strong> avec une rentabilité record. »
-            </p>
-            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #CBD5E1', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.84rem', color: '#059669' }}>
-              <CheckCircle size={15} />
-              <span>
-                <strong>Repère Trésorerie :</strong> Selon votre autonomie actuelle ({treasury.autonomieJours} jours), votre marge de manœuvre recommandée pour tester de nouvelles publicités ce mois-ci est d'environ <strong>{budgetPubPossible.toLocaleString('fr-FR')} FCFA</strong>.
-              </span>
-            </div>
-          </div>
 
-          {/* Classement des Canaux par Rentabilité */}
-          <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
-            <h3 style={{ fontSize: '1.15rem', margin: '0 0 16px 0' }}>Classement des Canaux par Rentabilité</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {sortedChannels.map((c, idx) => (
-                <div
-                  key={c.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    borderRadius: '10px',
-                    background: '#F8FAFC',
-                    border: '1px solid #E2E8F0',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: idx === 0 ? '#FEF3C7' : '#F1F5F9', color: idx === 0 ? '#D97706' : '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.85rem' }}>
-                      #{idx + 1}
-                    </div>
-                    <div>
-                      <strong style={{ color: '#0F172A', fontSize: '0.94rem' }}>{c.nom}</strong>
-                      <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                        {c.clientsConvertis} clients convertis • Budget : {c.budget.toLocaleString('fr-FR')} FCFA
+              {analytics?.channels.map((chan, idx) => {
+                const isProfitable = chan.profitAfterAcquisition > 0;
+                const isBreakEven = chan.profitAfterAcquisition === 0;
+
+                return (
+                  <div
+                    key={chan.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                      padding: '14px 18px',
+                      background: idx === 0 && isProfitable ? '#F8FAFC' : '#FFFFFF',
+                      border: idx === 0 && isProfitable ? '1.5px solid #0062FF' : '1px solid #E2E8F0',
+                      borderRadius: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '220px' }}>
+                      <span
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          background: idx === 0 ? '#FEF3C7' : idx === 1 ? '#E2E8F0' : '#F1F5F9',
+                          color: idx === 0 ? '#D97706' : '#475569',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 800,
+                          fontSize: '0.82rem',
+                        }}
+                      >
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <strong style={{ fontSize: '0.96rem', color: '#0F172A' }}>{chan.name}</strong>
+                        <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                          {chan.type} • {chan.newCustomersCount} clients • Dépenses : {fmt(chan.acquisitionSpend)}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.82rem', color: '#64748B' }}>CAC Unitaire</div>
-                      <strong style={{ color: c.cac === 0 ? '#059669' : '#0F172A' }}>
-                        {c.cac !== null ? `${c.cac.toLocaleString('fr-FR')} FCFA` : 'N/A'}
-                      </strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
+                          CAC Unitaire
+                        </div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#FF6B00' }}>
+                          {chan.cac !== null ? `${Math.round(chan.cac).toLocaleString('fr-FR')} FCFA` : 'Non calculable'}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
+                          Chiffre d'Affaires Net
+                        </div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#334155' }}>
+                          {fmt(chan.netRevenue)}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right', minWidth: '130px' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>
+                          Bénéfice Net
+                        </div>
+                        <div
+                          style={{
+                            fontSize: '1.05rem',
+                            fontWeight: 800,
+                            color: isProfitable ? '#16A34A' : isBreakEven ? '#64748B' : '#DC2626',
+                          }}
+                        >
+                          {isProfitable ? '+' : ''}{fmt(chan.profitAfterAcquisition)}
+                        </div>
+                      </div>
+
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '14px',
+                          fontSize: '0.76rem',
+                          fontWeight: 700,
+                          background: isProfitable ? '#DCFCE7' : isBreakEven ? '#F1F5F9' : '#FEE2E2',
+                          color: isProfitable ? '#15803D' : isBreakEven ? '#475569' : '#DC2626',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        ● {chan.isProfitable ? 'Rentable' : 'Déficitaire'}
+                      </span>
                     </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.82rem', color: '#64748B' }}>Marge nette générée</div>
-                      <strong style={{ color: c.rentabilite >= 0 ? '#059669' : '#DC2626' }}>
-                        {c.rentabilite >= 0 ? '+' : ''}{c.rentabilite.toLocaleString('fr-FR')} FCFA
-                      </strong>
-                    </div>
-
-                    <span
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '12px',
-                        fontSize: '0.74rem',
-                        fontWeight: 700,
-                        background: c.statut === 'RENTABLE' ? '#ECFDF5' : c.statut === 'DONNEES_INSUFFISANTES' ? '#F1F5F9' : '#FEF2F2',
-                        color: c.statut === 'RENTABLE' ? '#059669' : c.statut === 'DONNEES_INSUFFISANTES' ? '#64748B' : '#DC2626',
-                      }}
-                    >
-                      {c.statut === 'RENTABLE' ? '🟢 Rentable' : c.statut === 'DONNEES_INSUFFISANTES' ? '⚠️ Données insuffisantes (<5)' : '🔴 Non rentable'}
-                    </span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* TAB 2 : VUE DÉTAILLÉE PAR CANAL AVEC RECALCUL SUR LES TOTAUX (A.7.2) */}
+      {/* TAB 2: VUE DÉTAILLÉE PAR CANAL D'ACQUISITION (SECTION 3) */}
       {activeTab === 'canaux' && (
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-              <h3 style={{ fontSize: '1.15rem', margin: 0 }}>Analyse Détaillée par Canal d'Acquisition</h3>
-              <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '4px 0 0 0' }}>
-                La ligne TOTAL est recalculée sur la somme des valeurs brutes (pas de moyenne de moyennes)
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Canaux d'Acquisition & Historique</h2>
+              <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+                Gérez vos canaux (Facebook, WhatsApp, TikTok, Bouche-à-oreille, etc.) avec leurs budgets et coûts variables.
               </p>
             </div>
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowAddChannelModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Plus size={16} />
+              <span>Nouveau Canal Personnalisé</span>
+            </button>
           </div>
 
-          <div className="table-container" style={{ border: 'none' }}>
-            <table>
+          <div className="card" style={{ overflowX: 'auto', padding: 0 }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
               <thead>
-                <tr>
-                  <th>Canal d'origine</th>
-                  <th>Budget</th>
-                  <th>Contacts</th>
-                  <th>Convertis</th>
-                  <th>Taux Conv.</th>
-                  <th>CAC Réel</th>
-                  <th>Seuil CAC</th>
-                  <th>Panier Moyen</th>
-                  <th>Marge Brute</th>
-                  <th>Rentabilité</th>
-                  <th>Statut</th>
-                  <th style={{ textAlign: 'right' }}>Seuil</th>
+                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 16px' }}>Canal & Type</th>
+                  <th style={{ padding: '12px 10px' }}>Budget Prévu</th>
+                  <th style={{ padding: '12px 10px' }}>Dépenses Réelles</th>
+                  <th style={{ padding: '12px 10px' }}>Prospects</th>
+                  <th style={{ padding: '12px 10px' }}>Nouveaux Clients</th>
+                  <th style={{ padding: '12px 10px' }}>Commandes</th>
+                  <th style={{ padding: '12px 10px' }}>Chiffre d'Affaires Net</th>
+                  <th style={{ padding: '12px 10px' }}>CAC</th>
+                  <th style={{ padding: '12px 10px' }}>ROAS</th>
+                  <th style={{ padding: '12px 10px' }}>Bénéfice Net</th>
+                  <th style={{ padding: '12px 10px' }}>Statut</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {channels.map(c => (
-                  <tr key={c.id}>
-                    <td>
-                      <strong>{c.nom}</strong>
-                      {c.estOrganique && <span style={{ fontSize: '0.72rem', color: '#059669', display: 'block' }}>🌱 Organique (CAC=0)</span>}
+                {analytics?.channels.map(chan => (
+                  <tr key={chan.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '12px 16px' }}>
+                      <strong style={{ color: '#0F172A', display: 'block' }}>{chan.name}</strong>
+                      <span style={{ fontSize: '0.75rem', color: '#64748B' }}>{chan.type}</span>
                     </td>
-                    <td>{c.budget.toLocaleString('fr-FR')} F</td>
-                    <td>{c.contacts}</td>
-                    <td style={{ fontWeight: 700 }}>{c.clientsConvertis}</td>
-                    <td>{c.tauxConversion !== null ? `${c.tauxConversion}%` : '—'}</td>
-                    <td style={{ fontWeight: 700, color: (c.cac || 0) <= c.seuilCacEffectif ? '#059669' : '#DC2626' }}>
-                      {c.cac !== null ? `${c.cac.toLocaleString('fr-FR')} F` : '—'}
+                    <td style={{ padding: '12px 10px', color: '#64748B' }}>{fmt(chan.budgetPlanned)}</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 600, color: '#0062FF' }}>{fmt(chan.acquisitionSpend)}</td>
+                    <td style={{ padding: '12px 10px' }}>{chan.leadsCount}</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#10B981' }}>{chan.newCustomersCount}</td>
+                    <td style={{ padding: '12px 10px' }}>{chan.ordersCount} ({chan.itemsSold} art.)</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 600 }}>{fmt(chan.netRevenue)}</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 700, color: '#FF6B00' }}>
+                      {chan.cac !== null ? `${Math.round(chan.cac).toLocaleString('fr-FR')} F` : 'Non calculable'}
                     </td>
-                    <td style={{ fontSize: '0.85rem', color: '#64748B' }}>
-                      {c.seuilCacManuel ? `${c.seuilCacManuel.toLocaleString('fr-FR')} F (Fixé)` : `${c.seuilCacEffectif.toLocaleString('fr-FR')} F (Auto 30%)`}
+                    <td style={{ padding: '12px 10px' }}>
+                      {chan.roas !== null ? `${chan.roas}%` : 'Non calculable'}
                     </td>
-                    <td>{c.panierMoyen.toLocaleString('fr-FR')} F</td>
-                    <td>{c.margeBruteGeneree.toLocaleString('fr-FR')} F</td>
-                    <td style={{ fontWeight: 800, color: c.rentabilite >= 0 ? '#059669' : '#DC2626' }}>
-                      {c.rentabilite >= 0 ? '+' : ''}{c.rentabilite.toLocaleString('fr-FR')} F
+                    <td
+                      style={{
+                        padding: '12px 10px',
+                        fontWeight: 800,
+                        color: chan.profitAfterAcquisition >= 0 ? '#16A34A' : '#DC2626',
+                      }}
+                    >
+                      {fmt(chan.profitAfterAcquisition)}
                     </td>
-                    <td>
+                    <td style={{ padding: '12px 10px' }}>
                       <span
                         style={{
-                          padding: '3px 8px',
-                          borderRadius: '6px',
                           fontSize: '0.72rem',
+                          padding: '3px 8px',
+                          borderRadius: '12px',
                           fontWeight: 700,
-                          background: c.statut === 'RENTABLE' ? '#ECFDF5' : c.statut === 'DONNEES_INSUFFISANTES' ? '#F1F5F9' : '#FEF2F2',
-                          color: c.statut === 'RENTABLE' ? '#059669' : c.statut === 'DONNEES_INSUFFISANTES' ? '#64748B' : '#DC2626',
+                          background: chan.isProfitable ? '#DCFCE7' : '#FEE2E2',
+                          color: chan.isProfitable ? '#15803D' : '#DC2626',
                         }}
                       >
-                        {c.statut === 'RENTABLE' ? 'Rentable' : c.statut === 'DONNEES_INSUFFISANTES' ? '< 5 clients' : 'À optimiser'}
+                        {chan.isProfitable ? 'Rentable' : 'Déficitaire'}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       <button
-                        className="btn btn-secondary"
-                        onClick={() => setEditingChannel(c)}
-                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                        onClick={() => {
+                          setEditingChannel(chan);
+                          setShowEditChannelModal(true);
+                        }}
+                        style={{ background: 'transparent', border: 'none', color: '#0062FF', cursor: 'pointer', padding: '4px' }}
+                        title="Modifier"
                       >
-                        Régler seuil
+                        <Edit3 size={15} />
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-              {/* LIGNE TOTAL RECALCULÉE CONFORME CAHIER DES CHARGES */}
-              <tfoot>
-                <tr style={{ background: '#F8FAFC', fontWeight: 800, borderTop: '2px solid #CBD5E1' }}>
-                  <td>TOTAL RÉCAPITULATIF</td>
-                  <td>{totalBudget.toLocaleString('fr-FR')} F</td>
-                  <td>{totalContacts}</td>
-                  <td>{totalConverted}</td>
-                  <td>{overallConversionRate}%</td>
-                  <td style={{ color: '#0062FF' }}>{averageCac.toLocaleString('fr-FR')} F</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>{totalMargin.toLocaleString('fr-FR')} F</td>
-                  <td style={{ color: '#059669' }}>+{(totalMargin - totalBudget).toLocaleString('fr-FR')} F</td>
-                  <td colSpan={2}>Globalement Rentable</td>
-                </tr>
-              </tfoot>
             </table>
           </div>
         </div>
       )}
 
-      {/* TAB 3 : CAMPAGNES PUBLICITAIRES (A.7.3) */}
+      {/* TAB 3: CAMPAGNES PUBLICITAIRES (SECTION 3) */}
       {activeTab === 'campagnes' && (
-        <div className="card" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-              <h3 style={{ fontSize: '1.15rem', margin: 0 }}>Campagnes Publicitaires (Facebook / Instagram / TikTok)</h3>
-              <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '4px 0 0 0' }}>
-                Suivi du rendement de chaque campagne sponsorisée
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Campagnes Publicitaires & Suivi des Budgets</h2>
+              <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+                Suivez individuellement chaque campagne marketing avec son budget prévu, ses dépenses réelles et ses conversions.
               </p>
             </div>
-            <button className="btn btn-primary" onClick={() => setShowAddCampaignModal(true)}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowAddCampaignModal(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
               <Plus size={16} />
-              <span>Créer une campagne</span>
+              <span>Créer une Campagne</span>
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
-            {campaigns.map(camp => (
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+              <thead>
+                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 16px' }}>Nom de la Campagne</th>
+                  <th style={{ padding: '12px 10px' }}>Canal Rattaché</th>
+                  <th style={{ padding: '12px 10px' }}>Statut</th>
+                  <th style={{ padding: '12px 10px' }}>Budget Prévu</th>
+                  <th style={{ padding: '12px 10px' }}>Dépenses Réelles</th>
+                  <th style={{ padding: '12px 10px' }}>Prospects</th>
+                  <th style={{ padding: '12px 10px' }}>Date Début</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaigns.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
+                      Aucune campagne enregistrée pour le moment. Cliquez sur « Créer une Campagne » pour démarrer.
+                    </td>
+                  </tr>
+                ) : (
+                  campaigns.map(camp => (
+                    <tr key={camp.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '12px 16px' }}>
+                        <strong style={{ color: '#0F172A' }}>{camp.name}</strong>
+                      </td>
+                      <td style={{ padding: '12px 10px', color: '#0062FF', fontWeight: 600 }}>
+                        {camp.channel?.name || 'Général'}
+                      </td>
+                      <td style={{ padding: '12px 10px' }}>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontWeight: 700,
+                            background: camp.status === 'active' ? '#DCFCE7' : '#F1F5F9',
+                            color: camp.status === 'active' ? '#15803D' : '#64748B',
+                          }}
+                        >
+                          {camp.status === 'active' ? 'Active' : camp.status === 'completed' ? 'Terminée' : 'En pause'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 10px', color: '#64748B' }}>{fmt(camp.budgetPlanned)}</td>
+                      <td style={{ padding: '12px 10px', fontWeight: 600, color: '#0062FF' }}>{fmt(camp.actualSpend)}</td>
+                      <td style={{ padding: '12px 10px' }}>{camp.leadsCount}</td>
+                      <td style={{ padding: '12px 10px' }}>{camp.startDate.slice(0, 10)}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                        <button
+                          onClick={async () => {
+                            if (window.confirm(`Supprimer la campagne "${camp.name}" ?`)) {
+                              await growthService.deleteCampaign(camp.id);
+                              fetchData();
+                            }
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#DC2626', cursor: 'pointer', padding: '4px' }}
+                          title="Supprimer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: RENTABILITÉ PRODUITS & SERVICES (SECTION 4 DU CAHIER DES CHARGES) */}
+      {activeTab === 'produits' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <div>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Rentabilité des Produits & Charges Variables</h2>
+              <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+                Décomposition unitaire des coûts (achat, transport, emballage, livraison vendeur, commission) et calcul du CAC maximal toléré.
+              </p>
+            </div>
+            <button
+              className="btn btn-secondary"
+              onClick={() => navigate('/stock')}
+              style={{ fontSize: '0.85rem' }}
+            >
+              Gérer le Catalogue de Stock
+            </button>
+          </div>
+
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+              <thead>
+                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
+                  <th style={{ padding: '12px 16px' }}>Produit / Service</th>
+                  <th style={{ padding: '12px 10px' }}>Prix Vente</th>
+                  <th style={{ padding: '12px 10px' }}>Coût Achat</th>
+                  <th style={{ padding: '12px 10px' }}>Charges Variables Unit.</th>
+                  <th style={{ padding: '12px 10px' }}>Coût Total Unitaire</th>
+                  <th style={{ padding: '12px 10px' }}>Marge Contributive Unit.</th>
+                  <th style={{ padding: '12px 10px' }}>CAC Maxi Toléré</th>
+                  <th style={{ padding: '12px 10px' }}>Unités Vendues</th>
+                  <th style={{ padding: '12px 16px' }}>Marge Totale Réalisée</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productsProf.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#64748B' }}>
+                      Aucun produit trouvé dans votre catalogue.
+                    </td>
+                  </tr>
+                ) : (
+                  productsProf.map(p => (
+                    <tr key={p.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <td style={{ padding: '12px 16px' }}>
+                        <strong style={{ color: '#0F172A', display: 'block' }}>{p.name}</strong>
+                        {p.reference && <span style={{ fontSize: '0.72rem', color: '#64748B' }}>Réf: {p.reference}</span>}
+                      </td>
+                      <td style={{ padding: '12px 10px', fontWeight: 700, color: '#0F172A' }}>{fmt(p.sellingPrice)}</td>
+                      <td style={{ padding: '12px 10px', color: '#64748B' }}>{fmt(p.costPrice)}</td>
+                      <td style={{ padding: '12px 10px', color: '#E11D48' }}>
+                        {fmt(p.unitVariableCosts)}
+                      </td>
+                      <td style={{ padding: '12px 10px', fontWeight: 600, color: '#475569' }}>
+                        {fmt(p.costPrice + p.unitVariableCosts)}
+                      </td>
+                      <td style={{ padding: '12px 10px', fontWeight: 800, color: '#16A34A' }}>
+                        {fmt(p.unitContributionMargin)}
+                      </td>
+                      <td style={{ padding: '12px 10px', fontWeight: 800, color: '#FF6B00' }}>
+                        {fmt(p.maxAcceptableCac)}
+                      </td>
+                      <td style={{ padding: '12px 10px' }}>{p.totalUnitsSold} unités</td>
+                      <td style={{ padding: '12px 16px', fontWeight: 800, color: '#15803D' }}>
+                        {fmt(p.totalContributionProfit)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: SEUIL DE RENTABILITÉ & POINT MORT (SECTION 6.H) */}
+      {activeTab === 'pointMort' && breakEven && (
+        <div>
+          <div style={{ marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Calcul du Seuil de Rentabilité (Point Mort)</h2>
+            <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+              Déterminez le chiffre d'affaires et le nombre d'unités minimales à vendre pour couvrir l'intégralité des coûts fixes et des dépenses d'acquisition.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #7C3AED' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                Point Mort en Chiffre d'Affaires
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#7C3AED', marginTop: '6px' }}>
+                {breakEven.breakEvenRevenue !== null ? fmt(breakEven.breakEvenRevenue) : 'Non calculable'}
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '8px 0 0 0' }}>
+                Niveau de chiffre d'affaires à partir duquel votre activité commence à générer du bénéfice net.
+              </p>
+            </div>
+
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #0062FF' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                Nombre Minimal d'Unités à Vendre
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0062FF', marginTop: '6px' }}>
+                {breakEven.breakEvenUnits !== null ? `${breakEven.breakEvenUnits.toLocaleString('fr-FR')} unités` : 'Non calculable'}
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '8px 0 0 0' }}>
+                Quantité physique d'articles ou prestations requise pour atteindre l'équilibre financier complet.
+              </p>
+            </div>
+
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #10B981' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                Marge de Sécurité Actuelle
+              </div>
               <div
-                key={camp.id}
                 style={{
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  background: '#FFFFFF',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                  fontSize: '1.8rem',
+                  fontWeight: 800,
+                  color: (breakEven.marginOfSafety ?? 0) >= 0 ? '#10B981' : '#EF4444',
+                  marginTop: '6px',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                  <span style={{ padding: '2px 8px', borderRadius: '4px', background: '#EFF6FF', color: '#0062FF', fontSize: '0.75rem', fontWeight: 700 }}>
-                    {camp.plateforme}
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: '#059669', fontWeight: 700 }}>● {camp.statut}</span>
-                </div>
-                <h4 style={{ margin: '0 0 6px 0', fontSize: '1rem' }}>{camp.nom}</h4>
-                <div style={{ fontSize: '0.82rem', color: '#64748B', marginBottom: '12px' }}>{camp.objectif}</div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', borderTop: '1px solid #F1F5F9', paddingTop: '10px', fontSize: '0.85rem' }}>
-                  <div>
-                    <div style={{ color: '#64748B', fontSize: '0.75rem' }}>Budget engagé</div>
-                    <strong>{camp.budgetTotal.toLocaleString('fr-FR')} FCFA</strong>
-                  </div>
-                  <div>
-                    <div style={{ color: '#64748B', fontSize: '0.75rem' }}>Clients convertis</div>
-                    <strong>{camp.clientsConvertis} clients</strong>
-                  </div>
-                  <div>
-                    <div style={{ color: '#64748B', fontSize: '0.75rem' }}>CAC Campagne</div>
-                    <strong style={{ color: '#0062FF' }}>{camp.cac ? `${camp.cac.toLocaleString('fr-FR')} F` : 'N/A'}</strong>
-                  </div>
-                  <div>
-                    <div style={{ color: '#64748B', fontSize: '0.75rem' }}>Contacts générés</div>
-                    <strong>{camp.contactsTotal} prospects</strong>
-                  </div>
-                </div>
+                {breakEven.marginOfSafety !== null ? fmt(breakEven.marginOfSafety) : '0 FCFA'}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4 : ÉVOLUTION 12 MOIS (A.7.4) */}
-      {activeTab === 'evolution' && (
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ fontSize: '1.15rem', margin: '0 0 16px 0' }}>Courbe d'Évolution sur 12 Mois</h3>
-          <p style={{ color: '#64748B', fontSize: '0.85rem', marginBottom: '20px' }}>
-            Comparaison entre le budget marketing total investi et le coût d'acquisition client (CAC) moyen.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
-            {[
-              { mois: 'Juin 2026', budget: 25000, clients: 10, cac: 2500 },
-              { mois: 'Juil 2026', budget: 30000, clients: 14, cac: 2142 },
-              { mois: 'Août 2026', budget: 45000, clients: 22, cac: 2045 },
-              { mois: 'Sept 2026', budget: 50000, clients: 26, cac: 1923 },
-              { mois: 'Oct 2026', budget: totalBudget, clients: totalConverted, cac: averageCac },
-            ].map(m => (
-              <div key={m.mois} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '6px' }}>{m.mois}</div>
-                <div style={{ fontSize: '0.82rem', color: '#64748B' }}>Budget : <strong>{m.budget.toLocaleString('fr-FR')} F</strong></div>
-                <div style={{ fontSize: '0.82rem', color: '#64748B' }}>Clients : <strong>{m.clients}</strong></div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0062FF', marginTop: '6px' }}>
-                  CAC : {m.cac.toLocaleString('fr-FR')} F
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* MODAL AJOUT CAMPAGNE */}
-      {showAddCampaignModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '480px' }}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Nouvelle Campagne Publicitaire</h3>
-              <button onClick={() => setShowAddCampaignModal(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8' }}>×</button>
+              <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '8px 0 0 0' }}>
+                Baisse de chiffre d'affaires que vous pouvez supporter avant d'entrer en zone de perte financière.
+              </p>
             </div>
-            <form onSubmit={handleCreateCampaign}>
+
+            <div className="card" style={{ padding: '20px', borderLeft: '4px solid #FF6B00' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                Budget Pub Maximal Compatible
+              </div>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#FF6B00', marginTop: '6px' }}>
+                {fmt(breakEven.maxCompatibleAdBudget)}
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '8px 0 0 0' }}>
+                Plafond d'investissement publicitaire admissible pour maintenir votre rentabilité sur la période.
+              </p>
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: '20px', background: '#F8FAFC', border: '1px solid #CBD5E1' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: '0 0 10px 0', color: '#0F172A' }}>
+              Détails des Paramètres Comptables Utilisés :
+            </h3>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.88rem', color: '#334155', lineHeight: 1.6 }}>
+              <li>
+                <strong>Taux de Marge sur Coûts Variables (TMCV) :</strong> {breakEven.tmcv}%.
+              </li>
+              <li>
+                <strong>Marge Contributive Unitaire Moyenne :</strong> {fmt(breakEven.mcvu)}.
+              </li>
+              <li>
+                <strong>Prix de Vente Moyen :</strong> {fmt(breakEven.avgSellingPrice)}.
+              </li>
+              <li>
+                <strong>Charges Fixes enregistrées :</strong> {fmt(summary?.totalFixedCosts)}.
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: COPILOTE IA STRATÉGIQUE (SECTION 10 DU CAHIER DES CHARGES) */}
+      {activeTab === 'copilote' && aiReport && (
+        <div>
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={22} color="#0062FF" />
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
+                Copilote IA — Recommandations Fondées sur Chiffres Réels
+              </h2>
+            </div>
+            <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+              Analyses impartiales basées sur vos marges réelles, coûts d'acquisition et rentabilité nette constatée.
+            </p>
+          </div>
+
+          {/* Strategic Actions & Recommendations */}
+          <div className="card" style={{ padding: '20px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
+                Diagnostic Stratégique COMMERCIA ({aiReport.periodLabel}) :
+              </h3>
+              <span style={{ fontSize: '0.78rem', color: '#64748B', background: '#F1F5F9', padding: '4px 8px', borderRadius: '8px' }}>
+                {aiReport.dataUsed.totalSalesAnalyzed} ventes analysées • {aiReport.dataUsed.totalExpensesAnalyzed} dépenses
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {aiReport.recommendations?.map((rec: string, i: number) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    padding: '14px 16px',
+                    background: '#F8FAFC',
+                    borderRadius: '8px',
+                    borderLeft: '3px solid #0062FF',
+                    fontSize: '0.92rem',
+                    lineHeight: 1.6,
+                    color: '#1E293B',
+                  }}
+                >
+                  <CheckCircle size={18} color="#0062FF" style={{ flexShrink: 0, marginTop: '3px' }} />
+                  <span>{rec}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: IMPORT / EXPORT CSV & RAPPORTS (SECTION 9 DU CAHIER DES CHARGES) */}
+      {activeTab === 'importExport' && (
+        <div>
+          <div style={{ marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Importation & Exportation des Données</h2>
+            <p style={{ color: '#64748B', fontSize: '0.85rem', margin: '2px 0 0 0' }}>
+              Importez vos fichiers CSV de dépenses publicitaires (Facebook, TikTok, Google) ou vos ventes avec validation stricte.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            {/* Import Box */}
+            <div className="card" style={{ padding: '22px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                <Upload size={22} color="#0062FF" />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Importer des Données CSV</h3>
+              </div>
+              <p style={{ fontSize: '0.86rem', color: '#64748B', lineHeight: 1.5, marginBottom: '16px' }}>
+                Importez des campagnes ou dépenses marketing. Les doublons et incohérences sont automatiquement détectés.
+              </p>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Sélectionner un fichier CSV :
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleCsvFileUpload}
+                  style={{ width: '100%', fontSize: '0.82rem' }}
+                />
+              </div>
+
+              {csvPreviewRows.length > 0 && (
+                <div style={{ marginBottom: '16px', background: '#F8FAFC', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1E293B', marginBottom: '6px' }}>
+                    Aperçu avant importation ({csvPreviewRows.length} lignes trouvées) :
+                  </div>
+                  <pre style={{ fontSize: '0.72rem', color: '#475569', overflowX: 'auto', margin: 0 }}>
+                    {JSON.stringify(csvPreviewRows.slice(0, 3), null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {csvImportResult && (
+                <div style={{ marginBottom: '16px', padding: '10px 12px', background: '#DCFCE7', color: '#16A34A', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600 }}>
+                  ✅ {csvImportResult.importedCount} enregistrement(s) importé(s) avec succès !
+                </div>
+              )}
+
+              <button
+                className="btn btn-primary"
+                onClick={handleExecuteCsvImport}
+                disabled={csvImportLoading || !csvContent.trim()}
+                style={{ width: '100%' }}
+              >
+                {csvImportLoading ? 'Traitement en cours...' : 'Valider et Importer le Fichier'}
+              </button>
+            </div>
+
+            {/* Export Box */}
+            <div className="card" style={{ padding: '22px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+                <Download size={22} color="#10B981" />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Exporter les Résultats</h3>
+              </div>
+              <p style={{ fontSize: '0.86rem', color: '#64748B', lineHeight: 1.5, marginBottom: '20px' }}>
+                Téléchargez l'intégralité des calculs de rentabilité pour vos présentations, audits d'investisseurs ou clôtures comptables.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleExportCsv}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px' }}
+                >
+                  <Download size={16} />
+                  <span>Télécharger l'Export CSV Complet ({period})</span>
+                </button>
+
+                <button
+                  className="btn btn-secondary"
+                  onClick={handlePrintReport}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px' }}
+                >
+                  <Printer size={16} />
+                  <span>Imprimer le Rapport Officiel / Sauvegarder en PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AJOUT NOUVEAU CANAL PERSONNALISÉ */}
+      {showAddChannelModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Nouveau Canal d'Acquisition</h3>
+              <button
+                onClick={() => setShowAddChannelModal(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateChannel}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Nom de la campagne *</label>
-                  <input type="text" value={campName} onChange={e => setCampName(e.target.value)} required placeholder="Ex: Promo Sacs de Riz Octobre" />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Plateforme</label>
-                  <select value={campPlatform} onChange={e => setCampPlatform(e.target.value as any)}>
-                    <option value="Facebook">Facebook Ads</option>
-                    <option value="Instagram">Instagram Ads</option>
-                    <option value="TikTok">TikTok Ads</option>
-                    <option value="Autre">Autre canal</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Budget prévu (FCFA) *</label>
-                  <input type="number" min="1000" value={campBudget} onChange={e => setCampBudget(Number(e.target.value))} required />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Contacts / Clics attendus</label>
-                  <input type="number" min="1" value={campContacts} onChange={e => setCampContacts(Number(e.target.value))} required />
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Nom du canal * (ex: Influenceurs Douala, Radio FM, Prospection directe)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newChanName}
+                    onChange={e => setNewChanName(e.target.value)}
+                    placeholder="Nom du canal"
+                    style={{ width: '100%', padding: '8px' }}
+                  />
                 </div>
 
-                {/* Liaison Trésorerie (Partie C.1) */}
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '12px', borderRadius: '8px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600 }}>
-                    <input type="checkbox" checked={syncWithTreasury} onChange={e => setSyncWithTreasury(e.target.checked)} />
-                    <span>Enregistrer aussi cette dépense en trésorerie</span>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Type de canal
                   </label>
-                  <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px', paddingLeft: '24px' }}>
-                    Crée une sortie planifiée catégorie « Marketing / Publicité » (nature Acquisition) sans aucun doublon.
-                  </div>
+                  <select
+                    value={newChanType}
+                    onChange={e => setNewChanType(e.target.value)}
+                    style={{ width: '100%', padding: '8px' }}
+                  >
+                    <option value="Réseaux Sociaux">Réseaux Sociaux</option>
+                    <option value="Publicité Payante">Publicité Payante</option>
+                    <option value="Bouche-à-oreille">Bouche-à-oreille</option>
+                    <option value="Influenceurs">Influenceurs</option>
+                    <option value="Affiliation">Affiliation</option>
+                    <option value="Prospection">Prospection Directe</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Description & Notes
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newChanDescription}
+                    onChange={e => setNewChanDescription(e.target.value)}
+                    placeholder="Objectif de campagne, liens UTM, contact agence..."
+                    style={{ width: '100%', padding: '8px', fontSize: '0.82rem' }}
+                  />
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddCampaignModal(false)}>Annuler</button>
-                <button type="submit" className="btn btn-primary">Enregistrer la campagne</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddChannelModal(false)}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Créer le Canal
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL CSV IMPORT (A.7.3) */}
-      {showCsvModal && (
+      {/* MODAL: MODIFICATION CANAL */}
+      {showEditChannelModal && editingChannel && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Import CSV Facebook Ads Manager</h3>
-              <button onClick={() => setShowCsvModal(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8' }}>×</button>
-            </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <p style={{ fontSize: '0.88rem', color: '#64748B', margin: 0 }}>
-                Téléversez votre export de campagne Facebook Ads Manager pour synchroniser automatiquement vos dépenses et contacts générés.
-              </p>
-              <div style={{ border: '2px dashed #CBD5E1', borderRadius: '10px', padding: '24px', textAlign: 'center', background: '#F8FAFC' }}>
-                <Upload size={32} color="#0062FF" style={{ margin: '0 auto 8px auto' }} />
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Glissez-déposez votre fichier .csv</div>
-                <div style={{ fontSize: '0.75rem', color: '#94A3B8', marginTop: '4px' }}>Format export standard Meta Ads Manager</div>
-              </div>
-              <div style={{ fontSize: '0.82rem', color: '#475569' }}>
-                Mapping automatique des colonnes : <code>Campaign Name</code>, <code>Amount Spent (XAF)</code>, <code>Link Clicks / Results</code>.
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={() => setShowCsvModal(false)}>Fermer</button>
-              <button type="button" className="btn btn-primary" onClick={handleCsvImport}>
-                Lancer l'importation
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Modifier le Canal</h3>
+              <button
+                onClick={() => setShowEditChannelModal(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
               </button>
             </div>
+            <form onSubmit={handleUpdateChannel}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Nom du canal *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingChannel.name}
+                    onChange={e => setEditingChannel({ ...editingChannel, name: e.target.value })}
+                    style={{ width: '100%', padding: '8px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Type de canal
+                  </label>
+                  <select
+                    value={editingChannel.type}
+                    onChange={e => setEditingChannel({ ...editingChannel, type: e.target.value })}
+                    style={{ width: '100%', padding: '8px' }}
+                  >
+                    <option value="Réseaux Sociaux">Réseaux Sociaux</option>
+                    <option value="Publicité Payante">Publicité Payante</option>
+                    <option value="Bouche-à-oreille">Bouche-à-oreille</option>
+                    <option value="Influenceurs">Influenceurs</option>
+                    <option value="Affiliation">Affiliation</option>
+                    <option value="Prospection">Prospection Directe</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEditChannelModal(false)}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Enregistrer les Modifications
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* MODAL SEUIL CAC MANUEL (A.5) */}
-      {editingChannel && (
+      {/* MODAL: NOUVELLE CAMPAGNE */}
+      {showAddCampaignModal && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '420px' }}>
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.15rem', margin: 0 }}>Régler le Seuil CAC : {editingChannel.nom}</h3>
-              <button onClick={() => setEditingChannel(null)} style={{ background: 'transparent', border: 'none', color: '#94A3B8' }}>×</button>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>Créer une Nouvelle Campagne</h3>
+              <button
+                onClick={() => setShowAddCampaignModal(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
             </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <p style={{ fontSize: '0.85rem', color: '#64748B', margin: 0 }}>
-                Par défaut, COMMERCIA recalcule automatiquement votre seuil maximal acceptable à <strong>30% de la marge brute moyenne</strong>. Vous pouvez forcer votre propre montant.
-              </p>
-              <div>
-                <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '4px' }}>
-                  Seuil CAC Forcé (FCFA)
-                </label>
-                <input
-                  type="number"
-                  min="500"
-                  step="500"
-                  defaultValue={editingChannel.seuilCacManuel || 3000}
-                  id="customSeuilInput"
-                  style={{ width: '100%', padding: '10px' }}
-                />
+            <form onSubmit={handleCreateCampaign}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Nom de la campagne * (ex: Promo Rentrée Scolaire 2026, Black Friday)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newCampName}
+                    onChange={e => setNewCampName(e.target.value)}
+                    placeholder="Nom de la campagne"
+                    style={{ width: '100%', padding: '8px' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Canal d'acquisition associé *
+                  </label>
+                  <select
+                    required
+                    value={newCampChannelId}
+                    onChange={e => setNewCampChannelId(e.target.value)}
+                    style={{ width: '100%', padding: '8px' }}
+                  >
+                    <option value="">-- Choisir un canal --</option>
+                    {channelsList.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Budget prévu (FCFA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newCampBudget}
+                      onChange={e => setNewCampBudget(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))}
+                      placeholder="0"
+                      style={{ width: '100%', padding: '8px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Dépenses réelles (FCFA)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newCampActualSpend}
+                      onChange={e => setNewCampActualSpend(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))}
+                      placeholder="0"
+                      style={{ width: '100%', padding: '8px' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Prospects générés (leads / clics)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newCampLeads}
+                      onChange={e => setNewCampLeads(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))}
+                      placeholder="0"
+                      style={{ width: '100%', padding: '8px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                      Date de début
+                    </label>
+                    <input
+                      type="date"
+                      value={newCampStartDate}
+                      onChange={e => setNewCampStartDate(e.target.value)}
+                      style={{ width: '100%', padding: '8px' }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                    Notes et observations
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newCampNotes}
+                    onChange={e => setNewCampNotes(e.target.value)}
+                    placeholder="Détails de l'audience, liens UTM, objectifs de conversion..."
+                    style={{ width: '100%', padding: '8px', fontSize: '0.82rem' }}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="modal-footer">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => handleUpdateChannelSeuil(editingChannel.id, null)}
-              >
-                Rétablir le calcul auto (30%)
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => {
-                  const val = Number((document.getElementById('customSeuilInput') as HTMLInputElement)?.value || 3000);
-                  handleUpdateChannelSeuil(editingChannel.id, val);
-                }}
-              >
-                Enregistrer le seuil
-              </button>
-            </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddCampaignModal(false)}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Enregistrer la Campagne
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

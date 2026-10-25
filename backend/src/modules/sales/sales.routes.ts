@@ -18,10 +18,16 @@ router.post('/', async (req: AuthRequest, res, next) => {
         quantity: z.number().int().min(1).default(1),
         unitPrice: z.number().min(0),
         costPrice: z.number().min(0).default(0),
+        variableCosts: z.number().min(0).default(0),
         productId: z.string().optional(),
       })).min(1, 'Au moins un article requis'),
       paymentMethod: z.enum(['cash', 'mobile_money', 'bank_transfer', 'credit']).default('cash'),
       customerId: z.string().optional(),
+      channelId: z.string().optional(),
+      campaignId: z.string().optional(),
+      variableCosts: z.number().min(0).default(0),
+      discountAmount: z.number().min(0).default(0),
+      status: z.enum(['completed', 'paid', 'delivered', 'pending', 'cancelled', 'refunded']).default('completed'),
       notes: z.string().optional(),
       totalAmount: z.number().optional(),
       paidAmount: z.number().optional(),
@@ -55,37 +61,64 @@ router.post('/', async (req: AuthRequest, res, next) => {
       }
     }
 
-    // Si le prix de revient n'est pas fourni, le récupérer du catalogue produit
+    // Si le prix de revient ou charges variables ne sont pas fournis, les récupérer du catalogue produit
     const enrichedItems = await Promise.all(
       data.items.map(async item => {
         let costPrice = item.costPrice;
-        if ((!costPrice || costPrice === 0) && item.productId) {
+        let variableCosts = item.variableCosts;
+        if (item.productId) {
           const product = await req.prisma.product.findUnique({
             where: { id: item.productId },
-            select: { costPrice: true },
+            select: { costPrice: true, variableCosts: true },
           });
-          if (product && product.costPrice > 0) {
-            costPrice = product.costPrice;
+          if (product) {
+            if ((!costPrice || costPrice === 0) && product.costPrice > 0) {
+              costPrice = product.costPrice;
+            }
+            if ((!variableCosts || variableCosts === 0) && product.variableCosts > 0) {
+              variableCosts = product.variableCosts;
+            }
           }
         }
         return {
           ...item,
           costPrice: costPrice || 0,
+          variableCosts: variableCosts || 0,
         };
       })
     );
 
-    const totalAmount = enrichedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-    const paidAmount = data.paymentMethod === 'credit' ? 0 : totalAmount;
+    const grossTotal = enrichedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const computedTotal = Math.max(0, grossTotal - (data.discountAmount || 0));
+    const totalAmount = computedTotal;
+    const paidAmount = data.paymentMethod === 'credit' ? 0 : computedTotal;
+
+    // Attribuer le premier canal au client s'il est nouveau
+    if (data.customerId && data.channelId) {
+      const customer = await req.prisma.customer.findUnique({ where: { id: data.customerId } });
+      if (customer && !customer.firstChannelId) {
+        await req.prisma.customer.update({
+          where: { id: data.customerId },
+          data: {
+            firstChannelId: data.channelId,
+            acquiredAt: customer.acquiredAt || new Date(),
+          },
+        });
+      }
+    }
 
     const sale = await req.prisma.sale.create({
       data: {
         businessId,
         customerId: data.customerId || null,
-        totalAmount,
+        channelId: data.channelId || null,
+        campaignId: data.campaignId || null,
+        totalAmount: computedTotal,
         paidAmount,
+        discountAmount: data.discountAmount || 0,
+        variableCosts: data.variableCosts || 0,
         paymentMethod: data.paymentMethod,
-        status: 'completed',
+        status: data.status,
         notes: data.notes || null,
         items: {
           create: enrichedItems.map(item => ({
@@ -93,12 +126,13 @@ router.post('/', async (req: AuthRequest, res, next) => {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             costPrice: item.costPrice,
+            variableCosts: item.variableCosts,
             totalPrice: item.unitPrice * item.quantity,
             productId: item.productId || null,
           })),
         },
       },
-      include: { items: true, customer: true },
+      include: { items: true, customer: true, channel: true },
     });
 
 

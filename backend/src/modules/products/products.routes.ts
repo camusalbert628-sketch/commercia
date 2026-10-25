@@ -54,11 +54,15 @@ router.post('/', requireProSubscription, async (req: AuthRequest, res, next) => 
     const businessId = await getTenantBusinessId(req);
     const schema = z.object({
       name: z.string().min(1, 'Nom du produit requis'),
+      reference: z.string().optional(),
+      category: z.string().optional(),
       description: z.string().optional(),
       purchasePrice: z.number().min(0).optional(),
       logisticsFees: z.number().min(0).optional(),
       sellingPrice: z.number().min(0, 'Le prix de vente doit être positif'),
       costPrice: z.number().min(0).default(0),
+      variableCosts: z.number().min(0).default(0),
+      variableCostsBreakdown: z.string().optional(),
       quantity: z.number().int().min(0).default(0),
       unit: z.string().default('unité'),
       lowStockAlert: z.number().int().min(1).default(5),
@@ -80,9 +84,13 @@ router.post('/', requireProSubscription, async (req: AuthRequest, res, next) => 
       data: {
         businessId,
         name: data.name,
+        reference: data.reference || null,
+        category: data.category || null,
         description: finalDescription,
         sellingPrice: data.sellingPrice,
         costPrice: data.costPrice,
+        variableCosts: data.variableCosts || 0,
+        variableCostsBreakdown: data.variableCostsBreakdown || null,
         quantity: data.quantity,
         unit: data.unit,
         lowStockAlert: data.lowStockAlert,
@@ -119,11 +127,17 @@ const updateProductHandler = async (req: AuthRequest, res: any, next: any) => {
 
     const schema = z.object({
       name: z.string().min(1).optional(),
-      description: z.string().optional(),
+      reference: z.string().nullable().optional(),
+      category: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
       sellingPrice: z.number().min(0).optional(),
       costPrice: z.number().min(0).optional(),
+      variableCosts: z.number().min(0).optional(),
+      variableCostsBreakdown: z.string().nullable().optional(),
       unit: z.string().optional(),
       lowStockAlert: z.number().int().min(1).optional(),
+      isActive: z.boolean().optional(),
+      isArchived: z.boolean().optional(),
     });
     const data = schema.parse(req.body);
 

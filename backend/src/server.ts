@@ -21,6 +21,7 @@ import { cashRouter } from './modules/cash/cash.routes';
 import { aiRouter } from './modules/ai/ai.routes';
 import { subscriptionRouter } from './modules/subscriptions/subscription.routes';
 import { paymentsRouter } from './modules/payments/payments.routes';
+import { growthRouter } from './modules/growth/growth.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 
@@ -70,6 +71,7 @@ app.use('/api/ai', aiRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/cash', cashRouter);
+app.use('/api/growth', growthRouter);
 
 
 // Health check
