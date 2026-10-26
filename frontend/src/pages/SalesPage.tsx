@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Trash2, User, Eye, Download } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Search, Trash2, User, Eye, Download, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { api } from '../services/api';
 import { Sale } from '../types';
 import { useModals } from '../context/ModalContext';
 import { ReceiptModal } from '../components/modals/ReceiptModal';
+import { useAuthStore } from '../store/authStore';
 
 interface SalesPageProps {
   onOpenSaleModal?: () => void;
@@ -12,6 +14,8 @@ interface SalesPageProps {
 export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenSale }) => {
   const { openSaleModal, refreshKey } = useModals();
   const onOpenSaleModal = propOpenSale || openSaleModal;
+  const { user } = useAuthStore();
+  const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && user?.subscription?.status === 'active'));
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +62,10 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
 
   const totalFiltered = filtered.reduce((sum, s) => sum + s.totalAmount, 0);
 
+  // Free plan daily quota calculation
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todaySalesCount = sales.filter(s => s.saleDate && s.saleDate.slice(0, 10) === todayStr).length;
+
   const exportToCSV = () => {
     if (filtered.length === 0) {
       alert('Aucune vente à exporter.');
@@ -96,6 +104,72 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
 
   return (
     <div className="page-wrapper fade-in">
+      {/* Free Plan Quota Warning Banner */}
+      {!isPro && (
+        <div
+          style={{
+            background: todaySalesCount >= 15 ? '#FEF2F2' : '#EFF6FF',
+            border: todaySalesCount >= 15 ? '1.5px solid #FCA5A5' : '1px solid #BFDBFE',
+            borderRadius: '12px',
+            padding: '12px 18px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '1.2rem' }}>{todaySalesCount >= 15 ? '🛑' : '📊'}</span>
+            <div>
+              <strong style={{ fontSize: '0.90rem', color: todaySalesCount >= 15 ? '#DC2626' : '#1E40AF', display: 'block' }}>
+                {todaySalesCount >= 15
+                  ? 'Plafond journalier atteint : 15 / 15 ventes utilisées aujourd\'hui'
+                  : `Quota Plan Gratuit : ${todaySalesCount} / 15 ventes enregistrées aujourd'hui`}
+              </strong>
+              <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                {todaySalesCount >= 15
+                  ? 'Votre limite quotidienne de ventes gratuites est atteinte. Débloquez les ventes illimitées avec le Plan Pro.'
+                  : `Il vous reste ${Math.max(0, 15 - todaySalesCount)} vente(s) disponible(s) aujourd'hui. Vos ventes au comptoir et en mobile money sont prises en compte.`}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '90px', height: '8px', background: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+              <div
+                style={{
+                  width: `${Math.min(100, (todaySalesCount / 15) * 100)}%`,
+                  height: '100%',
+                  background: todaySalesCount >= 15 ? '#DC2626' : '#0062FF',
+                  borderRadius: '4px',
+                }}
+              />
+            </div>
+            <Link
+              to="/subscription"
+              style={{
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                color: todaySalesCount >= 15 ? '#DC2626' : '#0062FF',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: '#FFFFFF',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: todaySalesCount >= 15 ? '1px solid #FCA5A5' : '1px solid #BFDBFE',
+              }}
+            >
+              <span>{todaySalesCount >= 15 ? 'Passer à l\'illimité (Pro)' : 'Ventes illimitées Pro'}</span>
+              <ArrowUpRight size={14} />
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0' }}>Historique des Ventes</h1>

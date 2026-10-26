@@ -70,14 +70,7 @@ export const AnalyticsPage: React.FC = () => {
   };
 
   // 1. Données du Graphe Circulaire / Donut (Répartition des dépenses réelles)
-  const pieData = categories.length > 0
-    ? categories.map(c => ({ name: c.category, value: Number(c.amount) || 0 }))
-    : [
-        { name: 'Marchandise', value: 15000 },
-        { name: 'Transport / Colis', value: 5000 },
-        { name: 'Loyer boutique', value: 10000 },
-        { name: 'Électricité & Eau', value: 3500 },
-      ];
+  const pieData = categories.map(c => ({ name: c.category, value: Number(c.amount) || 0 }));
 
   // 2. Données du Radar Chart (Diagnostic Santé Commerciale 360°)
   const salesVal = metrics.totalSales || 0;
@@ -310,35 +303,61 @@ export const AnalyticsPage: React.FC = () => {
             Part relative de chaque catégorie de dépense dans le budget opérationnel
           </p>
 
-          <div style={{ width: '100%', height: '280px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={95}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {pieData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} FCFA`}
-                  contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  height={36}
-                  iconType="circle"
-                  wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          {pieData.length > 0 ? (
+            <div style={{ width: '100%', height: '280px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={95}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {pieData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} FCFA`}
+                    contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    iconType="circle"
+                    wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div
+              style={{
+                height: '280px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#94A3B8',
+                textAlign: 'center',
+                padding: '20px',
+                background: '#F8FAFC',
+                borderRadius: '12px',
+                border: '1px dashed #CBD5E1',
+              }}
+            >
+              <PieIcon size={38} color="#94A3B8" style={{ marginBottom: '10px', opacity: 0.7 }} />
+              <strong style={{ color: '#475569', fontSize: '0.92rem', marginBottom: '4px' }}>
+                Aucune dépense enregistrée sur cette période
+              </strong>
+              <p style={{ fontSize: '0.80rem', margin: 0, maxWidth: '280px', color: '#64748B', lineHeight: 1.5 }}>
+                Enregistrez vos premières charges dans le module Dépenses pour visualiser leur répartition en direct.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 2. Radar Chart (Toile d'araignée: Santé Commerciale 360°) */}

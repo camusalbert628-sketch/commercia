@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, ShoppingBag, Globe, Truck, Store, Users, Package, MessageCircle, Target } from 'lucide-react';
+import { X, Plus, Trash2, ShoppingBag, Globe, Truck, Store, Users, Package, MessageCircle, Target, Crown } from 'lucide-react';
 import { api } from '../../services/api';
 import { Product, Customer, Sale } from '../../types';
 import { ReceiptModal } from './ReceiptModal';
 import { growthService } from '../../services/growthService';
 import { AcquisitionChannel } from '../../types/growth';
+import { useAuthStore } from '../../store/authStore';
 
 interface SaleModalProps {
   isOpen: boolean;
@@ -15,6 +16,9 @@ interface SaleModalProps {
 type CustomerQuality = 'comptoir' | 'en_ligne' | 'livraison' | 'fidele' | 'grossiste';
 
 export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCreated }) => {
+  const { user } = useAuthStore();
+  const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && user?.subscription?.status === 'active'));
+
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [channels, setChannels] = useState<AcquisitionChannel[]>([]);
@@ -23,6 +27,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
   const [selectedProductId, setSelectedProductId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'mobile_money' | 'bank_transfer' | 'credit'>('cash');
   const [customerId, setCustomerId] = useState('');
+  const [todaySalesCount, setTodaySalesCount] = useState<number>(0);
   
   // Customer Quality states
   const [customerQuality, setCustomerQuality] = useState<CustomerQuality>('comptoir');
@@ -81,6 +86,13 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
       api.get<Customer[]>('/customers').then(setCustomers).catch(() => {});
       growthService.getChannels().then(chans => {
         setChannels(chans);
+      }).catch(() => {});
+      // Track today's sales count for free quota gauge
+      api.get<any>('/sales?limit=30').then(res => {
+        const list = Array.isArray(res) ? res : res?.sales || [];
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const count = list.filter((s: any) => s.saleDate?.slice(0, 10) === todayStr).length;
+        setTodaySalesCount(count);
       }).catch(() => {});
     }
   }, [isOpen]);
@@ -282,6 +294,48 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {/* Free Plan Quota Indicator */}
+            {!isPro && (
+              <div
+                style={{
+                  background: todaySalesCount >= 15 ? '#FEF2F2' : '#F0F9FF',
+                  border: todaySalesCount >= 15 ? '1.5px solid #FCA5A5' : '1px solid #BAE6FD',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '1.1rem' }}>{todaySalesCount >= 15 ? '🛑' : '📊'}</span>
+                  <div>
+                    <strong style={{ fontSize: '0.84rem', color: todaySalesCount >= 15 ? '#DC2626' : '#0369A1', display: 'block' }}>
+                      {todaySalesCount >= 15
+                        ? 'Quota gratuit atteint (15/15 ventes aujourd\'hui)'
+                        : `Quota Plan Gratuit : ${todaySalesCount} / 15 ventes aujourd'hui`}
+                    </strong>
+                    <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                      {todaySalesCount >= 15
+                        ? 'Passez à COMMERCIA PRO pour débloquer les ventes illimitées.'
+                        : `Il vous reste ${Math.max(0, 15 - todaySalesCount)} vente(s) gratuite(s) pour cette journée.`}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ width: '65px', height: '6px', background: '#E2E8F0', borderRadius: '3px', overflow: 'hidden', flexShrink: 0 }}>
+                  <div
+                    style={{
+                      width: `${Math.min(100, (todaySalesCount / 15) * 100)}%`,
+                      height: '100%',
+                      background: todaySalesCount >= 15 ? '#DC2626' : '#0062FF',
+                      borderRadius: '3px',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
             {error && (
               <div style={{ padding: '10px 14px', background: '#FEE2E2', color: '#DC2626', borderRadius: '8px', fontSize: '0.88rem' }}>
                 {error}
@@ -370,32 +424,71 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
 
             {/* Payment method */}
             <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '8px' }}>
-                Mode de règlement
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', margin: 0 }}>
+                  Mode de règlement
+                </label>
+                {!isPro && (
+                  <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                    Crédits réservés au Plan Pro
+                  </span>
+                )}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                 {[
-                  { id: 'cash', label: '💵 Espèces (Cash)' },
-                  { id: 'mobile_money', label: '📱 Mobile Money' },
-                  { id: 'credit', label: '⏳ À Crédit (Dette)' },
-                ].map(m => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setPaymentMethod(m.id as any)}
-                    style={{
-                      padding: '10px 4px',
-                      borderRadius: '8px',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      border: paymentMethod === m.id ? '2px solid #0062FF' : '1px solid #CBD5E1',
-                      background: paymentMethod === m.id ? '#EFF6FF' : '#FFFFFF',
-                      color: paymentMethod === m.id ? '#0062FF' : '#475569',
-                    }}
-                  >
-                    {m.label}
-                  </button>
-                ))}
+                  { id: 'cash', label: '💵 Espèces', isProOnly: false },
+                  { id: 'mobile_money', label: '📱 Mobile Money', isProOnly: false },
+                  { id: 'credit', label: '⏳ À Crédit (Dette)', isProOnly: true },
+                ].map(m => {
+                  const isSelected = paymentMethod === m.id;
+                  const isLocked = m.isProOnly && !isPro;
+
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        if (isLocked) {
+                          alert('La vente à crédit et le suivi du carnet de dettes sont réservés aux comptes PRO. Veuillez passer à COMMERCIA PRO.');
+                          return;
+                        }
+                        setPaymentMethod(m.id as any);
+                      }}
+                      style={{
+                        padding: '10px 4px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        border: isSelected ? '2px solid #0062FF' : isLocked ? '1px dashed #CBD5E1' : '1px solid #CBD5E1',
+                        background: isSelected ? '#EFF6FF' : isLocked ? '#F8FAFC' : '#FFFFFF',
+                        color: isSelected ? '#0062FF' : isLocked ? '#94A3B8' : '#475569',
+                        cursor: isLocked ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        opacity: isLocked ? 0.75 : 1,
+                      }}
+                      title={isLocked ? 'Réservé aux comptes PRO' : undefined}
+                    >
+                      <span>{m.label}</span>
+                      {m.isProOnly && (
+                        <span
+                          style={{
+                            background: isPro ? '#0062FF' : '#FF6B00',
+                            color: '#FFFFFF',
+                            fontSize: '0.60rem',
+                            fontWeight: 900,
+                            padding: '1px 5px',
+                            borderRadius: '4px',
+                          }}
+                        >
+                          PRO
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -756,8 +849,17 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
             <button type="button" className="btn btn-secondary" onClick={handleClose} disabled={loading}>
               Annuler
             </button>
-            <button type="submit" className="btn btn-primary" disabled={loading || totalAmount <= 0}>
-              {loading ? 'Enregistrement...' : `Valider la Vente (+${totalAmount.toLocaleString('fr-FR')} FCFA)`}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || totalAmount <= 0 || (!isPro && todaySalesCount >= 15)}
+              style={(!isPro && todaySalesCount >= 15) ? { background: '#94A3B8', cursor: 'not-allowed', borderColor: '#94A3B8' } : {}}
+            >
+              {loading
+                ? 'Enregistrement...'
+                : !isPro && todaySalesCount >= 15
+                ? 'Quota Gratuit Atteint (15/15)'
+                : `Valider la Vente (+${totalAmount.toLocaleString('fr-FR')} FCFA)`}
             </button>
           </div>
         </form>
