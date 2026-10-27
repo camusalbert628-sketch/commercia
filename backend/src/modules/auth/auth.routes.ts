@@ -489,8 +489,11 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
     const businessSchema = z.object({
       name: z.string().min(1, 'Nom de l\'activité requis'),
       sector: z.string().min(1, 'Secteur requis'),
-      trackingMode: z.string().default('simple'),
+      secondarySectors: z.array(z.string()).optional(),
+      trackingMode: z.string().default('avec_stock'),
       dailySalesEstimate: z.string().optional(),
+      city: z.string().optional(),
+      currency: z.string().optional(),
       customSector: z.string().optional(),
       businessDescription: z.string().optional(),
     }).passthrough();
@@ -503,6 +506,8 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
         sector: data.sector,
         trackingMode: data.trackingMode,
         dailySalesEstimate: data.dailySalesEstimate || null,
+        address: data.city || null,
+        currency: data.currency || 'XAF',
         members: {
           create: {
             userId: req.userId!,
@@ -512,7 +517,7 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
         settings: {
           create: {
             enableStock: data.trackingMode === 'avec_stock' || data.trackingMode === 'complet',
-            enableCredits: data.trackingMode === 'avec_credit' || data.trackingMode === 'complet',
+            enableCredits: data.trackingMode === 'complet' || data.trackingMode === 'avec_credit',
           },
         },
       },

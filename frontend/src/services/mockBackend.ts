@@ -279,19 +279,22 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     currentUser = rawUser ? JSON.parse(rawUser) : currentUser;
 
     const bizzName = (body?.name || '').trim() || 'Mon Commerce';
-    const trackingMode = body?.trackingMode || 'complet';
+    const trackingMode = body?.trackingMode || 'avec_stock';
     const newBizz = {
       id: 'bizz-' + Date.now(),
       name: bizzName,
       sector: body?.sector || 'commerce',
+      secondarySectors: body?.secondarySectors || [],
       customSector: body?.customSector || '',
       businessDescription: body?.businessDescription || '',
+      city: body?.city || '',
+      currency: body?.currency || 'XAF',
       salesChannels: body?.salesChannels || [],
-      hasStock: body?.hasStock ?? true,
+      hasStock: body?.hasStock ?? (trackingMode !== 'simple'),
       trackingMode: trackingMode,
       settings: {
         enableStock: trackingMode === 'avec_stock' || trackingMode === 'complet',
-        enableCredits: trackingMode === 'avec_credit' || trackingMode === 'complet',
+        enableCredits: trackingMode === 'complet',
         enableNotifications: true,
         lowStockThreshold: 5,
       },
@@ -300,7 +303,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     };
 
     // Selected plan from onboarding step
-    // Preserve real user subscription or default strictly to Free
+    // Preserve real user subscription or default strictly to Free unless user has an active paid sub
     const existingPlan = currentUser?.subscription?.planName || 'free';
     const isPro = (existingPlan === 'pro' || existingPlan === 'business') && currentUser?.subscription?.status === 'active';
     const planMeta = isPro
