@@ -14,6 +14,14 @@ import {
   Wallet,
   Camera,
   User as UserIcon,
+  Zap,
+  Boxes,
+  Users,
+  Rocket,
+  MessageCircle,
+  ShoppingBag,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -31,6 +39,49 @@ import { useAuthStore } from '../store/authStore';
 
 import { DashboardSkeleton } from '../components/common/SkeletonLoader';
 
+const TRACKING_MODES_CONFIG = [
+  {
+    id: 'simple',
+    title: 'Mode Simplifié',
+    badge: 'Démarrage rapide',
+    icon: Zap,
+    color: '#0284C7',
+    bg: '#F0F9FF',
+    border: '#BAE6FD',
+    desc: 'Ventes du jour + Dépenses = Bénéfice net estimé en temps réel.',
+  },
+  {
+    id: 'avec_stock',
+    title: 'Gestion de Stock & Alertes',
+    badge: 'Le plus populaire',
+    icon: Boxes,
+    color: '#059669',
+    bg: '#ECFDF5',
+    border: '#A7F3D0',
+    desc: 'Catalogue complet d\'articles, prix d\'achat/vente et alertes avant rupture.',
+  },
+  {
+    id: 'avec_credit',
+    title: 'Carnet de Crédits Clients',
+    badge: 'Sécurité de caisse',
+    icon: Users,
+    color: '#D97706',
+    bg: '#FFFBEB',
+    border: '#FDE68A',
+    desc: 'Suivez qui vous doit de l\'argent, les dates d\'échéance et relances WhatsApp en 1 clic.',
+  },
+  {
+    id: 'complet',
+    title: 'Mode Intégral Tout-en-Un',
+    badge: 'SaaS Professionnel',
+    icon: Rocket,
+    color: '#7C3AED',
+    bg: '#FAF5FF',
+    border: '#DDD6FE',
+    desc: 'Ventes + Dépenses + Stocks & Alertes + Crédits + Clôture de Caisse + Copilote IA.',
+  },
+];
+
 interface DashboardPageProps {
   onOpenSaleModal?: () => void;
   onOpenExpenseModal?: () => void;
@@ -40,18 +91,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onOpenSaleModal: propOpenSale,
   onOpenExpenseModal: propOpenExpense,
 }) => {
-  const { user, activeBusinessId, updateUser } = useAuthStore();
+  const { user, activeBusinessId, updateUser, setTrackingMode } = useAuthStore();
   const { openSaleModal, openExpenseModal, refreshKey } = useModals();
   const onOpenSaleModal = propOpenSale || openSaleModal;
   const onOpenExpenseModal = propOpenExpense || openExpenseModal;
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [trends, setTrends] = useState<Array<{ date: string; sales: number; expenses: number; profit: number }>>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [debtors, setDebtors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWhyModal, setShowWhyModal] = useState(false);
   const [hideBanner, setHideBanner] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Quick Express Sale state (Mode Simplifié)
+  const [expressAmount, setExpressAmount] = useState<number | ''>('');
+  const [expressLabel, setExpressLabel] = useState('');
+  const [expressMethod, setExpressMethod] = useState<'cash' | 'mobile_money'>('cash');
+  const [expressLoading, setExpressLoading] = useState(false);
+  const [expressSuccess, setExpressSuccess] = useState('');
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -103,12 +163,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const businessName = activeBusiness?.name || (data as any)?.businessName || 'Votre Boutique';
   const userName = user?.firstName || 'Commerçant';
 
+  const trackingMode = activeBusiness?.trackingMode || 'complet';
+  const currentModeConfig = TRACKING_MODES_CONFIG.find(m => m.id === trackingMode) || TRACKING_MODES_CONFIG[3];
+
   const fetchDashboard = async () => {
     try {
       setLoading(true);
-      const [dashRes, trendsRes] = await Promise.allSettled([
+      const [dashRes, trendsRes, prodRes, custRes] = await Promise.allSettled([
         api.get<DashboardData>('/dashboard'),
         api.get<Array<{ date: string; sales: number; expenses: number; profit: number }>>('/analytics/trends?days=7'),
+        api.get<any[]>('/products'),
+        api.get<any[]>('/customers?onlyDebtors=true'),
       ]);
       if (dashRes.status === 'fulfilled') {
         setData(dashRes.value);
@@ -116,11 +181,55 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       if (trendsRes.status === 'fulfilled') {
         setTrends(trendsRes.value || []);
       }
+      if (prodRes.status === 'fulfilled') {
+        setProducts(prodRes.value || []);
+      }
+      if (custRes.status === 'fulfilled') {
+        setDebtors(custRes.value || []);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQuickExpressSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!expressAmount || Number(expressAmount) <= 0) return;
+    try {
+      setExpressLoading(true);
+      const amount = Number(expressAmount);
+      const label = expressLabel.trim() || 'Vente Comptoir Express';
+      await api.post('/sales', {
+        items: [{ name: label, quantity: 1, unitPrice: amount }],
+        totalAmount: amount,
+        paidAmount: amount,
+        paymentMethod: expressMethod,
+      });
+      setExpressAmount('');
+      setExpressLabel('');
+      setExpressSuccess(`Vente express de ${amount.toLocaleString('fr-FR')} FCFA enregistrée !`);
+      setTimeout(() => setExpressSuccess(''), 4500);
+      fetchDashboard();
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de l'enregistrement de la vente express.");
+    } finally {
+      setExpressLoading(false);
+    }
+  };
+
+  const handleWhatsAppReminder = (debtor: any) => {
+    if (!debtor.phone) {
+      alert('Aucun numéro de téléphone enregistré pour ce client.');
+      return;
+    }
+    const cleanPhone = debtor.phone.replace(/[^0-9]/g, '');
+    const bName = activeBusiness?.name || 'notre boutique';
+    const message = encodeURIComponent(
+      `Bonjour ${debtor.name}, j'espère que vous allez bien.\nPetit rappel amical de la part de ${bName} concernant votre solde restant de ${Number(debtor.totalOwed || 0).toLocaleString('fr-FR')} FCFA.\nMerci pour votre confiance et à très bientôt !`
+    );
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
   };
 
   useEffect(() => {
@@ -138,6 +247,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const safeCashCollected = Number(today.cashCollected !== undefined ? today.cashCollected : safeRevenue);
   const safeOperatingExpenses = Number(today.operatingExpenses !== undefined ? today.operatingExpenses : (today.expenses || 0));
   const safeDebtTotal = Number(debt.total || 0);
+
+  const totalStockValue = products.reduce((sum, p) => sum + (Number(p.quantity || 0) * Number(p.sellingPrice || 0)), 0);
+  const criticalStockProducts = products.filter(p => Number(p.quantity || 0) <= (Number(p.minStockAlert) || 5));
 
   const planName = user?.subscription?.planName || 'free';
 
@@ -449,6 +561,420 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
+      {/* Interactive Tracking Mode Selector Bar */}
+      <div
+        style={{
+          background: '#FFFFFF',
+          borderRadius: '18px',
+          border: '1.5px solid #E2E8F0',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+        }}
+      >
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748B' }}>
+              Mode de pilotage actif :
+            </span>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                background: currentModeConfig.bg,
+                border: `1.5px solid ${currentModeConfig.border}`,
+                color: currentModeConfig.color,
+                fontWeight: 800,
+                fontSize: '0.85rem',
+              }}
+            >
+              <currentModeConfig.icon size={16} />
+              <span>{currentModeConfig.title}</span>
+              <span style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: 700 }}>• {currentModeConfig.badge}</span>
+            </div>
+          </div>
+
+          <div style={{ fontSize: '0.84rem', color: '#475569', fontWeight: 500 }}>
+            {currentModeConfig.desc}
+          </div>
+        </div>
+
+        {/* 4 Interactive Mode Switcher Buttons */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '8px' }}>
+          {TRACKING_MODES_CONFIG.map(m => {
+            const isSelected = trackingMode === m.id;
+            const Icon = m.icon;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setTrackingMode(m.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  border: isSelected ? `2px solid ${m.color}` : '1px solid #E2E8F0',
+                  background: isSelected ? m.bg : '#F8FAFC',
+                  color: isSelected ? m.color : '#475569',
+                  cursor: 'pointer',
+                  fontWeight: isSelected ? 800 : 600,
+                  fontSize: '0.84rem',
+                  transition: 'all 0.15s ease',
+                  boxShadow: isSelected ? `0 2px 8px ${m.color}22` : 'none',
+                }}
+              >
+                <Icon size={18} style={{ color: isSelected ? m.color : '#94A3B8', flexShrink: 0 }} />
+                <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+                  <div>{m.title}</div>
+                  <div style={{ fontSize: '0.7rem', color: isSelected ? m.color : '#94A3B8', fontWeight: 500 }}>
+                    {m.badge}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 1. WIDGET DÉDIÉ MODE SIMPLIFIÉ : ENCAISSEMENT EXPRESS SANS STOCK OBLIGATOIRE */}
+      {/* ========================================================================= */}
+      {trackingMode === 'simple' && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%)',
+            border: '1.5px solid #BAE6FD',
+            borderRadius: '16px',
+            padding: '20px',
+            marginBottom: '24px',
+            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ background: '#0284C7', color: '#FFFFFF', padding: '8px', borderRadius: '10px', display: 'flex' }}>
+                <Zap size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0369A1' }}>
+                  Encaissement Express (Mode Simplifié)
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#0284C7' }}>
+                  Enregistrez instantanément une recette comptoir sans gestion lourde de catalogue
+                </p>
+              </div>
+            </div>
+            {expressSuccess && (
+              <span style={{ background: '#DCFCE7', color: '#15803D', padding: '4px 12px', borderRadius: '20px', fontSize: '0.82rem', fontWeight: 700 }}>
+                ✅ {expressSuccess}
+              </span>
+            )}
+          </div>
+
+          <form onSubmit={handleQuickExpressSale} style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+            <div style={{ flex: '1 1 180px' }}>
+              <input
+                type="number"
+                placeholder="Montant (ex: 5 000 FCFA)"
+                value={expressAmount}
+                onChange={e => setExpressAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                required
+                min={1}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #BAE6FD', fontWeight: 700, fontSize: '0.95rem' }}
+              />
+            </div>
+            <div style={{ flex: '2 1 240px' }}>
+              <input
+                type="text"
+                placeholder="Motif (ex: Vente directe, Coiffure, Repas, Boisson...)"
+                value={expressLabel}
+                onChange={e => setExpressLabel(e.target.value)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #BAE6FD', fontSize: '0.9rem' }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setExpressMethod('cash')}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: expressMethod === 'cash' ? '2px solid #0284C7' : '1px solid #CBD5E1',
+                  background: expressMethod === 'cash' ? '#0284C7' : '#FFFFFF',
+                  color: expressMethod === 'cash' ? '#FFFFFF' : '#475569',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                }}
+              >
+                💵 Cash
+              </button>
+              <button
+                type="button"
+                onClick={() => setExpressMethod('mobile_money')}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: expressMethod === 'mobile_money' ? '2px solid #0284C7' : '1px solid #CBD5E1',
+                  background: expressMethod === 'mobile_money' ? '#0284C7' : '#FFFFFF',
+                  color: expressMethod === 'mobile_money' ? '#FFFFFF' : '#475569',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                }}
+              >
+                📱 Mobile Money
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={expressLoading || !expressAmount}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '10px',
+                border: 'none',
+                background: '#0284C7',
+                color: '#FFFFFF',
+                fontWeight: 800,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)',
+              }}
+            >
+              {expressLoading ? 'Enregistrement...' : '⚡ Encaisser en 1 clic'}
+            </button>
+          </form>
+
+          {/* Quick amount shortcuts */}
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.75rem', color: '#0369A1', fontWeight: 600 }}>Montants rapides :</span>
+            {[1000, 2500, 5000, 10000, 25000, 50000].map(val => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => setExpressAmount(val)}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #BAE6FD',
+                  borderRadius: '16px',
+                  padding: '3px 10px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: '#0284C7',
+                  cursor: 'pointer',
+                }}
+              >
+                +{val.toLocaleString('fr-FR')} F
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2. WIDGET DÉDIÉ GESTION DE STOCK & ALERTES RUPTURES */}
+      {/* ========================================================================= */}
+      {trackingMode === 'avec_stock' && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
+            border: '1.5px solid #A7F3D0',
+            borderRadius: '16px',
+            padding: '20px',
+            marginBottom: '24px',
+            boxShadow: '0 4px 12px rgba(5, 150, 105, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ background: '#059669', color: '#FFFFFF', padding: '8px', borderRadius: '10px', display: 'flex' }}>
+                <Boxes size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#065F46' }}>
+                  Gestion de Stock & Alertes Ruptures
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#047857' }}>
+                  Valeur totale du stock magasin : <strong style={{ color: '#059669' }}>{totalStockValue.toLocaleString('fr-FR')} FCFA</strong> ({products.length} référence(s))
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/products"
+              className="btn btn-primary"
+              style={{ background: '#059669', borderColor: '#059669', padding: '6px 14px', fontSize: '0.84rem' }}
+            >
+              Catalogue & Réapprovisionnement &rarr;
+            </Link>
+          </div>
+
+          {criticalStockProducts.length === 0 ? (
+            <div style={{ background: '#FFFFFF', borderRadius: '12px', padding: '16px', textAlign: 'center', color: '#059669', fontWeight: 700, fontSize: '0.9rem' }}>
+              ✅ Tous vos stocks sont au vert ! Aucun article en rupture critique immédiate.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '10px' }}>
+              {criticalStockProducts.slice(0, 4).map((p: any) => (
+                <div
+                  key={p.id}
+                  style={{
+                    background: '#FFFFFF',
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    border: '1.5px solid #FDE68A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.88rem' }}>{p.name}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#DC2626', fontWeight: 700 }}>
+                      ⚠️ Reste : {p.quantity} unité(s) (Seuil : {p.minStockAlert || 5})
+                    </div>
+                  </div>
+                  <Link
+                    to="/products"
+                    style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      color: '#059669',
+                      background: '#ECFDF5',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    + Réappro
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. WIDGET DÉDIÉ CARNET DE CRÉDITS CLIENTS & RELANCES WHATSAPP */}
+      {/* ========================================================================= */}
+      {trackingMode === 'avec_credit' && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+            border: '1.5px solid #FDE68A',
+            borderRadius: '16px',
+            padding: '20px',
+            marginBottom: '24px',
+            boxShadow: '0 4px 12px rgba(217, 119, 6, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ background: '#D97706', color: '#FFFFFF', padding: '8px', borderRadius: '10px', display: 'flex' }}>
+                <Users size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#92400E' }}>
+                  Carnet de Crédits Clients & Relances WhatsApp
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#B45309' }}>
+                  Total créances impayées : <strong style={{ color: '#DC2626' }}>{safeDebtTotal.toLocaleString('fr-FR')} FCFA</strong>
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/customers"
+              className="btn btn-primary"
+              style={{ background: '#D97706', borderColor: '#D97706', padding: '6px 14px', fontSize: '0.84rem' }}
+            >
+              Ouvrir le Carnet Complet &rarr;
+            </Link>
+          </div>
+
+          {debtors.length === 0 ? (
+            <div style={{ background: '#FFFFFF', borderRadius: '12px', padding: '16px', textAlign: 'center', color: '#059669', fontWeight: 700, fontSize: '0.9rem' }}>
+              ✅ Aucun crédit en retard ! Tous vos clients sont à jour de règlement.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {debtors.slice(0, 4).map((d: any) => (
+                <div
+                  key={d.id}
+                  style={{
+                    background: '#FFFFFF',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    border: '1px solid #FDE68A',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.92rem' }}>
+                      {d.name} {d.phone && <span style={{ fontWeight: 500, color: '#64748B', fontSize: '0.8rem' }}>({d.phone})</span>}
+                    </div>
+                    <div style={{ color: '#DC2626', fontWeight: 800, fontSize: '0.88rem' }}>
+                      Reste à payer : {Number(d.totalOwed || 0).toLocaleString('fr-FR')} FCFA
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleWhatsAppReminder(d)}
+                      style={{
+                        background: '#25D366',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '10px',
+                        padding: '7px 12px',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 6px rgba(37, 211, 102, 0.3)',
+                      }}
+                    >
+                      <MessageCircle size={15} />
+                      <span>💬 Relancer WhatsApp</span>
+                    </button>
+                    <Link
+                      to="/customers"
+                      style={{
+                        background: '#EFF6FF',
+                        color: '#0062FF',
+                        border: '1px solid #BFDBFE',
+                        borderRadius: '10px',
+                        padding: '7px 12px',
+                        fontWeight: 700,
+                        fontSize: '0.8rem',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      Encaisser
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* AI Copilot Smart Insight Card */}
       {data?.insights && data.insights.length > 0 && (
         <div
@@ -500,7 +1026,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       )}
 
-      {/* Stat Cards Grid - Distinctions financières rigoureuses */}
+      {/* Stat Cards Grid - Distinctions financières adaptées au mode */}
       <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         {/* Bénéfice Net Estimé */}
         <div className="stat-card profit" style={{ position: 'relative' }}>
@@ -608,21 +1134,41 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
 
-        {/* Crédits clients en attente */}
-        <div className="stat-card debt">
-          <div>
-            <div className="stat-label">Crédits clients en attente</div>
-            <div className="stat-value" style={{ color: '#EF4444' }}>
-              {safeDebtTotal.toLocaleString('fr-FR')} FCFA
+        {/* Crédits clients en attente : affiché si mode avec_credit ou complet */}
+        {(trackingMode === 'avec_credit' || trackingMode === 'complet') && (
+          <div className="stat-card debt">
+            <div>
+              <div className="stat-label">Crédits clients en attente</div>
+              <div className="stat-value" style={{ color: '#EF4444' }}>
+                {safeDebtTotal.toLocaleString('fr-FR')} FCFA
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
+                {Number(debt.customerCount || debtors.length || 0)} client(s) à relancer
+              </div>
             </div>
-            <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
-              {Number(debt.customerCount || 0)} client(s) à relancer
+            <div className="stat-icon" style={{ background: '#FEE2E2', color: '#EF4444' }}>
+              <AlertCircle size={24} />
             </div>
           </div>
-          <div className="stat-icon" style={{ background: '#FEE2E2', color: '#EF4444' }}>
-            <AlertCircle size={24} />
+        )}
+
+        {/* Valeur totale du stock : affiché si mode avec_stock */}
+        {trackingMode === 'avec_stock' && (
+          <div className="stat-card" style={{ borderLeft: '4px solid #059669' }}>
+            <div>
+              <div className="stat-label">Valeur du stock marchandise</div>
+              <div className="stat-value" style={{ color: '#059669' }}>
+                {totalStockValue.toLocaleString('fr-FR')} FCFA
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
+                {products.length} référence(s) en catalogue
+              </div>
+            </div>
+            <div className="stat-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
+              <Boxes size={24} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
 

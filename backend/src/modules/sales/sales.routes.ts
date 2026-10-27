@@ -38,10 +38,16 @@ router.post('/', async (req: AuthRequest, res, next) => {
     // Vérifier les droits et quotas de l'abonnement en temps réel
     const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId!);
 
-    // Les ventes à crédit et carnet de dettes sont strictement réservées aux comptes PRO
-    if (data.paymentMethod === 'credit' && !subDetails.isPro) {
+    // Les ventes à crédit sont autorisées si le compte est PRO ou si le mode de pilotage est 'avec_credit' ou 'complet'
+    const currentBusiness = await req.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { trackingMode: true },
+    });
+    const hasCreditMode = currentBusiness?.trackingMode === 'avec_credit' || currentBusiness?.trackingMode === 'complet';
+
+    if (data.paymentMethod === 'credit' && !subDetails.isPro && !hasCreditMode) {
       throw new AppError(
-        'Les ventes à crédit et la gestion du carnet de dettes sont réservées aux comptes PRO. Veuillez passer à COMMERCIA PRO.',
+        'Les ventes à crédit et la gestion du carnet de dettes sont réservées aux modes « Carnet de Crédits Clients » ou au « Plan PRO ».',
         403
       );
     }

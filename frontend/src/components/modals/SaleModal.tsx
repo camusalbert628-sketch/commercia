@@ -16,8 +16,11 @@ interface SaleModalProps {
 type CustomerQuality = 'comptoir' | 'en_ligne' | 'livraison' | 'fidele' | 'grossiste';
 
 export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCreated }) => {
-  const { user } = useAuthStore();
+  const { user, activeBusinessId } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
   const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && user?.subscription?.status === 'active'));
+  const trackingMode = activeBusiness?.trackingMode || 'complet';
+  const hasCreditSupport = isPro || trackingMode === 'avec_credit' || trackingMode === 'complet';
 
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -428,9 +431,9 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                 <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', margin: 0 }}>
                   Mode de règlement
                 </label>
-                {!isPro && (
+                {!hasCreditSupport && (
                   <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                    Crédits réservés au Plan Pro
+                    Crédits réservés au Mode Crédits & PRO
                   </span>
                 )}
               </div>
@@ -438,10 +441,10 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                 {[
                   { id: 'cash', label: '💵 Espèces', isProOnly: false },
                   { id: 'mobile_money', label: '📱 Mobile Money', isProOnly: false },
-                  { id: 'credit', label: '⏳ À Crédit (Dette)', isProOnly: true },
+                  { id: 'credit', label: '⏳ À Crédit (Dette)', isProOnly: !hasCreditSupport },
                 ].map(m => {
                   const isSelected = paymentMethod === m.id;
-                  const isLocked = m.isProOnly && !isPro;
+                  const isLocked = m.isProOnly;
 
                   return (
                     <button
@@ -449,7 +452,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                       type="button"
                       onClick={() => {
                         if (isLocked) {
-                          alert('La vente à crédit et le suivi du carnet de dettes sont réservés aux comptes PRO. Veuillez passer à COMMERCIA PRO.');
+                          alert('La vente à crédit et le carnet de dettes sont activés avec le mode « Carnet de Crédits Clients » ou le « Plan PRO ».');
                           return;
                         }
                         setPaymentMethod(m.id as any);
@@ -469,13 +472,13 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                         gap: '4px',
                         opacity: isLocked ? 0.75 : 1,
                       }}
-                      title={isLocked ? 'Réservé aux comptes PRO' : undefined}
+                      title={isLocked ? 'Réservé au Mode Crédits ou PRO' : undefined}
                     >
                       <span>{m.label}</span>
                       {m.isProOnly && (
                         <span
                           style={{
-                            background: isPro ? '#0062FF' : '#FF6B00',
+                            background: '#FF6B00',
                             color: '#FFFFFF',
                             fontSize: '0.60rem',
                             fontWeight: 900,

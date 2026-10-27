@@ -12,6 +12,7 @@ interface AuthState {
   fetchMe: () => Promise<void>;
   setActiveBusinessId: (id: string) => void;
   updateUser: (partial: Partial<User>) => void;
+  setTrackingMode: (mode: string) => void;
 }
 
 const getInitialUser = (): User | null => {
@@ -31,6 +32,10 @@ const getInitialUser = (): User | null => {
         }
       } catch (_) {}
     }
+    const customTrackingMode = localStorage.getItem('commercia_active_tracking_mode');
+    if (customTrackingMode && parsed.businesses && parsed.businesses.length > 0) {
+      parsed.businesses[0].trackingMode = customTrackingMode;
+    }
     return parsed;
   } catch (e) {
     return null;
@@ -42,6 +47,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!localStorage.getItem('accessToken'),
   isLoading: false,
   activeBusinessId: localStorage.getItem('activeBusinessId') || null,
+
+  setTrackingMode: (mode: string) => {
+    const current = get().user;
+    if (!current) return;
+    const activeId = get().activeBusinessId;
+    const updatedBusinesses = (current.businesses || []).map((b: any) => {
+      if (b.id === activeId || (!activeId && current.businesses?.[0]?.id === b.id)) {
+        return {
+          ...b,
+          trackingMode: mode,
+          settings: {
+            ...(b.settings || {}),
+            enableStock: mode === 'avec_stock' || mode === 'complet',
+            enableCredits: mode === 'avec_credit' || mode === 'complet',
+          },
+        };
+      }
+      return b;
+    });
+    const updatedUser = { ...current, businesses: updatedBusinesses };
+    try {
+      localStorage.setItem('commercia_user', JSON.stringify(updatedUser));
+      localStorage.setItem('commercia_active_tracking_mode', mode);
+    } catch (_) {}
+    set({ user: updatedUser });
+  },
 
   updateUser: (partial: Partial<User>) => {
     const current = get().user;

@@ -45,6 +45,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   const subStatus = user?.subscription?.status || 'free';
   const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && subStatus === 'active'));
 
+  const trackingMode = activeBusiness?.trackingMode || 'complet';
+  const hasStockModule = isPro || trackingMode === 'avec_stock' || trackingMode === 'complet';
+  const hasCreditModule = isPro || trackingMode === 'avec_credit' || trackingMode === 'complet';
+
+  const modeBadge = trackingMode === 'simple'
+    ? { label: '⚡ Mode Simplifié', bg: 'rgba(2, 132, 199, 0.25)', color: '#38BDF8' }
+    : trackingMode === 'avec_stock'
+    ? { label: '📦 Stock & Alertes', bg: 'rgba(16, 185, 129, 0.25)', color: '#34D399' }
+    : trackingMode === 'avec_credit'
+    ? { label: '👥 Carnet Crédits', bg: 'rgba(245, 158, 11, 0.25)', color: '#FBBF24' }
+    : { label: '🚀 Mode Intégral', bg: 'rgba(139, 92, 246, 0.25)', color: '#C084FC' };
+
   const planBadge = user?.isAdmin
     ? 'ADMIN'
     : isPro
@@ -106,7 +118,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             }}
             title={activeBusiness?.name}
           >
-            {activeBusiness?.name || (isPro ? 'Compte Pro actif' : 'Version Gratuite')}
+            {activeBusiness?.name || (isPro ? 'Compte Pro actif' : 'Commerce Actif')}
+          </div>
+          {/* Tracking Mode Pill */}
+          <div
+            style={{
+              display: 'inline-block',
+              fontSize: '0.62rem',
+              fontWeight: 800,
+              padding: '2px 6px',
+              borderRadius: '6px',
+              background: modeBadge.bg,
+              color: modeBadge.color,
+              marginTop: '4px',
+            }}
+          >
+            {modeBadge.label}
           </div>
         </div>
       </div>
@@ -126,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <ShoppingCart size={18} />
-          <span>Ventes comptoir</span>
+          <span>{trackingMode === 'simple' ? 'Ventes Express' : 'Ventes comptoir'}</span>
         </NavLink>
 
         <NavLink
@@ -136,6 +163,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           <TrendingDown size={18} />
           <span>Dépenses</span>
         </NavLink>
+
+        {/* Stock & Alertes : visible dès que le mode inclut le stock OU que le compte est PRO */}
+        {hasStockModule && (
+          <NavLink
+            to="/products"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <Package size={18} />
+            <span>Stock & Alertes</span>
+            {lowStockCount > 0 && <span className="badge badge-warning">{lowStockCount}</span>}
+          </NavLink>
+        )}
+
+        {/* Clients & Dettes : visible dès que le mode inclut le carnet de crédit OU que le compte est PRO */}
+        {hasCreditModule && (
+          <NavLink
+            to="/customers"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <Users size={18} />
+            <span>Clients & Dettes</span>
+            {debtCount > 0 && <span className="badge badge-danger">{debtCount}</span>}
+          </NavLink>
+        )}
 
         <NavLink
           to="/cash"
@@ -155,28 +206,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
 
         {/* ========================================================================= */}
         {/* FONCTIONNALITÉS STRICTEMENT RÉSERVÉES AUX COMPTES PRO ACTIFS */}
-        {/* Conformément à la consigne : Masquées pour les comptes gratuits */}
         {/* ========================================================================= */}
         {isPro ? (
           <>
             <div className="menu-category">Modules Avancés PRO</div>
-            <NavLink
-              to="/customers"
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <Users size={18} />
-              <span>Clients & Dettes</span>
-              {debtCount > 0 && <span className="badge badge-danger">{debtCount}</span>}
-            </NavLink>
+            {!hasCreditModule && (
+              <NavLink
+                to="/customers"
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              >
+                <Users size={18} />
+                <span>Clients & Dettes</span>
+                {debtCount > 0 && <span className="badge badge-danger">{debtCount}</span>}
+              </NavLink>
+            )}
 
-            <NavLink
-              to="/products"
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <Package size={18} />
-              <span>Stock & Alertes</span>
-              {lowStockCount > 0 && <span className="badge badge-warning">{lowStockCount}</span>}
-            </NavLink>
+            {!hasStockModule && (
+              <NavLink
+                to="/products"
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              >
+                <Package size={18} />
+                <span>Stock & Alertes</span>
+                {lowStockCount > 0 && <span className="badge badge-warning">{lowStockCount}</span>}
+              </NavLink>
+            )}
 
             <NavLink
               to="/deliveries"

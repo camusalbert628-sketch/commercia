@@ -26,6 +26,13 @@ export interface BusinessSummary {
   name: string;
   sector: string;
   role: string;
+  trackingMode?: string;
+  settings?: {
+    enableStock?: boolean;
+    enableCredits?: boolean;
+    enableNotifications?: boolean;
+    lowStockThreshold?: number;
+  };
 }
 
 export interface Business {
