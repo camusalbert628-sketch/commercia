@@ -10,60 +10,7 @@ function getUsersDb(): any[] {
     const raw = localStorage.getItem(USERS_DB_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
-  const defaults = [
-    {
-      id: 'user-moussa',
-      email: 'moussa@boutique.cm',
-      password: 'bizz1234',
-      firstName: 'Moussa',
-      lastName: 'Ibrahim',
-      phone: '+237 670 123 456',
-      locale: 'fr',
-      currency: 'XAF',
-      isAdmin: false,
-      businesses: [
-        {
-          id: 'bizz-demo-1',
-          name: 'Épicerie & Alimentation Moussa',
-          sector: 'commerce',
-          role: 'owner',
-        },
-      ],
-      subscription: {
-        planName: 'pro',
-        planDisplayName: 'Plan Pro (Croissance)',
-        status: 'active',
-        features: ['Ventes & Dépenses illimitées', 'Stock temps réel', 'Copilote IA illimité'],
-      },
-    },
-    {
-      id: 'admin-1',
-      email: 'admin@commercia.com',
-      password: 'admin1234',
-      firstName: 'Admin',
-      lastName: 'COMMERCIA',
-      phone: '+237 690 000 000',
-      locale: 'fr',
-      currency: 'XAF',
-      isAdmin: true,
-      businesses: [
-        {
-          id: 'bizz-admin-1',
-          name: 'Supermarché Douala',
-          sector: 'commerce',
-          role: 'owner',
-        },
-      ],
-      subscription: {
-        planName: 'business',
-        planDisplayName: 'Plan Business (Multi-boutiques)',
-        status: 'active',
-        features: ['Multi-utilisateurs & rôles', 'Rapports PDF', 'Copilote IA illimité'],
-      },
-    },
-  ];
-  try { localStorage.setItem(USERS_DB_KEY, JSON.stringify(defaults)); } catch (e) { /* ignore */ }
-  return defaults;
+  return [];
 }
 
 function saveUsersDb(users: any[]) {
@@ -372,22 +319,13 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
-    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' && activeBizId === 'bizz-demo-1';
     const prodKey = `commercia_products_${activeBizId}`;
 
     const rawProd = localStorage.getItem(prodKey);
     if (rawProd) {
       try { return JSON.parse(rawProd); } catch (e) { /* ignore */ }
     }
-    const defaultProds = isDemoMoussa ? [
-      { id: 'p-1', name: 'Riz Blanc Mémé Cassé 5kg', costPrice: 2400, sellingPrice: 3000, quantity: 18, unit: 'sac', lowStockAlert: 5, isActive: true },
-      { id: 'p-2', name: 'Huile de palme raffinée Mayor 1L', costPrice: 1200, sellingPrice: 1500, quantity: 3, unit: 'bouteille', lowStockAlert: 5, isActive: true },
-      { id: 'p-3', name: 'Sucre en morceaux SOSUCAM 1kg', costPrice: 750, sellingPrice: 950, quantity: 24, unit: 'boîte', lowStockAlert: 5, isActive: true },
-      { id: 'p-4', name: 'Lait en poudre Nido 400g', costPrice: 2200, sellingPrice: 2800, quantity: 2, unit: 'boîte', lowStockAlert: 5, isActive: true },
-      { id: 'p-5', name: 'Spaghetti Mambo 500g', costPrice: 380, sellingPrice: 500, quantity: 45, unit: 'paquet', lowStockAlert: 5, isActive: true },
-    ] : [];
-    try { localStorage.setItem(prodKey, JSON.stringify(defaultProds)); } catch (e) { /* ignore */ }
-    return defaultProds;
+    return [];
   };
 
   // Helper: get or init mock customers per business
@@ -395,21 +333,13 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
-    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' && activeBizId === 'bizz-demo-1';
     const custKey = `commercia_customers_${activeBizId}`;
 
     const rawCust = localStorage.getItem(custKey);
     if (rawCust) {
       try { return JSON.parse(rawCust); } catch (e) { /* ignore */ }
     }
-    const defaultCusts = isDemoMoussa ? [
-      { id: 'c-1', name: 'Maman Chantal', phone: '+237 677 11 22 33', totalBought: 125000, totalOwed: 15000 },
-      { id: 'c-2', name: 'Papa Pierre', phone: '+237 699 44 55 66', totalBought: 84000, totalOwed: 13500 },
-      { id: 'c-3', name: 'Tantie Rose', phone: '+237 655 77 88 99', totalBought: 96000, totalOwed: 10000 },
-      { id: 'c-4', name: 'Maître Eric', phone: '+237 680 01 02 03', totalBought: 210000, totalOwed: 0 },
-    ] : [];
-    try { localStorage.setItem(custKey, JSON.stringify(defaultCusts)); } catch (e) { /* ignore */ }
-    return defaultCusts;
+    return [];
   };
 
   // 5. DASHBOARD
@@ -417,68 +347,14 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
-    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' && activeBizId === 'bizz-demo-1';
 
     const rawSales = localStorage.getItem(`commercia_sales_${activeBizId}`);
     const localSales = rawSales ? JSON.parse(rawSales) : [];
     const rawExpenses = localStorage.getItem(`commercia_expenses_${activeBizId}`);
     const localExpenses = rawExpenses ? JSON.parse(rawExpenses) : [];
 
-    const defaultSales = isDemoMoussa && localSales.length === 0 ? [
-      {
-        id: 's-1',
-        totalAmount: 5000,
-        paymentMethod: 'cash',
-        saleDate: new Date().toISOString(),
-        items: [{ name: 'Riz parfumé 5kg' }],
-      },
-      {
-        id: 's-2',
-        totalAmount: 14000,
-        paymentMethod: 'cash',
-        saleDate: new Date(Date.now() - 3600000).toISOString(),
-        items: [{ name: 'Huile de palme raffinée Mayor 1L' }, { name: 'Spaghetti Mambo' }],
-      },
-      {
-        id: 's-3',
-        totalAmount: 7350,
-        paymentMethod: 'mobile_money',
-        saleDate: new Date(Date.now() - 7200000).toISOString(),
-        items: [{ name: 'Sucre SOSUCAM 1kg' }, { name: 'Lait en poudre Nido' }],
-      },
-      {
-        id: 's-4',
-        totalAmount: 12500,
-        paymentMethod: 'credit',
-        saleDate: new Date(Date.now() - 10800000).toISOString(),
-        customer: { name: 'Maman Chantal' },
-        items: [{ name: 'Carton Savon BF' }],
-      },
-    ] : [];
-
-    const defaultExpenses = isDemoMoussa && localExpenses.length === 0 ? [
-      {
-        id: 'e-1',
-        amount: 15000,
-        category: 'Transport et moto-taxi',
-        description: 'Livraison vers marché Sandaga',
-        expenseDate: new Date().toISOString(),
-      },
-      {
-        id: 'e-2',
-        amount: 2500,
-        category: 'Emballages et plastiques',
-        description: 'Sachets biodégradables',
-        expenseDate: new Date(Date.now() - 3600000).toISOString(),
-      },
-      {
-        id: 'e-3',
-        amount: 45000,
-        category: 'Loyer boutique',
-        description: 'Avance mensuelle',
-        expenseDate: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ] : [];
+    const defaultSales: any[] = [];
+    const defaultExpenses: any[] = [];
 
     const salesList = [...localSales, ...defaultSales];
     const expensesList = [...localExpenses, ...defaultExpenses];
@@ -503,12 +379,6 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     let custs: any[] = [];
     if (rawCust) {
       try { custs = JSON.parse(rawCust); } catch (e) { /* ignore */ }
-    } else if (isDemoMoussa) {
-      custs = [
-        { id: 'c-1', name: 'Maman Chantal', totalOwed: 15000 },
-        { id: 'c-2', name: 'Papa Pierre', totalOwed: 13500 },
-        { id: 'c-3', name: 'Tantie Rose', totalOwed: 10000 },
-      ];
     }
     const debtors = custs.filter((c: any) => (c.totalOwed || 0) > 0);
     const totalDebt = debtors.reduce((sum: number, c: any) => sum + (c.totalOwed || 0), 0);
@@ -557,7 +427,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         total: totalDebt,
         customerCount: debtors.length,
       },
-      stockAlertsCount: isDemoMoussa ? 2 : 0,
+      stockAlertsCount: 0,
       recentTransactions: {
         sales: salesList.slice(0, 5),
         expenses: expensesList.slice(0, 5),
@@ -752,7 +622,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   if (endpoint.startsWith('/sales')) {
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' || userObj?.id === 'user-moussa';
+    const isDemoMoussa = false;
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
     const saleKey = `commercia_sales_${activeBizId}`;
 
@@ -873,7 +743,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   if (endpoint.startsWith('/expenses')) {
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = userObj?.email === 'moussa@boutique.cm' || userObj?.id === 'user-moussa';
+    const isDemoMoussa = false;
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
     const expKey = `commercia_expenses_${activeBizId}`;
 
@@ -1051,13 +921,6 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         icon: '💎',
         isRead: false,
       });
-    }
-
-    if (isDemoMoussa) {
-      list.push(
-        { id: 'n-1', title: 'Stock Critique', message: 'Lait Nido : seulement 2 boîtes restantes en rayon.', icon: '⚠️', isRead: false },
-        { id: 'n-2', title: 'Rappel Dette', message: 'Maman Chantal a un crédit de 15 000 FCFA depuis 5 jours.', icon: '⏰', isRead: false },
-      );
     }
 
     return {
@@ -1460,14 +1323,14 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   if (endpoint.startsWith('/cash')) {
     const rawUser = localStorage.getItem('commercia_user');
     const u = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
+    const isDemoMoussa = false;
     const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
     const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
     const pastCashKey = `commercia_past_cash_sessions_${activeBizId}`;
 
     // A. Current cash session
     if (endpoint === '/cash/current' && method === 'GET') {
-      const raw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
+      const raw = localStorage.getItem(activeCashKey);
       if (raw) {
         try {
           const session = JSON.parse(raw);
@@ -1587,64 +1450,8 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
 
     // E. Past sessions list
     if (endpoint.startsWith('/cash/sessions')) {
-      const pastRaw = localStorage.getItem(pastCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_past_cash_sessions') : null);
-      let past = pastRaw ? JSON.parse(pastRaw) : [];
-      if (past.length === 0 && isDemoMoussa) {
-        past = [
-          {
-            id: 'cs-demo-prev-1',
-            businessId: 'bizz-demo-1',
-            status: 'closed',
-            openedAt: new Date(Date.now() - 86400000).toISOString(),
-            closedAt: new Date(Date.now() - 43200000).toISOString(),
-            initialCash: 15000,
-            initialMomo: 0,
-            totalCashSales: 54000,
-            totalMomoSales: 12500,
-            totalCashIn: 54000,
-            totalCashOut: 8500,
-            totalMomoIn: 12500,
-            theoreticalCash: 60500,
-            theoreticalMomo: 12500,
-            actualCash: 60500,
-            actualMomo: 12500,
-            cashDiscrepancy: 0,
-            momoDiscrepancy: 0,
-            notes: 'Clôture de caisse conforme sans écart.',
-            user: { firstName: 'Moussa', lastName: 'Ibrahim' },
-            movements: [
-              {
-                id: 'cm-1',
-                type: 'in',
-                amount: 15000,
-                method: 'cash',
-                category: 'opening_float',
-                description: 'Fond de caisse initial',
-                createdAt: new Date(Date.now() - 86400000).toISOString(),
-              },
-              {
-                id: 'cm-2',
-                type: 'in',
-                amount: 54000,
-                method: 'cash',
-                category: 'sale',
-                description: 'Total des ventes cash du jour',
-                createdAt: new Date(Date.now() - 50000000).toISOString(),
-              },
-              {
-                id: 'cm-3',
-                type: 'out',
-                amount: 8500,
-                method: 'cash',
-                category: 'expense',
-                description: 'Achat sacs d\'emballage',
-                createdAt: new Date(Date.now() - 45000000).toISOString(),
-              },
-            ],
-          },
-        ];
-        localStorage.setItem('commercia_past_cash_sessions', JSON.stringify(past));
-      }
+      const pastRaw = localStorage.getItem(pastCashKey);
+      const past = pastRaw ? JSON.parse(pastRaw) : [];
       return { sessions: past };
     }
   }

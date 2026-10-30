@@ -1567,7 +1567,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </span>
                     </td>
                     <td style={{ fontWeight: 700, color: '#059669' }}>
-                      +{Number(s.totalAmount || 0).toLocaleString('fr-FR')} FCFA
+                      +{Number(s.totalAmount || 0).toLocaleString('fr-FR')} {currency}
                     </td>
                     <td style={{ fontSize: '0.8rem', color: '#64748B' }}>
                       {timeStr}
@@ -1606,7 +1606,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       <span style={{ fontSize: '0.82rem' }}>Sortie caisse</span>
                     </td>
                     <td style={{ fontWeight: 700, color: '#DC2626' }}>
-                      -{Number(e.amount || 0).toLocaleString('fr-FR')} FCFA
+                      -{Number(e.amount || 0).toLocaleString('fr-FR')} {currency}
                     </td>
                     <td style={{ fontSize: '0.8rem', color: '#64748B' }}>
                       {timeStr}

@@ -48,8 +48,8 @@ export const ServiceOrdersPage: React.FC = () => {
     profile.id === 'garage_mecanique' ? 'garage' :
     profile.id === 'services_agence_digitale' ? 'agence' : 'prestation'
   );
-  const [agreedAmount, setAgreedAmount] = useState<number>(30000);
-  const [advancePaid, setAdvancePaid] = useState<number>(10000);
+  const [agreedAmount, setAgreedAmount] = useState<number | ''>('');
+  const [advancePaid, setAdvancePaid] = useState<number | ''>('');
   const [estimatedDate, setEstimatedDate] = useState('');
   const [specsText, setSpecsText] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
@@ -95,8 +95,8 @@ export const ServiceOrdersPage: React.FC = () => {
       setTitle('');
       setCustomerName('');
       setCustomerPhone('');
-      setAgreedAmount(30000);
-      setAdvancePaid(10000);
+      setAgreedAmount('');
+      setAdvancePaid('');
       setSpecsText('');
       fetchOrders();
     } catch (err: any) {

@@ -55,67 +55,7 @@ export const DeliveriesPage: React.FC = () => {
       const saved = localStorage.getItem('commercia_deliveries');
       if (saved) return JSON.parse(saved);
     } catch (_) {}
-    return [
-      {
-        id: 'del-1',
-        orderNumber: 'CMD-1042',
-        customerName: 'Fatou Ndiaye',
-        customerPhone: '+237 694 22 11 05',
-        city: 'Douala',
-        address: 'Bonamoussadi',
-        landmark: 'Face Boulangerie Saker, Immeuble Blanc 2e étage',
-        itemsDescription: '2x Robes Satinées Taille M, 1x Sac à main cuir',
-        amountToCollect: 35000,
-        deliveryFee: 1500,
-        feePaidBy: 'client',
-        status: 'in_transit',
-        courierName: 'Ibrahim Moto Express',
-        courierPhone: '+237 671 99 88 77',
-        scheduledDate: new Date().toISOString().split('T')[0],
-        scheduledTime: '14h30 - 16h00',
-        notes: 'Appeler 10 min avant darriver. Prévoir monnaie sur 50 000 FCFA.',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'del-2',
-        orderNumber: 'CMD-1043',
-        customerName: 'Michel Kamga',
-        customerPhone: '+237 655 44 33 22',
-        city: 'Yaoundé',
-        address: 'Bastos',
-        landmark: 'À côté de l Ambassade, portail noir',
-        itemsDescription: '1x Chaussures Mocassins Pointure 42',
-        amountToCollect: 28000,
-        deliveryFee: 2000,
-        feePaidBy: 'merchant',
-        status: 'pending',
-        courierName: 'Coursier Serge',
-        courierPhone: '+237 690 11 22 33',
-        scheduledDate: new Date().toISOString().split('T')[0],
-        scheduledTime: '17h00',
-        notes: 'Colis fragile avec emballage cadeau.',
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'del-3',
-        orderNumber: 'CMD-1040',
-        customerName: 'Aissatou Diallo',
-        customerPhone: '+237 670 12 34 56',
-        city: 'Douala',
-        address: 'Akwa',
-        landmark: 'Rue Castelnau, boutique cosmetique n°4',
-        itemsDescription: '3x Lot de Mèches Naturelles 22 pouces',
-        amountToCollect: 45000,
-        deliveryFee: 1000,
-        feePaidBy: 'client',
-        status: 'delivered',
-        courierName: 'Flash Moto Express',
-        courierPhone: '+237 699 00 11 22',
-        scheduledDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
-        notes: 'Livré et encaissé en espèces.',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ];
+    return [];
   });
 
   const [filterStatus, setFilterStatus] = useState<string>('all');

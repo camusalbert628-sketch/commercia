@@ -45,19 +45,19 @@ export const TreasuryPage: React.FC = () => {
   const [moveType, setMoveType] = useState<'ENTREE' | 'SORTIE'>('ENTREE');
   const [moveCompteId, setMoveCompteId] = useState('acc-caisse');
   const [moveCategorie, setMoveCategorie] = useState('Apport du propriétaire');
-  const [moveMontant, setMoveMontant] = useState<number | ''>(50000);
+  const [moveMontant, setMoveMontant] = useState<number | ''>('');
   const [moveLibelle, setMoveLibelle] = useState('');
 
   // Virement Form
   const [virSource, setVirSource] = useState('acc-banque');
   const [virDest, setVirDest] = useState('acc-caisse');
-  const [virMontant, setVirMontant] = useState<number | ''>(50000);
+  const [virMontant, setVirMontant] = useState<number | ''>('');
   const [virLibelle, setVirLibelle] = useState('Approvisionnement caisse');
 
   // Account Form
   const [newAccNom, setNewAccNom] = useState('');
   const [newAccType, setNewAccType] = useState<'caisse' | 'banque' | 'mobile_money'>('mobile_money');
-  const [newAccSolde, setNewAccSolde] = useState<number | ''>(10000);
+  const [newAccSolde, setNewAccSolde] = useState<number | ''>('');
 
   const navigate = useNavigate();
   const access = hasPremiumAccess();

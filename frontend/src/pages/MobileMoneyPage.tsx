@@ -33,8 +33,8 @@ export const MobileMoneyPage: React.FC = () => {
   // Formulaire opération
   const [opOperator, setOpOperator] = useState<string>('orange_money');
   const [opType, setOpType] = useState<string>('depot');
-  const [opClientAmount, setOpClientAmount] = useState<number>(25000);
-  const [opCommission, setOpCommission] = useState<number>(300);
+  const [opClientAmount, setOpClientAmount] = useState<number | ''>('');
+  const [opCommission, setOpCommission] = useState<number | ''>('');
   const [opCustomerPhone, setOpCustomerPhone] = useState<string>('');
   const [opCustomerName, setOpCustomerName] = useState<string>('');
   const [opRef, setOpRef] = useState<string>('');
@@ -123,7 +123,7 @@ export const MobileMoneyPage: React.FC = () => {
 
         <button
           onClick={() => {
-            setOpCommission(updateCommissionEstimate(opClientAmount, opType));
+            setOpCommission(updateCommissionEstimate(Number(opClientAmount) || 0, opType));
             setShowOpModal(true);
           }}
           style={{
@@ -340,7 +340,7 @@ export const MobileMoneyPage: React.FC = () => {
                     value={opType}
                     onChange={(e) => {
                       setOpType(e.target.value);
-                      setOpCommission(updateCommissionEstimate(opClientAmount, e.target.value));
+                      setOpCommission(updateCommissionEstimate(Number(opClientAmount) || 0, e.target.value));
                     }}
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
                   >

@@ -275,137 +275,7 @@ export function getAcquisitionChannels(): AcquisitionChannel[] {
     const raw = localStorage.getItem(CHANNELS_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
-
-  const defaults: AcquisitionChannel[] = [
-    {
-      id: 'c-fb',
-      nom: 'Facebook / Instagram Ads',
-      estOrganique: false,
-      estFacebook: true,
-      actif: true,
-      ordre: 1,
-      budget: 35000,
-      contacts: 140,
-      conversationsWhatsapp: 65,
-      devisCommandes: 28,
-      clientsConvertis: 18,
-      cac: 1944,
-      tauxConversion: 12.8,
-      panierMoyen: 14500,
-      margeBruteGeneree: 95000,
-      rentabilite: 60000,
-      tauxClientsRevenus: 38,
-      statut: 'RENTABLE',
-      seuilCacEffectif: 3000,
-    },
-    {
-      id: 'c-wa',
-      nom: 'WhatsApp (Statuts & Catalogue)',
-      estOrganique: false,
-      estFacebook: false,
-      actif: true,
-      ordre: 2,
-      budget: 8000,
-      contacts: 95,
-      conversationsWhatsapp: 80,
-      devisCommandes: 34,
-      clientsConvertis: 22,
-      cac: 363,
-      tauxConversion: 23.1,
-      panierMoyen: 12000,
-      margeBruteGeneree: 112000,
-      rentabilite: 104000,
-      tauxClientsRevenus: 54,
-      statut: 'RENTABLE',
-      seuilCacEffectif: 3000,
-    },
-    {
-      id: 'c-tk',
-      nom: 'TikTok Organique & Vidéos',
-      estOrganique: true,
-      estFacebook: false,
-      actif: true,
-      ordre: 3,
-      budget: 5000,
-      contacts: 45,
-      conversationsWhatsapp: 20,
-      devisCommandes: 10,
-      clientsConvertis: 7,
-      cac: 714,
-      tauxConversion: 15.5,
-      panierMoyen: 9500,
-      margeBruteGeneree: 28000,
-      rentabilite: 23000,
-      tauxClientsRevenus: 28,
-      statut: 'RENTABLE',
-      seuilCacEffectif: 3000,
-    },
-    {
-      id: 'c-bo',
-      nom: 'Bouche-à-oreille / Recommandation',
-      estOrganique: true,
-      estFacebook: false,
-      actif: true,
-      ordre: 4,
-      budget: 0,
-      contacts: 30,
-      conversationsWhatsapp: 25,
-      devisCommandes: 18,
-      clientsConvertis: 16,
-      cac: 0,
-      tauxConversion: 53.3,
-      panierMoyen: 18000,
-      margeBruteGeneree: 125000,
-      rentabilite: 125000,
-      tauxClientsRevenus: 62,
-      statut: 'RENTABLE',
-      seuilCacEffectif: 3000,
-    },
-    {
-      id: 'c-pa',
-      nom: 'Passage devant la boutique',
-      estOrganique: true,
-      estFacebook: false,
-      actif: true,
-      ordre: 5,
-      budget: 0,
-      contacts: 50,
-      conversationsWhatsapp: 10,
-      devisCommandes: 15,
-      clientsConvertis: 14,
-      cac: 0,
-      tauxConversion: 28.0,
-      panierMoyen: 7500,
-      margeBruteGeneree: 42000,
-      rentabilite: 42000,
-      tauxClientsRevenus: 45,
-      statut: 'RENTABLE',
-      seuilCacEffectif: 3000,
-    },
-    {
-      id: 'c-fl',
-      nom: 'Flyers & Affichage quartier',
-      estOrganique: false,
-      estFacebook: false,
-      actif: true,
-      ordre: 6,
-      budget: 12000,
-      contacts: 15,
-      conversationsWhatsapp: 6,
-      devisCommandes: 3,
-      clientsConvertis: 2,
-      cac: 6000,
-      tauxConversion: 13.3,
-      panierMoyen: 8000,
-      margeBruteGeneree: 6500,
-      rentabilite: -5500,
-      tauxClientsRevenus: 0,
-      statut: 'DONNEES_INSUFFISANTES', // < 5 clients
-      seuilCacEffectif: 3000,
-    },
-  ];
-  try { localStorage.setItem(CHANNELS_KEY, JSON.stringify(defaults)); } catch (e) { /* ignore */ }
-  return defaults;
+  return [];
 }
 
 export function saveAcquisitionChannels(channels: AcquisitionChannel[]) {
@@ -417,34 +287,7 @@ export function getAcquisitionCampaigns(): AcquisitionCampaign[] {
     const raw = localStorage.getItem(CAMPAIGNS_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
-  const defaults: AcquisitionCampaign[] = [
-    {
-      id: 'camp-1',
-      nom: 'Promo Rentrée & Déstockage Vivres',
-      plateforme: 'Facebook',
-      dateDebut: '2026-10-01',
-      objectif: 'Ventes directes & Messages WhatsApp',
-      statut: 'active',
-      budgetTotal: 20000,
-      contactsTotal: 85,
-      clientsConvertis: 12,
-      cac: 1666,
-    },
-    {
-      id: 'camp-2',
-      nom: 'Offre Spéciale Sacs de Riz 25kg',
-      plateforme: 'Instagram',
-      dateDebut: '2026-10-10',
-      objectif: 'Commandes de gros',
-      statut: 'active',
-      budgetTotal: 15000,
-      contactsTotal: 55,
-      clientsConvertis: 6,
-      cac: 2500,
-    },
-  ];
-  try { localStorage.setItem(CAMPAIGNS_KEY, JSON.stringify(defaults)); } catch (e) { /* ignore */ }
-  return defaults;
+  return [];
 }
 
 // -------------------------------------------------------------
@@ -456,14 +299,7 @@ export function getTreasuryAccounts(): TreasuryAccount[] {
     const raw = localStorage.getItem(ACCOUNTS_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
-  const defaults: TreasuryAccount[] = [
-    { id: 'acc-caisse', nom: 'Caisse Physique Boutique', type: 'caisse', soldeInitial: 50000, soldeActuel: 200000, actif: true },
-    { id: 'acc-banque', nom: 'Compte Bancaire Pro (Afriland / UBA)', type: 'banque', soldeInitial: 500000, soldeActuel: 800000, actif: true },
-    { id: 'acc-om', nom: 'Compte Marchand Orange Money', type: 'mobile_money', operateur: 'Orange Money', soldeInitial: 20000, soldeActuel: 65000, actif: true },
-    { id: 'acc-momo', nom: 'Compte Marchand MTN MoMo', type: 'mobile_money', operateur: 'MTN MoMo', soldeInitial: 15000, soldeActuel: 35000, actif: true },
-  ];
-  try { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(defaults)); } catch (e) { /* ignore */ }
-  return defaults;
+  return [];
 }
 
 export function saveTreasuryAccounts(accs: TreasuryAccount[]) {
@@ -475,76 +311,7 @@ export function getTreasuryMovements(): TreasuryMovement[] {
     const raw = localStorage.getItem(MOVEMENTS_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
-  const defaults: TreasuryMovement[] = [
-    {
-      id: 'm-1',
-      numero: 'MVT-001',
-      date: new Date(Date.now() - 86400000 * 2).toISOString(),
-      compteId: 'acc-caisse',
-      compteNom: 'Caisse Physique Boutique',
-      type: 'ENTREE',
-      nature: 'autre',
-      categorie: 'Ventes',
-      montant: 85000,
-      libelle: 'Total ventes comptoir cash',
-      modePaiement: 'especes',
-      origine: 'VENTE',
-      imputableResultat: true,
-      soldeApres: 155000,
-    },
-    {
-      id: 'm-2',
-      numero: 'MVT-002',
-      date: new Date(Date.now() - 86400000 * 2).toISOString(),
-      compteId: 'acc-caisse',
-      compteNom: 'Caisse Physique Boutique',
-      type: 'SORTIE',
-      nature: 'charge_fixe',
-      categorie: 'Loyer',
-      montant: 45000,
-      libelle: 'Règlement loyer boutique d\'octobre',
-      modePaiement: 'especes',
-      origine: 'DEPENSE',
-      imputableResultat: true,
-      soldeApres: 110000,
-    },
-    {
-      id: 'm-3',
-      numero: 'MVT-003',
-      date: new Date(Date.now() - 86400000).toISOString(),
-      compteId: 'acc-caisse',
-      compteNom: 'Caisse Physique Boutique',
-      type: 'SORTIE',
-      nature: 'non_operationnel',
-      categorie: 'Prélèvement gérant',
-      montant: 20000,
-      libelle: 'Prélèvement personnel ration maison Moussa',
-      modePaiement: 'especes',
-      origine: 'MANUEL',
-      imputableResultat: false, // Strict Rule: owner withdrawals NEVER reduce operating profit!
-      soldeApres: 90000,
-    },
-    {
-      id: 'm-4',
-      numero: 'MVT-004',
-      date: new Date().toISOString(),
-      compteId: 'acc-banque',
-      compteNom: 'Compte Bancaire Pro',
-      type: 'VIREMENT',
-      nature: 'non_operationnel',
-      categorie: 'Virement interne',
-      montant: 50000,
-      libelle: 'Approvisionnement caisse depuis banque',
-      compteDestinationId: 'acc-caisse',
-      compteDestinationNom: 'Caisse Physique Boutique',
-      modePaiement: 'virement',
-      origine: 'MANUEL',
-      imputableResultat: false,
-      soldeApres: 750000,
-    },
-  ];
-  try { localStorage.setItem(MOVEMENTS_KEY, JSON.stringify(defaults)); } catch (e) { /* ignore */ }
-  return defaults;
+  return [];
 }
 
 export function saveTreasuryMovements(mvs: TreasuryMovement[]) {
@@ -556,50 +323,7 @@ export function getTreasuryEcheances(): TreasuryEcheance[] {
     const raw = localStorage.getItem(ECHEANCES_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
-  const defaults: TreasuryEcheance[] = [
-    {
-      id: 'ech-1',
-      type: 'A_ENCAISSER',
-      tiers: 'Maman Chantal',
-      libelle: 'Solde crédit 3 cartons de savon',
-      montant: 15000,
-      dateEcheance: new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10),
-      recurrence: 'aucune',
-      statut: 'en_attente',
-    },
-    {
-      id: 'ech-2',
-      type: 'A_ENCAISSER',
-      tiers: 'Papa Pierre',
-      libelle: 'Avance crédit sac de riz',
-      montant: 13500,
-      dateEcheance: new Date(Date.now() + 86400000 * 6).toISOString().slice(0, 10),
-      recurrence: 'aucune',
-      statut: 'en_attente',
-    },
-    {
-      id: 'ech-3',
-      type: 'A_PAYER',
-      tiers: 'Grossiste Alimentation Douala',
-      libelle: 'Facture livraison huile Mayor',
-      montant: 85000,
-      dateEcheance: new Date(Date.now() + 86400000 * 8).toISOString().slice(0, 10),
-      recurrence: 'aucune',
-      statut: 'en_attente',
-    },
-    {
-      id: 'ech-4',
-      type: 'A_PAYER',
-      tiers: 'Eneo Électricité',
-      libelle: 'Facture énergie boutique',
-      montant: 14000,
-      dateEcheance: new Date(Date.now() + 86400000 * 14).toISOString().slice(0, 10),
-      recurrence: 'mensuelle',
-      statut: 'en_attente',
-    },
-  ];
-  try { localStorage.setItem(ECHEANCES_KEY, JSON.stringify(defaults)); } catch (e) { /* ignore */ }
-  return defaults;
+  return [];
 }
 
 export function calculateTreasuryOverview(): TreasuryOverview {
@@ -658,12 +382,10 @@ export function calculateTreasuryOverview(): TreasuryOverview {
 
   // 30-day daily forecast simulation
   const historiquePrevisionnel: Array<{ date: string; solde: number; dateJour: string }> = [];
-  let runningSolde = tresorerieDisponible;
+  const runningSolde = tresorerieDisponible;
   for (let i = 0; i <= 30; i += 5) {
     const d = new Date(Date.now() + i * 86400000);
     const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-    if (i === 10) runningSolde -= 85000;
-    if (i === 15) runningSolde += 28500;
     historiquePrevisionnel.push({
       date: dateStr,
       solde: runningSolde,

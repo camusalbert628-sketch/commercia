@@ -47,13 +47,9 @@ export const FoodPrepPage: React.FC = () => {
   // Formulaire recette
   const [recipeName, setRecipeName] = useState('');
   const [recipeCategory, setRecipeCategory] = useState('plat');
-  const [recipeYield, setRecipeYield] = useState(30);
-  const [recipePrice, setRecipePrice] = useState(1000);
-  const [ingredientsList, setIngredientsList] = useState<Array<{ name: string; quantity: number; unit: string; unitCost: number }>>([
-    { name: 'Viande de bœuf', quantity: 3, unit: 'kg', unitCost: 3500 },
-    { name: 'Riz parfumé', quantity: 5, unit: 'kg', unitCost: 700 },
-    { name: 'Huile & Condiments', quantity: 1, unit: 'lot', unitCost: 3000 },
-  ]);
+  const [recipeYield, setRecipeYield] = useState(1);
+  const [recipePrice, setRecipePrice] = useState(0);
+  const [ingredientsList, setIngredientsList] = useState<Array<{ name: string; quantity: number; unit: string; unitCost: number }>>([]);
 
   const fetchData = async () => {
     try {

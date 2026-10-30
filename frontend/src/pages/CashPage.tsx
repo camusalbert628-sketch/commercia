@@ -31,7 +31,7 @@ export const CashPage: React.FC = () => {
   const [selectedPastSession, setSelectedPastSession] = useState<CashSession | null>(null);
 
   // Forms
-  const [initialCash, setInitialCash] = useState<number | ''>(10000);
+  const [initialCash, setInitialCash] = useState<number | ''>('');
   const [openNotes, setOpenNotes] = useState('');
 
   // Move form

@@ -14,7 +14,9 @@ interface SalesPageProps {
 export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenSale }) => {
   const { openSaleModal, refreshKey } = useModals();
   const onOpenSaleModal = propOpenSale || openSaleModal;
-  const { user } = useAuthStore();
+  const { user, activeBusinessId } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const currency = activeBusiness?.currency || 'FCFA';
   const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && user?.subscription?.status === 'active'));
 
   const [sales, setSales] = useState<Sale[]>([]);
@@ -174,7 +176,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
         <div>
           <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0' }}>Historique des Ventes</h1>
           <p style={{ color: '#64748B', fontSize: '0.92rem', margin: 0 }}>
-            {filtered.length} vente(s) — Total : <strong style={{ color: '#059669' }}>{totalFiltered.toLocaleString('fr-FR')} FCFA</strong>
+            {filtered.length} vente(s) — Total : <strong style={{ color: '#059669' }}>{totalFiltered.toLocaleString('fr-FR')} {currency}</strong>
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -303,7 +305,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
                     </span>
                   </td>
                   <td style={{ fontWeight: 800, fontSize: '1rem', color: '#059669' }}>
-                    +{s.totalAmount.toLocaleString('fr-FR')} FCFA
+                    +{s.totalAmount.toLocaleString('fr-FR')} {currency}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '6px' }}>

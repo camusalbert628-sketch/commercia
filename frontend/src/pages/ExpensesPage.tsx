@@ -3,6 +3,7 @@ import { TrendingDown, Plus, Trash2, Tag, Calendar } from 'lucide-react';
 import { api } from '../services/api';
 import { Expense } from '../types';
 import { useModals } from '../context/ModalContext';
+import { useAuthStore } from '../store/authStore';
 
 interface ExpensesPageProps {
   onOpenExpenseModal?: () => void;
@@ -11,6 +12,9 @@ interface ExpensesPageProps {
 export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: propOpenExpense }) => {
   const { openExpenseModal, refreshKey } = useModals();
   const onOpenExpenseModal = propOpenExpense || openExpenseModal;
+  const { user, activeBusinessId } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const currency = activeBusiness?.currency || 'FCFA';
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +61,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
         <div>
           <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0' }}>Gestion des Dépenses</h1>
           <p style={{ color: '#64748B', fontSize: '0.92rem', margin: 0 }}>
-            {filtered.length} dépense(s) — Total : <strong style={{ color: '#DC2626' }}>-{totalFiltered.toLocaleString('fr-FR')} FCFA</strong>
+            {filtered.length} dépense(s) — Total : <strong style={{ color: '#DC2626' }}>-{totalFiltered.toLocaleString('fr-FR')} {currency}</strong>
           </p>
         </div>
         <button className="btn btn-primary btn-lg" style={{ background: '#DC2626' }} onClick={onOpenExpenseModal}>
@@ -143,7 +147,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
                     {e.description || 'Sans description particulière'}
                   </td>
                   <td style={{ fontWeight: 800, fontSize: '1rem', color: '#DC2626' }}>
-                    -{e.amount.toLocaleString('fr-FR')} FCFA
+                    -{e.amount.toLocaleString('fr-FR')} {currency}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <button
