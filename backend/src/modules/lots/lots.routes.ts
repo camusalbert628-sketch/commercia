@@ -933,5 +933,35 @@ router.post('/campaigns/:id/items/batch', async (req: AuthRequest, res: Response
   }
 });
 
+// -------------------------------------------------------------
+// 11. DELETE /api/lots/campaigns/:id - Suppression d'une Campagne de Lot
+// -------------------------------------------------------------
+router.delete('/campaigns/:id', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma = req.prisma;
+    const businessId = await getTenantBusinessId(req);
+    const { id } = req.params;
+
+    const campaign = await prisma.commercialLotCampaign.findFirst({
+      where: { id, businessId },
+    });
+
+    if (!campaign) {
+      throw new AppError('Campagne de lot introuvable', 404);
+    }
+
+    await prisma.commercialLotCampaign.delete({
+      where: { id },
+    });
+
+    res.json({
+      message: `La campagne "${campaign.name}" et l'ensemble de ses données ont été supprimées avec succès.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export const lotsRouter = router;
+
 

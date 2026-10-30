@@ -158,5 +158,11 @@ export const lotsService = {
   ): Promise<{ message: string; items: LotItem[] }> {
     return api.post(`/lots/campaigns/${campaignId}/items/batch`, { items });
   },
+
+  // Delete a campaign and all associated items/sales/expenses
+  async deleteCampaign(id: string): Promise<{ message: string }> {
+    return api.delete(`/lots/campaigns/${id}`);
+  },
 };
+
 

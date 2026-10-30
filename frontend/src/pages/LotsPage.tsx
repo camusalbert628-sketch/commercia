@@ -619,6 +619,32 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
     }
   };
 
+  // Delete Campaign
+  const handleDeleteCampaign = async (campaignId: string, campaignName: string) => {
+    const confirmation = window.confirm(
+      `Êtes-vous sûr de vouloir supprimer définitivement la campagne "${campaignName}" ?\n\nToutes les ventes, dépenses, mouvements de stock et articles associés seront supprimés de manière irréversible.`
+    );
+    if (!confirmation) return;
+
+    try {
+      setLoading(true);
+      const res = await lotsService.deleteCampaign(campaignId);
+      alert(res.message || `Campagne "${campaignName}" supprimée avec succès.`);
+
+      // If currently on this campaign's detail view, return to list
+      if (selectedCampaignId === campaignId) {
+        setSelectedCampaignId(null);
+        setCurrentView('list');
+      }
+      await loadOverview();
+    } catch (err: any) {
+      alert('Erreur lors de la suppression de la campagne : ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   // Auto-calculated default average unit cost for new items based on total landed cost
   const defaultAvgUnitCost = useMemo(() => {
     if (!campaignDetail) return 0;
@@ -978,6 +1004,16 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
               >
                 <Printer size={16} />
                 <span>Rapport PDF</span>
+              </button>
+
+              <button
+                className="btn btn-secondary"
+                onClick={() => handleDeleteCampaign(campaignDetail.campaign.id, campaignDetail.campaign.name)}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA' }}
+                title="Supprimer définitivement cette campagne et toutes ses données"
+              >
+                <Trash2 size={16} />
+                <span>Supprimer</span>
               </button>
             </>
           )}
@@ -1410,14 +1446,25 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                         )}
                       </td>
                       <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                        <button
-                          onClick={() => loadCampaignDetail(camp.id)}
-                          className="btn btn-secondary"
-                          style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                        >
-                          <span>Ouvrir</span>
-                          <ArrowRight size={14} />
-                        </button>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                          <button
+                            onClick={() => loadCampaignDetail(camp.id)}
+                            className="btn btn-secondary"
+                            style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <span>Ouvrir</span>
+                            <ArrowRight size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCampaign(camp.id, camp.name)}
+                            className="btn btn-secondary"
+                            style={{ fontSize: '0.8rem', padding: '6px 8px', color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA' }}
+                            title="Supprimer définitivement ce lot"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1984,6 +2031,14 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                       Réouvrir le Lot
                     </button>
                   )}
+
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.82rem', color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    onClick={() => handleDeleteCampaign(campaignDetail.campaign.id, campaignDetail.campaign.name)}
+                  >
+                    <Trash2 size={14} /> Supprimer le Lot
+                  </button>
                 </div>
               </div>
 
