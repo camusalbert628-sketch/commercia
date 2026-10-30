@@ -837,9 +837,101 @@ router.post('/campaigns/:id/items', async (req: AuthRequest, res: Response, next
       message: 'Article ajouté au lot avec succès.',
       item,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return next(new AppError(err.errors[0]?.message || 'Données invalides', 400));
+    }
+    next(err);
+  }
+});
+
+// -------------------------------------------------------------
+// 10. POST /api/lots/campaigns/:id/items/batch - Tableau de Remplissage Rapide Multiple
+// -------------------------------------------------------------
+const batchAddItemsSchema = z.object({
+  items: z.array(
+    z.object({
+      name: z.string().min(1, 'La désignation de chaque article est requise'),
+      reference: z.string().optional(),
+      category: z.string().optional(),
+      variant: z.string().optional(),
+      quantityReceived: z.number().int().positive('La quantité doit être >= 1'),
+      estimatedSellingPrice: z.number().nonnegative().default(0),
+      unitCost: z.number().nonnegative().optional(),
+      notes: z.string().optional(),
+    })
+  ).min(1, 'Au moins un article doit être fourni dans le tableau'),
+});
+
+router.post('/campaigns/:id/items/batch', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const prisma = req.prisma;
+    const businessId = await getTenantBusinessId(req);
+    const { id: campaignId } = req.params;
+    const parsed = batchAddItemsSchema.parse(req.body);
+
+    const campaign = await prisma.commercialLotCampaign.findFirst({
+      where: { id: campaignId, businessId },
+      include: { items: true },
+    });
+
+    if (!campaign) {
+      throw new AppError('Campagne de lot introuvable', 404);
+    }
+
+    // Calcul de coût de revient unitaire automatique si non spécifié
+    const totalExistingUnits = campaign.items?.reduce((s: number, it: any) => s + it.quantityReceived, 0) || 0;
+    const totalNewUnits = parsed.items.reduce((s, it) => s + it.quantityReceived, 0);
+    const allUnits = totalExistingUnits + totalNewUnits;
+    const avgCost = campaign.totalLandedCost > 0 && allUnits > 0
+      ? Math.round(campaign.totalLandedCost / allUnits)
+      : 0;
+
+    const createdItems = await prisma.$transaction(
+      parsed.items.map((it) =>
+        prisma.lotItem.create({
+          data: {
+            campaignId,
+            businessId,
+            name: it.name.trim(),
+            reference: it.reference?.trim() || null,
+            category: it.category?.trim() || null,
+            variant: it.variant?.trim() || null,
+            quantityReceived: it.quantityReceived,
+            quantitySold: 0,
+            quantityDefective: 0,
+            quantityRemaining: it.quantityReceived,
+            estimatedSellingPrice: it.estimatedSellingPrice,
+            unitCost: (it.unitCost && it.unitCost > 0) ? it.unitCost : avgCost,
+            notes: it.notes?.trim() || null,
+          },
+        })
+      )
+    );
+
+    // Réouverture de la campagne si clôturée/épuisée
+    if (campaign.depletedAt || campaign.status === 'closed') {
+      await prisma.commercialLotCampaign.update({
+        where: { id: campaignId },
+        data: {
+          depletedAt: null,
+          status: 'active',
+          closedAt: null,
+        },
+      });
+    }
+
+    res.status(201).json({
+      message: `${createdItems.length} article(s) enregistré(s) avec succès dans le lot.`,
+      items: createdItems,
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return next(new AppError(err.errors[0]?.message || 'Données du tableau invalides', 400));
+    }
     next(err);
   }
 });
 
 export const lotsRouter = router;
+

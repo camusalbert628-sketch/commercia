@@ -175,6 +175,24 @@ export const LotsPage: React.FC = () => {
   const [newItemPrice, setNewItemPrice] = useState<number | ''>('');
   const [newItemCost, setNewItemCost] = useState<number | ''>('');
 
+  // Batch Add Items / Tableau de Remplissage state
+  const [showBatchAddModal, setShowBatchAddModal] = useState(false);
+  const [batchItems, setBatchItems] = useState<
+    Array<{
+      name: string;
+      variant: string;
+      quantityReceived: number;
+      estimatedSellingPrice: number;
+      unitCost?: number;
+    }>
+  >([
+    { name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 },
+    { name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 },
+    { name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 },
+  ]);
+  const [batchLoading, setBatchLoading] = useState(false);
+
+
   // Copilot LLM Handlers for this Lot Campaign (Isolated by Campaign ID)
   const handleGenerateLLMStrategy = async () => {
     if (!campaignDetail) return;
@@ -598,6 +616,103 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
       loadCampaignDetail(selectedCampaignId);
     } catch (err: any) {
       alert('Erreur ajout article : ' + err.message);
+    }
+  };
+
+  // Auto-calculated default average unit cost for new items based on total landed cost
+  const defaultAvgUnitCost = useMemo(() => {
+    if (!campaignDetail) return 0;
+    const landed = campaignDetail.financials.totalLandedCost || 0;
+    const existingUnits = campaignDetail.campaign.items?.reduce((s, it) => s + it.quantityReceived, 0) || 0;
+    const newUnits = batchItems.reduce((s, it) => s + (it.name.trim() ? (Number(it.quantityReceived) || 0) : 0), 0);
+    const totalUnits = existingUnits + newUnits;
+    return totalUnits > 0 ? Math.round(landed / totalUnits) : 0;
+  }, [campaignDetail, batchItems]);
+
+  const addBatchRow = () => {
+    setBatchItems(prev => [
+      ...prev,
+      { name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 },
+    ]);
+  };
+
+  const addMultipleBatchRows = (count: number = 3) => {
+    setBatchItems(prev => [
+      ...prev,
+      ...Array.from({ length: count }, () => ({
+        name: '',
+        variant: '',
+        quantityReceived: 1,
+        estimatedSellingPrice: 0,
+      })),
+    ]);
+  };
+
+  const removeBatchRow = (idx: number) => {
+    if (batchItems.length <= 1) {
+      alert('Le tableau de remplissage doit comporter au moins une ligne.');
+      return;
+    }
+    setBatchItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateBatchRow = (idx: number, field: string, val: any) => {
+    setBatchItems(prev => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], [field]: val };
+      return copy;
+    });
+  };
+
+  const handleBatchItemsSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedCampaignId || !campaignDetail) return;
+
+    // Filter valid lines
+    const validLines = batchItems.filter(it => it.name && it.name.trim().length > 0);
+    if (validLines.length === 0) {
+      alert('Veuillez renseigner la désignation d\'au moins un article dans le tableau.');
+      return;
+    }
+
+    const invalidQty = validLines.find(it => !it.quantityReceived || Number(it.quantityReceived) < 1);
+    if (invalidQty) {
+      alert(`La quantité de "${invalidQty.name}" doit être d'au moins 1 pièce.`);
+      return;
+    }
+
+    try {
+      setBatchLoading(true);
+      const res = await lotsService.addBatchItems(
+        selectedCampaignId,
+        validLines.map(it => ({
+          name: it.name.trim(),
+          variant: it.variant.trim() || undefined,
+          quantityReceived: Number(it.quantityReceived) || 1,
+          estimatedSellingPrice: Number(it.estimatedSellingPrice) || 0,
+          unitCost: it.unitCost && Number(it.unitCost) > 0 ? Number(it.unitCost) : defaultAvgUnitCost,
+        }))
+      );
+
+      alert(`${res.items.length} article(s) enregistré(s) avec succès dans le lot !`);
+      setShowBatchAddModal(false);
+      // Reset to 3 clean rows
+      setBatchItems([
+        { name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 },
+        { name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 },
+        { name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 },
+      ]);
+      await loadCampaignDetail(selectedCampaignId);
+
+      // If sale modal is open, auto-select the first newly created item
+      if (res.items.length > 0) {
+        setSaleLotItemId(res.items[0].id);
+        setSaleUnitPrice(res.items[0].estimatedSellingPrice);
+      }
+    } catch (err: any) {
+      alert('Erreur enregistrement articles : ' + err.message);
+    } finally {
+      setBatchLoading(false);
     }
   };
 
@@ -1871,6 +1986,120 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                   )}
                 </div>
               </div>
+
+              {/* TABLEAU DES ARTICLES ENREGISTRÉS DANS CE LOT */}
+              <div className="card" style={{ padding: '22px 24px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      📦 Articles & Pièces Enregistrés dans ce Lot ({campaignDetail.campaign.items?.length || 0})
+                    </h3>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '0.82rem', color: '#64748B' }}>
+                      Ces articles apparaissent directement dans le menu déroulant de vente pour être déstockés au fur et à mesure.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => setShowBatchAddModal(true)}
+                      style={{ fontSize: '0.82rem', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)' }}
+                    >
+                      <Plus size={15} /> + Remplir des Articles (Tableau)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setDetailTab('items')}
+                      style={{ fontSize: '0.82rem', padding: '8px 12px' }}
+                    >
+                      Inventaire Détaillé →
+                    </button>
+                  </div>
+                </div>
+
+                {campaignDetail.campaign.items && campaignDetail.campaign.items.length > 0 ? (
+                  <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: '12px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1.5px solid #E2E8F0', textAlign: 'left', color: '#475569' }}>
+                          <th style={{ padding: '10px 14px' }}>Article & Variante</th>
+                          <th style={{ padding: '10px 10px' }}>Reçus Initialement</th>
+                          <th style={{ padding: '10px 10px' }}>Vendus</th>
+                          <th style={{ padding: '10px 10px' }}>Stock Restant</th>
+                          <th style={{ padding: '10px 10px' }}>Coût Revient</th>
+                          <th style={{ padding: '10px 10px' }}>Prix Vente</th>
+                          <th style={{ padding: '10px 10px' }}>Marge / pc</th>
+                          <th style={{ padding: '10px 14px', textAlign: 'right' }}>Vente Directe</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {campaignDetail.campaign.items.map(it => {
+                          const unitMargin = it.estimatedSellingPrice - it.unitCost;
+                          return (
+                            <tr key={it.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                              <td style={{ padding: '10px 14px' }}>
+                                <strong style={{ color: '#0F172A', display: 'block' }}>{it.name}</strong>
+                                <span style={{ fontSize: '0.74rem', color: '#64748B' }}>{it.variant || 'Standard'}</span>
+                              </td>
+                              <td style={{ padding: '10px 10px', fontWeight: 600 }}>{it.quantityReceived} pcs</td>
+                              <td style={{ padding: '10px 10px', color: '#059669', fontWeight: 700 }}>{it.quantitySold} pcs</td>
+                              <td style={{ padding: '10px 10px' }}>
+                                <span style={{
+                                  padding: '2px 8px',
+                                  borderRadius: '6px',
+                                  fontWeight: 700,
+                                  background: it.quantityRemaining > 0 ? '#EFF6FF' : '#FEE2E2',
+                                  color: it.quantityRemaining > 0 ? '#1D4ED8' : '#DC2626',
+                                }}>
+                                  {it.quantityRemaining} pcs
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 10px', color: '#475569' }}>{fmt(it.unitCost)}</td>
+                              <td style={{ padding: '10px 10px', fontWeight: 700, color: '#0F172A' }}>{fmt(it.estimatedSellingPrice)}</td>
+                              <td style={{ padding: '10px 10px', fontWeight: 700, color: unitMargin >= 0 ? '#16A34A' : '#DC2626' }}>
+                                +{fmt(unitMargin)}
+                              </td>
+                              <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  style={{ fontSize: '0.74rem', padding: '4px 10px', background: '#10B981' }}
+                                  onClick={() => {
+                                    setSaleLotItemId(it.id);
+                                    setSaleUnitPrice(it.estimatedSellingPrice);
+                                    setShowSaleModal(true);
+                                  }}
+                                  disabled={it.quantityRemaining <= 0}
+                                >
+                                  Vendre
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '30px 20px', background: '#F8FAFC', borderRadius: '12px', border: '1.5px dashed #CBD5E1' }}>
+                    <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#334155', fontWeight: 600 }}>
+                      Aucun article décomposé pour le moment dans ce lot.
+                    </p>
+                    <p style={{ margin: '0 0 16px 0', fontSize: '0.8rem', color: '#64748B' }}>
+                      Remplissez vos différents articles pour qu'ils soient proposés dans le menu déroulant lors des ventes.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => setShowBatchAddModal(true)}
+                      style={{ fontSize: '0.84rem', padding: '8px 16px' }}
+                    >
+                      <Plus size={16} /> Ouvrir le Tableau de Remplissage des Articles
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2588,14 +2817,25 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                     Suivez la quantité reçue, vendue, défectueuse et restante pour chaque article du lot avec son coût unitaire calculé.
                   </p>
                 </div>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowAddItemModal(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Plus size={16} />
-                  <span>Ajouter une Référence</span>
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => setShowBatchAddModal(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)' }}
+                  >
+                    <Plus size={16} />
+                    <span>+ Tableau de Remplissage Rapide</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowAddItemModal(true)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <span>+ Article Unique</span>
+                  </button>
+                </div>
               </div>
 
               <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
@@ -3585,25 +3825,54 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
             <form onSubmit={handleRecordSaleSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
-                    Article du lot vendu *
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
+                      Article du lot vendu *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowBatchAddModal(true)}
+                      style={{
+                        background: '#EFF6FF',
+                        border: '1px solid #BFDBFE',
+                        color: '#0062FF',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                      title="Ouvrir le tableau de remplissage pour enregistrer les articles du lot"
+                    >
+                      <Plus size={13} /> + Remplir / Ajouter des articles
+                    </button>
+                  </div>
                   <select
                     value={saleLotItemId}
                     onChange={e => {
+                      if (e.target.value === '__OPEN_BATCH_MODAL__') {
+                        setShowBatchAddModal(true);
+                        return;
+                      }
                       setSaleLotItemId(e.target.value);
                       const chosen = campaignDetail.campaign.items?.find(i => i.id === e.target.value);
                       if (chosen) setSaleUnitPrice(chosen.estimatedSellingPrice);
                     }}
-                    style={{ width: '100%', padding: '8px' }}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.86rem' }}
                     required
                   >
-                    <option value="">-- Choisir un article --</option>
+                    <option value="">-- Choisir un article ({campaignDetail.campaign.items?.length || 0} disponibles) --</option>
                     {campaignDetail.campaign.items?.map(it => (
                       <option key={it.id} value={it.id} disabled={it.quantityRemaining <= 0}>
-                        {it.name} ({it.variant}) — {it.quantityRemaining} en stock (Coût: {fmt(it.unitCost)})
+                        {it.name} {it.variant ? `(${it.variant})` : ''} — {it.quantityRemaining} en stock (Coût: {fmt(it.unitCost)})
                       </option>
                     ))}
+                    <option value="__OPEN_BATCH_MODAL__" style={{ color: '#0062FF', fontWeight: 700, background: '#EFF6FF' }}>
+                      ➕ + Remplir / Décomposer d'autres articles dans ce lot...
+                    </option>
                   </select>
                 </div>
 
@@ -3962,6 +4231,240 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: TABLEAU DE REMPLISSAGE DES ARTICLES DU LOT */}
+      {showBatchAddModal && campaignDetail && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '920px', width: '96%', maxHeight: '90vh' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid #E2E8F0', padding: '16px 22px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
+                    📋 Tableau de Remplissage des Articles — {campaignDetail.campaign.name}
+                  </h3>
+                  <span style={{ background: '#EFF6FF', color: '#0062FF', fontSize: '0.74rem', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                    {batchItems.filter(b => b.name.trim()).length} prêt(s) à enregistrer
+                  </span>
+                </div>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748B' }}>
+                  Remplissez ici toutes les pièces de ce ballot/lot. Dès l'enregistrement, elles apparaissent instantanément dans le menu déroulant de vente.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowBatchAddModal(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.3rem', color: '#64748B' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ padding: '20px 22px', maxHeight: '60vh', overflowY: 'auto' }}>
+              {/* Info bandeau */}
+              <div
+                style={{
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '10px',
+                  padding: '12px 16px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  fontSize: '0.82rem',
+                }}
+              >
+                <div>
+                  <span style={{ color: '#64748B' }}>Investissement total du lot : </span>
+                  <strong style={{ color: '#0F172A' }}>{fmt(campaignDetail.financials.totalLandedCost)}</strong>
+                  <span style={{ margin: '0 8px', color: '#CBD5E1' }}>|</span>
+                  <span style={{ color: '#64748B' }}>Articles déjà en stock : </span>
+                  <strong style={{ color: '#059669' }}>{campaignDetail.campaign.items?.reduce((s, it) => s + it.quantityRemaining, 0) || 0} pcs</strong>
+                </div>
+                <div style={{ background: '#EFF6FF', padding: '4px 10px', borderRadius: '8px', color: '#1D4ED8', fontWeight: 700 }}>
+                  💡 Coût moyen estimé : ~{fmt(defaultAvgUnitCost)} / pc
+                </div>
+              </div>
+
+              {/* Tableau interactif de remplissage */}
+              <div style={{ border: '1px solid #E2E8F0', borderRadius: '12px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
+                  <thead>
+                    <tr style={{ background: '#F1F5F9', borderBottom: '2px solid #CBD5E1', textAlign: 'left', color: '#334155' }}>
+                      <th style={{ padding: '10px 12px', width: '32%' }}>Désignation Article *</th>
+                      <th style={{ padding: '10px 10px', width: '18%' }}>Variante / Taille</th>
+                      <th style={{ padding: '10px 10px', width: '12%' }}>Quantité *</th>
+                      <th style={{ padding: '10px 10px', width: '18%' }}>Prix Vente Cible</th>
+                      <th style={{ padding: '10px 10px', width: '14%' }}>Coût Revient</th>
+                      <th style={{ padding: '10px 8px', width: '6%', textAlign: 'center' }}>✕</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batchItems.map((item, idx) => {
+                      const cost = item.unitCost && item.unitCost > 0 ? item.unitCost : defaultAvgUnitCost;
+                      const margin = item.estimatedSellingPrice - cost;
+
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0', background: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA' }}>
+                          <td style={{ padding: '8px 10px' }}>
+                            <input
+                              type="text"
+                              placeholder="ex: Robes fillettes, Pantalon..."
+                              value={item.name}
+                              onChange={e => updateBatchRow(idx, 'name', e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '7px 10px',
+                                fontSize: '0.82rem',
+                                border: !item.name.trim() && batchItems.length === 1 ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
+                                borderRadius: '6px',
+                                outline: 'none',
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <input
+                              type="text"
+                              placeholder="ex: 2-4 ans, 1er Choix..."
+                              value={item.variant}
+                              onChange={e => updateBatchRow(idx, 'variant', e.target.value)}
+                              style={{ width: '100%', padding: '7px 10px', fontSize: '0.82rem', border: '1px solid #CBD5E1', borderRadius: '6px' }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="Qté"
+                              value={item.quantityReceived}
+                              onChange={e => updateBatchRow(idx, 'quantityReceived', parseInt(e.target.value) || 1)}
+                              style={{ width: '100%', padding: '7px 10px', fontSize: '0.82rem', border: '1px solid #CBD5E1', borderRadius: '6px', textAlign: 'center', fontWeight: 700 }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={item.estimatedSellingPrice || ''}
+                              onChange={e => updateBatchRow(idx, 'estimatedSellingPrice', parseFloat(e.target.value) || 0)}
+                              style={{ width: '100%', padding: '7px 10px', fontSize: '0.82rem', border: '1px solid #CBD5E1', borderRadius: '6px' }}
+                            />
+                            {item.estimatedSellingPrice > 0 && (
+                              <div style={{ fontSize: '0.7rem', color: margin >= 0 ? '#16A34A' : '#DC2626', marginTop: '2px', fontWeight: 600 }}>
+                                Marge: {margin >= 0 ? `+${fmt(margin)}` : fmt(margin)}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder={defaultAvgUnitCost ? String(defaultAvgUnitCost) : "Auto"}
+                              value={item.unitCost || ''}
+                              onChange={e => updateBatchRow(idx, 'unitCost', parseFloat(e.target.value) || 0)}
+                              style={{ width: '100%', padding: '7px 10px', fontSize: '0.82rem', border: '1px solid #CBD5E1', borderRadius: '6px' }}
+                              title="Laissez vide pour utiliser le coût moyen automatique calculé"
+                            />
+                            <span style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                              {item.unitCost && item.unitCost > 0 ? 'Coût spécifié' : `Auto (~${fmt(defaultAvgUnitCost)})`}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => removeBatchRow(idx)}
+                              style={{
+                                background: '#FEE2E2',
+                                border: 'none',
+                                color: '#DC2626',
+                                borderRadius: '6px',
+                                padding: '5px',
+                                cursor: 'pointer',
+                              }}
+                              title="Supprimer cette ligne"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Boutons d'ajout de lignes */}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={addBatchRow}
+                  style={{
+                    background: '#EFF6FF',
+                    border: '1px dashed #3B82F6',
+                    color: '#1D4ED8',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Plus size={15} /> + Ajouter une ligne
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addMultipleBatchRows(3)}
+                  style={{
+                    background: '#F8FAFC',
+                    border: '1px dashed #CBD5E1',
+                    color: '#475569',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Plus size={15} /> + Ajouter 3 lignes
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid #E2E8F0', padding: '14px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.82rem', color: '#64748B' }}>
+                Total pièces à ajouter : <strong>{batchItems.reduce((acc, it) => acc + (it.name.trim() ? (Number(it.quantityReceived) || 0) : 0), 0)} pcs</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowBatchAddModal(false)}
+                >
+                  Fermer
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => handleBatchItemsSubmit()}
+                  disabled={batchLoading}
+                  style={{ background: '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{batchLoading ? 'Enregistrement...' : 'Enregistrer ces Articles dans le Lot'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

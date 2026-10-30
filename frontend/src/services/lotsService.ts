@@ -141,4 +141,22 @@ export const lotsService = {
   ): Promise<{ message: string; item: LotItem }> {
     return api.post(`/lots/campaigns/${campaignId}/items`, data);
   },
+
+  // Add multiple items via filling table
+  async addBatchItems(
+    campaignId: string,
+    items: Array<{
+      name: string;
+      reference?: string;
+      category?: string;
+      variant?: string;
+      quantityReceived: number;
+      estimatedSellingPrice?: number;
+      unitCost?: number;
+      notes?: string;
+    }>
+  ): Promise<{ message: string; items: LotItem[] }> {
+    return api.post(`/lots/campaigns/${campaignId}/items/batch`, { items });
+  },
 };
+
