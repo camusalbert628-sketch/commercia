@@ -49,47 +49,72 @@ router.post('/operations', authenticate, async (req: AuthRequest, res: Response,
 
     const data = operationSchema.parse(req.body);
 
-    const operation = await req.prisma.mobileMoneyOperation.create({
-      data: {
-        businessId,
-        operator: data.operator,
-        type: data.type,
-        clientAmount: data.clientAmount,
-        commissionEarned: data.commissionEarned,
-        feeCharged: data.feeCharged,
-        customerPhone: data.customerPhone || null,
-        customerName: data.customerName || null,
-        reference: data.reference || null,
-        notes: data.notes || null,
-        status: 'completed',
-      },
-    });
-
-    // RÈGLE MÉTIER CRITIQUE : Seule la commission acquise est comptabilisée comme CA et bénéfice de l'agent !
-    // Si la commission est positive (> 0), enregistrer la commission dans la caisse
-    if (data.commissionEarned > 0) {
-      const activeSession = await req.prisma.cashSession.findFirst({
-        where: { businessId, status: 'open' },
+    const result = await req.prisma.$transaction(async (tx: any) => {
+      const operation = await tx.mobileMoneyOperation.create({
+        data: {
+          businessId,
+          operator: data.operator,
+          type: data.type,
+          clientAmount: data.clientAmount,
+          commissionEarned: data.commissionEarned,
+          feeCharged: data.feeCharged,
+          customerPhone: data.customerPhone || null,
+          customerName: data.customerName || null,
+          reference: data.reference || null,
+          notes: data.notes || null,
+          status: 'completed',
+        },
       });
-      if (activeSession) {
-        await req.prisma.cashMovement.create({
+
+      // RÈGLE MÉTIER CRITIQUE : Seule la commission acquise est comptabilisée comme CA et bénéfice de l'agent !
+      if (data.commissionEarned > 0) {
+        // 1. Enregistrer dans le moteur financier central des Ventes
+        const sale = await tx.sale.create({
           data: {
-            sessionId: activeSession.id,
             businessId,
-            type: 'in',
-            amount: data.commissionEarned,
-            method: 'mobile_money',
-            category: 'sale',
-            referenceId: operation.id,
-            description: `Commission ${data.operator.toUpperCase()} (${data.type}) - ${data.clientAmount.toLocaleString('fr-FR')} FCFA`,
+            totalAmount: data.commissionEarned,
+            paidAmount: data.commissionEarned,
+            paymentMethod: 'mobile_money',
+            status: 'completed',
+            notes: `Commission MoMo #${operation.id.slice(0, 8)} (${data.operator.toUpperCase()} ${data.type}) - Montant client: ${data.clientAmount} FCFA`,
+            items: {
+              create: [{
+                name: `Commission ${data.operator.toUpperCase()} (${data.type})`,
+                quantity: 1,
+                unitPrice: data.commissionEarned,
+                costPrice: 0,
+                totalPrice: data.commissionEarned,
+              }],
+            },
           },
         });
+
+        // 2. Mouvement de caisse
+        const activeSession = await tx.cashSession.findFirst({
+          where: { businessId, status: 'open' },
+        });
+        if (activeSession) {
+          await tx.cashMovement.create({
+            data: {
+              sessionId: activeSession.id,
+              businessId,
+              type: 'in',
+              amount: data.commissionEarned,
+              method: 'mobile_money',
+              category: 'sale',
+              referenceId: sale.id,
+              description: `Commission ${data.operator.toUpperCase()} (${data.type}) - ${data.clientAmount.toLocaleString('fr-FR')} FCFA`,
+            },
+          });
+        }
       }
-    }
+
+      return operation;
+    });
 
     res.status(201).json({
       message: `Opération MoMo enregistrée ! Commission acquise : ${data.commissionEarned.toLocaleString('fr-FR')} FCFA.`,
-      operation,
+      operation: result,
     });
   } catch (error) {
     next(error);

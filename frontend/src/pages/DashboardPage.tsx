@@ -163,6 +163,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const profile = getBusinessProfile(activeBusiness?.profileId || 'epicerie_alimentation');
   const businessName = activeBusiness?.name || (data as any)?.businessName || 'Votre Boutique';
   const userName = user?.firstName || 'Commerçant';
+  const currency = activeBusiness?.currency || user?.currency || 'FCFA';
+
+  const [tradeMetrics, setTradeMetrics] = useState<any>(null);
 
   const trackingMode = activeBusiness?.trackingMode || 'complet';
   const currentModeConfig = TRACKING_MODES_CONFIG.find(m => m.id === trackingMode) || TRACKING_MODES_CONFIG[3];
@@ -170,11 +173,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const fetchDashboard = async () => {
     try {
       setLoading(true);
-      const [dashRes, trendsRes, prodRes, custRes] = await Promise.allSettled([
+      const [dashRes, trendsRes, prodRes, custRes, tradeRes] = await Promise.allSettled([
         api.get<DashboardData>('/dashboard'),
         api.get<Array<{ date: string; sales: number; expenses: number; profit: number }>>('/analytics/trends?days=7'),
         api.get<any[]>('/products'),
         api.get<any[]>('/customers?onlyDebtors=true'),
+        api.get<any>('/business/trade-dashboard'),
       ]);
       if (dashRes.status === 'fulfilled') {
         setData(dashRes.value);
@@ -188,11 +192,101 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       if (custRes.status === 'fulfilled') {
         setDebtors(custRes.value || []);
       }
+      if (tradeRes.status === 'fulfilled') {
+        setTradeMetrics(tradeRes.value);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getTradeKpiCalculatedValue = (idx: number, label: string) => {
+    const l = label.toLowerCase();
+
+    // 1. Restauration / Boulangerie (Food Prep)
+    if (tradeMetrics?.foodPrepMetrics) {
+      if (idx === 0 || l.includes('recette') || l.includes('plat') || l.includes('fournée') || l.includes('coût')) {
+        return `${tradeMetrics.foodPrepMetrics.recipesCount} recettes au menu`;
+      }
+      if (idx === 1 || l.includes('portion') || l.includes('prépar') || l.includes('cuisin')) {
+        return `${tradeMetrics.foodPrepMetrics.portionsPrepared} portions du jour (${tradeMetrics.foodPrepMetrics.portionsRemaining} rest.)`;
+      }
+      if (idx === 2 || l.includes('taux') || l.includes('écoulement') || l.includes('vente')) {
+        return `${tradeMetrics.foodPrepMetrics.sellThroughRate}% vendues`;
+      }
+      if (idx === 3 || l.includes('perte') || l.includes('invendu')) {
+        return `${tradeMetrics.foodPrepMetrics.portionsLost} pertes enregistrées`;
+      }
+    }
+
+    // 2. Prestations / Service Orders (Couture, Réparations, Garage, Agence)
+    if (tradeMetrics?.serviceOrdersMetrics) {
+      if (idx === 0 || l.includes('commande') || l.includes('travaux') || l.includes('chantier') || l.includes('en cours')) {
+        return `${tradeMetrics.serviceOrdersMetrics.pendingOrders} commandes actives`;
+      }
+      if (idx === 1 || l.includes('prêt') || l.includes('livr') || l.includes('essayage') || l.includes('termi')) {
+        return `${tradeMetrics.serviceOrdersMetrics.readyOrders} prêtes à livrer / essayer`;
+      }
+      if (idx === 2 || l.includes('acompte') || l.includes('avance') || l.includes('perçu')) {
+        return `${(tradeMetrics.serviceOrdersMetrics.totalAdvanceCollected || 0).toLocaleString('fr-FR')} ${currency}`;
+      }
+      if (idx === 3 || l.includes('solde') || l.includes('restant') || l.includes('créance') || l.includes('dû')) {
+        return `${(tradeMetrics.serviceOrdersMetrics.totalBalanceDue || 0).toLocaleString('fr-FR')} ${currency} restant dû`;
+      }
+    }
+
+    // 3. Mobile Money
+    if (tradeMetrics?.mobileMoneyMetrics) {
+      if (idx === 0 || l.includes('commission') || l.includes('revenu') || l.includes('gain')) {
+        return `${(tradeMetrics.mobileMoneyMetrics.totalCommissionsEarned || 0).toLocaleString('fr-FR')} ${currency}`;
+      }
+      if (idx === 1 || l.includes('volume') || l.includes('opération') || l.includes('flux')) {
+        return `${tradeMetrics.mobileMoneyMetrics.operationsCount} opérations (${((tradeMetrics.mobileMoneyMetrics.totalVolume || 0) / 1000).toFixed(0)}k vol.)`;
+      }
+      if (idx === 2 || l.includes('dépôt') || l.includes('retrait') || l.includes('float')) {
+        return `${(tradeMetrics.mobileMoneyMetrics.depositsVolume || 0).toLocaleString('fr-FR')} Dép. / ${(tradeMetrics.mobileMoneyMetrics.withdrawalsVolume || 0).toLocaleString('fr-FR')} Ret.`;
+      }
+      if (idx === 3 || l.includes('caisse') || l.includes('tiroir') || l.includes('écart')) {
+        return `${(tradeMetrics.mobileMoneyMetrics.netCashFlow || 0).toLocaleString('fr-FR')} ${currency} (flux tiroir)`;
+      }
+    }
+
+    // 4. Friperie & Lots commerciaux
+    if (tradeMetrics?.lotsMetrics) {
+      if (idx === 0 || l.includes('lot') || l.includes('ballot') || l.includes('campagne')) {
+        return `${tradeMetrics.lotsMetrics.lotsCount} lots / ballots actifs`;
+      }
+      if (idx === 1 || l.includes('taux') || l.includes('écoulement')) {
+        return `${tradeMetrics.lotsMetrics.averageSellThrough}% écoulés`;
+      }
+      if (idx === 2 || l.includes('pièce') || l.includes('stock')) {
+        return `${tradeMetrics.lotsMetrics.totalPiecesRemaining} pièces restantes`;
+      }
+      if (idx === 3 || l.includes('marge') || l.includes('bénéfice') || l.includes('rentab')) {
+        return `${(tradeMetrics.lotsMetrics.netLotsMargin || 0).toLocaleString('fr-FR')} ${currency} marge nette`;
+      }
+    }
+
+    // 5. Commerce Général, Quincaillerie, Épicerie
+    if (idx === 0 || l.includes('stock') || l.includes('alerte') || l.includes('rupture')) {
+      const lowStockCount = tradeMetrics?.generalMetrics?.lowStockCount ?? (data?.stockAlertsCount || products.filter((p: any) => (p.quantity || p.stockQuantity || 0) <= (p.lowStockAlert || p.minStockThreshold || 5)).length);
+      return `${lowStockCount} articles en rupture/seuil`;
+    }
+    if (idx === 1 || l.includes('client') || l.includes('dette') || l.includes('créance')) {
+      return `${(tradeMetrics?.generalMetrics?.totalDebtsAmount ?? data?.debt?.total ?? 0).toLocaleString('fr-FR')} ${currency} (${tradeMetrics?.generalMetrics?.debtorsCount ?? data?.debt?.customerCount ?? 0} clients)`;
+    }
+    if (idx === 2 || l.includes('panier') || l.includes('vente') || l.includes('comptoir')) {
+      const todaySalesVal = data?.today?.sales || 0;
+      const avgBasket = todaySalesVal ? Math.round(todaySalesVal / Math.max(1, data?.today?.salesCount || 1)) : 0;
+      return `${avgBasket.toLocaleString('fr-FR')} ${currency} panier moyen`;
+    }
+    if (idx === 3 || l.includes('marge') || l.includes('bénéfice') || l.includes('net')) {
+      return `${(data?.today?.profit || 0).toLocaleString('fr-FR')} ${currency} bénéfice estimé`;
+    }
+
+    return 'Actif & Suivi';
   };
 
   const handleQuickExpressSale = async (e: React.FormEvent) => {
@@ -210,7 +304,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       });
       setExpressAmount('');
       setExpressLabel('');
-      setExpressSuccess(`Vente express de ${amount.toLocaleString('fr-FR')} FCFA enregistrée !`);
+      setExpressSuccess(`Vente express de ${amount.toLocaleString('fr-FR')} ${currency} enregistrée !`);
       setTimeout(() => setExpressSuccess(''), 4500);
       fetchDashboard();
     } catch (err: any) {
@@ -228,7 +322,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     const cleanPhone = debtor.phone.replace(/[^0-9]/g, '');
     const bName = activeBusiness?.name || 'notre boutique';
     const message = encodeURIComponent(
-      `Bonjour ${debtor.name}, j'espère que vous allez bien.\nPetit rappel amical de la part de ${bName} concernant votre solde restant de ${Number(debtor.totalOwed || 0).toLocaleString('fr-FR')} FCFA.\nMerci pour votre confiance et à très bientôt !`
+      `Bonjour ${debtor.name}, j'espère que vous allez bien.\nPetit rappel amical de la part de ${bName} concernant votre solde restant de ${Number(debtor.totalOwed || 0).toLocaleString('fr-FR')} ${currency}.\nMerci pour votre confiance et à très bientôt !`
     );
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
   };
@@ -529,11 +623,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               Bonjour {userName} 👋
             </h1>
             <p style={{ color: '#475569', fontSize: '0.98rem', margin: 0 }}>
-              Voici comment va <span style={{ color: '#0062FF', fontWeight: 800, fontSize: '1.05rem' }}>{businessName}</span> aujourd'hui — Devise : <strong>{user?.currency || 'FCFA'}</strong>
+              Espace de pilotage <span style={{ color: '#0062FF', fontWeight: 800, fontSize: '1.05rem' }}>{businessName}</span> — Devise : <strong>{currency}</strong>
             </p>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#F1F5F9', padding: '3px 10px', borderRadius: '12px', marginTop: '6px' }}>
-              <span style={{ fontSize: '0.95rem' }}>{profile.emoji}</span>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155' }}>Profil métier : {profile.name}</span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, rgba(0, 98, 255, 0.08) 0%, rgba(255, 107, 0, 0.08) 100%)', padding: '4px 12px', borderRadius: '12px', marginTop: '6px', border: '1px solid rgba(0, 98, 255, 0.15)' }}>
+              <span style={{ fontSize: '1.05rem' }}>{profile.emoji}</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A' }}>Secteur : {profile.name}</span>
+              <span style={{ fontSize: '0.72rem', color: '#64748B' }}>• {profile.tagline || profile.familyName}</span>
             </div>
           </div>
         </div>
@@ -1111,7 +1206,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div className="stat-label">Bénéfice net estimé</div>
             <div className="stat-value" style={{ color: safeProfit >= 0 ? '#10B981' : '#EF4444' }}>
               {safeProfit > 0 ? '+' : ''}
-              {safeProfit.toLocaleString('fr-FR')} FCFA
+              {safeProfit.toLocaleString('fr-FR')} {currency}
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <span>{today.grossMarginPercent !== undefined ? `Marge brute : ${today.grossMarginPercent}%` : 'Recettes nettes'}</span>
@@ -1148,7 +1243,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="stat-card sales">
           <div>
             <div className="stat-label">Chiffre d'affaires</div>
-            <div className="stat-value">{safeRevenue.toLocaleString('fr-FR')} FCFA</div>
+            <div className="stat-value">{safeRevenue.toLocaleString('fr-FR')} {currency}</div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
               {Number(today.salesCount || 0)} vente(s) facturée(s)
             </div>
@@ -1163,11 +1258,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div>
             <div className="stat-label">Encaissements réels</div>
             <div className="stat-value" style={{ color: '#2563EB' }}>
-              {safeCashCollected.toLocaleString('fr-FR')} FCFA
+              {safeCashCollected.toLocaleString('fr-FR')} {currency}
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
               {today.creditSales && today.creditSales > 0 ? (
-                <span style={{ color: '#DC2626' }}>⚠️ {Number(today.creditSales).toLocaleString('fr-FR')} FCFA à crédit</span>
+                <span style={{ color: '#DC2626' }}>⚠️ {Number(today.creditSales).toLocaleString('fr-FR')} {currency} à crédit</span>
               ) : (
                 'Espèces & Mobile Money entrés'
               )}
@@ -1198,11 +1293,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div>
             <div className="stat-label">Charges d'exploitation</div>
             <div className="stat-value" style={{ color: '#D97706' }}>
-              {safeOperatingExpenses.toLocaleString('fr-FR')} FCFA
+              {safeOperatingExpenses.toLocaleString('fr-FR')} {currency}
             </div>
             <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
               {today.personalWithdrawals && today.personalWithdrawals > 0
-                ? `Dont ${Number(today.personalWithdrawals).toLocaleString('fr-FR')} F retirés perso`
+                ? `Dont ${Number(today.personalWithdrawals).toLocaleString('fr-FR')} ${currency} retirés perso`
                 : 'Frais de fonctionnement boutique'}
             </div>
           </div>
@@ -1217,7 +1312,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div>
               <div className="stat-label">Crédits clients en attente</div>
               <div className="stat-value" style={{ color: '#EF4444' }}>
-                {safeDebtTotal.toLocaleString('fr-FR')} FCFA
+                {safeDebtTotal.toLocaleString('fr-FR')} {currency}
               </div>
               <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
                 {Number(debt.customerCount || debtors.length || 0)} client(s) à relancer
@@ -1235,7 +1330,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div>
               <div className="stat-label">Valeur du stock marchandise</div>
               <div className="stat-value" style={{ color: '#059669' }}>
-                {totalStockValue.toLocaleString('fr-FR')} FCFA
+                {totalStockValue.toLocaleString('fr-FR')} {currency}
               </div>
               <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '4px' }}>
                 {products.length} référence(s) en catalogue
@@ -1272,21 +1367,35 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
             {profile.dashboardKpis.map((kpi, idx) => (
               <div
                 key={idx}
                 style={{
                   background: '#FFFFFF',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '12px',
-                  padding: '12px 14px',
+                  border: '1.5px solid #E2E8F0',
+                  borderRadius: '14px',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
                 }}
               >
-                <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {kpi.label}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      {kpi.label}
+                    </span>
+                    <span style={{ fontSize: '0.62rem', background: '#EFF6FF', color: '#0062FF', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                      MÉTRIQUE RÉELLE
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.35rem', color: '#0F172A', fontWeight: 800, letterSpacing: '-0.02em', margin: '4px 0' }}>
+                    {getTradeKpiCalculatedValue(idx, kpi.label)}
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.82rem', color: '#0F172A', fontWeight: 600, marginTop: '4px' }}>
+                <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '6px', lineHeight: 1.35 }}>
                   {kpi.desc}
                 </div>
               </div>

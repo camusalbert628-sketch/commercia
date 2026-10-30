@@ -28,9 +28,11 @@ import {
   UtensilsCrossed,
   Scissors,
   Smartphone,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { getBusinessProfile } from '../../config/businessProfiles';
+import { TradeConfigModal } from '../common/TradeConfigModal';
 
 interface SidebarProps {
   debtCount?: number;
@@ -44,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   const profile = getBusinessProfile(activeBusiness?.profileId || 'epicerie_alimentation');
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showTradeModal, setShowTradeModal] = useState(false);
   const [callbackSent, setCallbackSent] = useState(false);
   const [callbackPhone, setCallbackPhone] = useState(user?.phone || '');
 
@@ -80,80 +83,136 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
     : 'VERSION GRATUITE';
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <img
-          src="/commercia-logo.png"
-          alt="COMMERCIA"
-          style={{
-            width: '42px',
-            height: '42px',
-            objectFit: 'contain',
-            borderRadius: '12px',
-            background: '#FFFFFF',
-            padding: '2px',
-            boxShadow: '0 4px 14px rgba(0, 98, 255, 0.35)',
-            flexShrink: 0,
-          }}
-        />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#FFFFFF', lineHeight: 1.2 }}>
-              COMMERC<span style={{ background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>IA</span>
-            </span>
-            <span
+    <>
+      <TradeConfigModal
+        isOpen={showTradeModal}
+        onClose={() => setShowTradeModal(false)}
+      />
+
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <img
+            src="/commercia-logo.png"
+            alt="COMMERCIA"
+            style={{
+              width: '42px',
+              height: '42px',
+              objectFit: 'contain',
+              borderRadius: '12px',
+              background: '#FFFFFF',
+              padding: '2px',
+              boxShadow: '0 4px 14px rgba(0, 98, 255, 0.35)',
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#FFFFFF', lineHeight: 1.2 }}>
+                COMMERC<span style={{ background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>IA</span>
+              </span>
+              <span
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 900,
+                  padding: '2px 6px',
+                  borderRadius: '6px',
+                  background: isPro
+                    ? (planName === 'business' ? 'linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%)' : 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)')
+                    : subStatus === 'expired'
+                    ? '#EF4444'
+                    : '#334155',
+                  color: '#FFFFFF',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {planBadge}
+              </span>
+            </div>
+            <div
               style={{
+                fontSize: '0.74rem',
+                color: isPro ? '#60A5FA' : '#94A3B8',
+                fontWeight: 600,
+                maxWidth: '140px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                marginTop: '2px',
+              }}
+              title={activeBusiness?.name}
+            >
+              {activeBusiness?.name || (isPro ? 'Compte Pro actif' : 'Commerce Actif')}
+            </div>
+            {/* Tracking Mode Pill */}
+            <div
+              style={{
+                display: 'inline-block',
                 fontSize: '0.62rem',
-                fontWeight: 900,
+                fontWeight: 800,
                 padding: '2px 6px',
                 borderRadius: '6px',
-                background: isPro
-                  ? 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)'
-                  : subStatus === 'expired'
-                  ? '#EF4444'
-                  : '#334155',
-                color: '#FFFFFF',
-                letterSpacing: '0.04em',
+                background: modeBadge.bg,
+                color: modeBadge.color,
+                marginTop: '4px',
               }}
             >
-              {planBadge}
-            </span>
-          </div>
-          <div
-            style={{
-              fontSize: '0.74rem',
-              color: isPro ? '#60A5FA' : '#94A3B8',
-              fontWeight: 600,
-              maxWidth: '140px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              marginTop: '2px',
-            }}
-            title={activeBusiness?.name}
-          >
-            {activeBusiness?.name || (isPro ? 'Compte Pro actif' : 'Commerce Actif')}
-          </div>
-          {/* Tracking Mode Pill */}
-          <div
-            style={{
-              display: 'inline-block',
-              fontSize: '0.62rem',
-              fontWeight: 800,
-              padding: '2px 6px',
-              borderRadius: '6px',
-              background: modeBadge.bg,
-              color: modeBadge.color,
-              marginTop: '4px',
-            }}
-          >
-            {modeBadge.label}
+              {modeBadge.label}
+            </div>
           </div>
         </div>
-      </div>
+
+        {/* Trade Identity Card - Immersion Métier Immédiate */}
+        <div
+          onClick={() => setShowTradeModal(true)}
+          style={{
+            margin: '8px 12px 14px',
+            padding: '10px 12px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(255, 107, 0, 0.14) 0%, rgba(0, 98, 255, 0.14) 100%)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            transition: 'all 0.2s ease',
+          }}
+          title="Cliquez pour changer ou configurer votre profil métier"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+            <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>{profile.emoji}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {profile.name}
+              </div>
+              <div style={{ fontSize: '0.66rem', color: '#94A3B8' }}>
+                {profile.familyName} • Configurer
+              </div>
+            </div>
+          </div>
+          <span
+            style={{
+              fontSize: '0.64rem',
+              background: 'rgba(255,255,255,0.15)',
+              color: '#F1F5F9',
+              padding: '2px 6px',
+              borderRadius: '6px',
+              fontWeight: 700,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <SlidersHorizontal size={10} />
+            <span>Changer</span>
+          </span>
+        </div>
 
       <nav className="sidebar-menu">
-        <div className="menu-category">Gestion Quotidienne</div>
+        <div className="menu-category" style={{ letterSpacing: '0.06em', color: '#94A3B8', fontSize: '0.67rem', fontWeight: 800, textTransform: 'uppercase' }}>
+          Pilotage {profile.name}
+        </div>
         <NavLink
           to="/dashboard"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
@@ -168,14 +227,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
         >
           <ShoppingCart size={18} />
           <span>{profile.terminology.salesNav || (trackingMode === 'simple' ? 'Ventes Express' : 'Ventes comptoir')}</span>
-        </NavLink>
-
-        <NavLink
-          to="/expenses"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <TrendingDown size={18} />
-          <span>{profile.terminology.expenseNav || 'Dépenses'}</span>
+          <span style={{ fontSize: '0.58rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34D399', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>GRATUIT</span>
         </NavLink>
 
         {/* Module Métier Spécialisé : Préparation Restauration */}
@@ -183,10 +235,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           <NavLink
             to="/food-prep"
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            style={{ background: 'rgba(234, 88, 12, 0.1)', color: '#FB923C' }}
+            style={{ background: 'rgba(234, 88, 12, 0.12)', color: '#FB923C' }}
           >
             <UtensilsCrossed size={18} />
             <span>Recettes & Plats du jour</span>
+            <span style={{ fontSize: '0.58rem', background: '#EA580C', color: '#FFFFFF', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>MÉTIER</span>
           </NavLink>
         )}
 
@@ -195,10 +248,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           <NavLink
             to="/service-orders"
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#818CF8' }}
+            style={{ background: 'rgba(99, 102, 241, 0.12)', color: '#818CF8' }}
           >
             <Scissors size={18} />
             <span>Commandes & Devis</span>
+            <span style={{ fontSize: '0.58rem', background: '#6366F1', color: '#FFFFFF', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>MÉTIER</span>
           </NavLink>
         )}
 
@@ -207,10 +261,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           <NavLink
             to="/mobile-money"
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#34D399' }}
+            style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#34D399' }}
           >
             <Smartphone size={18} />
             <span>Opérations Mobile Money</span>
+            <span style={{ fontSize: '0.58rem', background: '#10B981', color: '#FFFFFF', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>MÉTIER</span>
           </NavLink>
         )}
 
@@ -222,8 +277,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           >
             <Boxes size={18} />
             <span>{profile.id === 'friperie_vetements' ? 'Ballots & Lots' : 'Gestion des lots'}</span>
+            <span style={{ fontSize: '0.58rem', background: '#8B5CF6', color: '#FFFFFF', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
           </NavLink>
         )}
+
+        <NavLink
+          to="/expenses"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <TrendingDown size={18} />
+          <span>{profile.terminology.expenseNav || 'Dépenses'}</span>
+          <span style={{ fontSize: '0.58rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34D399', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>GRATUIT</span>
+        </NavLink>
+
+        <NavLink
+          to="/cash"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Wallet size={18} />
+          <span>Caisse Journalière</span>
+          <span style={{ fontSize: '0.58rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34D399', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>GRATUIT</span>
+        </NavLink>
+
+        <NavLink
+          to="/analytics"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <BarChart3 size={18} />
+          <span>Statistiques & Rapport</span>
+          <span style={{ fontSize: '0.58rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34D399', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>GRATUIT</span>
+        </NavLink>
+
+        <div className="menu-category" style={{ letterSpacing: '0.06em', color: '#94A3B8', fontSize: '0.67rem', fontWeight: 800, textTransform: 'uppercase' }}>
+          Catalogue & Dettes
+        </div>
 
         {/* Stock & Alertes : visible dès que le mode inclut le stock OU que le compte est PRO */}
         {hasStockModule && (
@@ -249,28 +336,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           </NavLink>
         )}
 
-        <NavLink
-          to="/cash"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <Wallet size={18} />
-          <span>Caisse Journalière</span>
-        </NavLink>
-
-        <NavLink
-          to="/analytics"
-          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-        >
-          <BarChart3 size={18} />
-          <span>Statistiques & Rapport</span>
-        </NavLink>
-
         {/* ========================================================================= */}
         {/* FONCTIONNALITÉS STRICTEMENT RÉSERVÉES AUX COMPTES PRO ACTIFS */}
         {/* ========================================================================= */}
         {isPro ? (
           <>
-            <div className="menu-category">Modules Avancés PRO</div>
+            <div className="menu-category" style={{ letterSpacing: '0.06em', color: '#94A3B8', fontSize: '0.67rem', fontWeight: 800, textTransform: 'uppercase' }}>
+              Modules Avancés PRO & Business
+            </div>
             {!hasCreditModule && (
               <NavLink
                 to="/customers"
@@ -298,8 +371,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <Truck size={18} />
-              <span>Livraisons & Colis</span>
-              <span style={{ fontSize: '0.62rem', background: '#0062FF', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+              <span>Livraisons & Expéditions</span>
+              <span style={{ fontSize: '0.58rem', background: '#0062FF', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
             </NavLink>
 
             <NavLink
@@ -308,6 +381,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             >
               <Bot size={18} />
               <span>Copilote IA COMMERCIA</span>
+              <span style={{ fontSize: '0.58rem', background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
             </NavLink>
 
             <NavLink
@@ -316,7 +390,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             >
               <TrendingUp size={18} />
               <span>Croissance & CAC</span>
-              <span style={{ fontSize: '0.62rem', background: '#FF6B00', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+              <span style={{ fontSize: '0.58rem', background: '#FF6B00', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
             </NavLink>
 
             <NavLink
@@ -325,7 +399,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             >
               <Landmark size={18} />
               <span>Trésorerie & Scénarios</span>
-              <span style={{ fontSize: '0.62rem', background: '#10B981', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+              <span style={{ fontSize: '0.58rem', background: '#10B981', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
             </NavLink>
 
             <NavLink
@@ -333,11 +407,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <Boxes size={18} />
-              <span>Gestion des lots</span>
-              <span style={{ fontSize: '0.62rem', background: '#8B5CF6', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
+              <span>Gestion des lots & Ballots</span>
+              <span style={{ fontSize: '0.58rem', background: '#8B5CF6', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
             </NavLink>
 
-            <div className="menu-category">Abonnement Pro</div>
+            <div
+              onClick={() => setShowTradeModal(true)}
+              className="nav-item"
+              style={{ cursor: 'pointer' }}
+            >
+              <SlidersHorizontal size={18} color="#38BDF8" />
+              <span>Mon Profil Métier ({profile.name})</span>
+            </div>
+
+            <div className="menu-category" style={{ letterSpacing: '0.06em', color: '#94A3B8', fontSize: '0.67rem', fontWeight: 800, textTransform: 'uppercase' }}>
+              Abonnement Pro
+            </div>
             <NavLink
               to="/subscription"
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
@@ -431,6 +516,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             <span style={{ fontSize: '0.62rem', background: '#8B5CF6', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>PRO</span>
           </NavLink>
         )}
+
+        <div
+          onClick={() => setShowTradeModal(true)}
+          className="nav-item"
+          style={{ cursor: 'pointer', marginBottom: '8px' }}
+        >
+          <SlidersHorizontal size={18} color="#38BDF8" />
+          <span>Profil Métier ({profile.name})</span>
+        </div>
 
         <div className="menu-category">Formules & Offres</div>
         <NavLink
@@ -839,5 +933,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
         </div>
       )}
     </aside>
+    </>
   );
 };

@@ -56,8 +56,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
       const ownedCustomer = await req.prisma.customer.findFirst({ where: { id: data.customerId, businessId } });
       if (!ownedCustomer) throw new AppError('Client introuvable pour cette entreprise.', 404);
     }
-    if (data.paymentMethod === 'credit' && !data.customerId) {
-      throw new AppError('Une vente à crédit nécessite un client afin d’enregistrer la créance.', 400);
+    if ((data.paymentMethod === 'credit' || (data.paidAmount !== undefined && data.totalAmount !== undefined && data.paidAmount < data.totalAmount)) && !data.customerId) {
+      throw new AppError('Une vente comportant une créance ou un crédit nécessite un client afin d’enregistrer la dette.', 400);
     }
     const productIds = Array.from(new Set(data.items.map(i => i.productId).filter(Boolean) as string[]));
     if (productIds.length > 0) {

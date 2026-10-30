@@ -148,24 +148,54 @@ router.post('/preparations', authenticate, async (req: AuthRequest, res: Respons
       }
     }
 
-    const preparation = await req.prisma.mealPreparation.create({
-      data: {
-        businessId,
-        recipeId: data.recipeId || null,
-        dishName: data.dishName,
-        portionsPrepared: data.portionsPrepared,
-        portionsSold: 0,
-        portionsRemaining: data.portionsPrepared,
-        portionsLost: 0,
-        portionsOffered: 0,
-        unitSellingPrice: sellingPrice,
-        totalRevenue: 0,
-        ingredientsCost: calculatedIngredientsCost,
-        otherProductionCosts: data.otherProductionCosts,
-        preparationDate: data.preparationDate ? new Date(data.preparationDate) : new Date(),
-        notes: data.notes || null,
-        status: 'active',
-      },
+    // Création transactionnelle de la préparation et déduction du stock d'ingrédients
+    const preparation = await req.prisma.$transaction(async (tx: any) => {
+      // Déduire le stock des ingrédients liés
+      if (data.recipeId) {
+        const recipe = await tx.recipe.findFirst({
+          where: { id: data.recipeId, businessId },
+          include: { ingredients: true },
+        });
+        if (recipe?.ingredients) {
+          for (const ing of recipe.ingredients) {
+            if (ing.productId) {
+              const qtyToDeduct = (ing.quantity * data.portionsPrepared) / (recipe.portionsYield || 1);
+              await tx.product.updateMany({
+                where: { id: ing.productId, businessId },
+                data: { stockQuantity: { decrement: qtyToDeduct } },
+              });
+              await tx.inventoryMovement.create({
+                data: {
+                  productId: ing.productId,
+                  type: 'out',
+                  quantity: qtyToDeduct,
+                  reason: `Ingrédient cuisine : ${data.dishName} (${data.portionsPrepared} portions)`,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      return tx.mealPreparation.create({
+        data: {
+          businessId,
+          recipeId: data.recipeId || null,
+          dishName: data.dishName,
+          portionsPrepared: data.portionsPrepared,
+          portionsSold: 0,
+          portionsRemaining: data.portionsPrepared,
+          portionsLost: 0,
+          portionsOffered: 0,
+          unitSellingPrice: sellingPrice,
+          totalRevenue: 0,
+          ingredientsCost: calculatedIngredientsCost,
+          otherProductionCosts: data.otherProductionCosts,
+          preparationDate: data.preparationDate ? new Date(data.preparationDate) : new Date(),
+          notes: data.notes || null,
+          status: 'active',
+        },
+      });
     });
 
     res.status(201).json({
@@ -191,14 +221,6 @@ router.put('/preparations/:id/sell', authenticate, async (req: AuthRequest, res:
     });
     if (!prep) throw new AppError('Préparation introuvable.', 404);
 
-    // RÈGLE MÉTIER CRITIQUE : Empêcher de vendre plus de portions que celles disponibles
-    if (data.portionsToSell > prep.portionsRemaining) {
-      throw new AppError(
-        `Stock insuffisant : impossible de vendre ${data.portionsToSell} portions. Il ne reste que ${prep.portionsRemaining} portions disponibles pour ${prep.dishName}.`,
-        400
-      );
-    }
-
     if (data.customerId) {
       const cust = await req.prisma.customer.findFirst({ where: { id: data.customerId, businessId } });
       if (!cust) throw new AppError('Client introuvable pour cette entreprise.', 404);
@@ -209,66 +231,98 @@ router.put('/preparations/:id/sell', authenticate, async (req: AuthRequest, res:
 
     const saleTotal = data.portionsToSell * prep.unitSellingPrice;
     const unitIngredientCost = prep.portionsPrepared > 0 ? (prep.ingredientsCost / prep.portionsPrepared) : 0;
-    const lineCost = Math.round(unitIngredientCost * data.portionsToSell);
 
-    // Mettre à jour la préparation
-    const updatedPrep = await req.prisma.mealPreparation.update({
-      where: { id },
-      data: {
-        portionsSold: { increment: data.portionsToSell },
-        portionsRemaining: { decrement: data.portionsToSell },
-        totalRevenue: { increment: saleTotal },
-        status: (prep.portionsRemaining - data.portionsToSell <= 0) ? 'closed' : 'active',
-      },
-    });
-
-    // Enregistrer également dans le moteur central des Ventes
-    const sale = await req.prisma.sale.create({
-      data: {
-        businessId,
-        customerId: data.customerId || null,
-        totalAmount: saleTotal,
-        paidAmount: data.paymentMethod === 'credit' ? 0 : saleTotal,
-        paymentMethod: data.paymentMethod,
-        status: 'completed',
-        notes: `Restauration : ${data.portionsToSell}x ${prep.dishName} ${data.notes ? `(${data.notes})` : ''}`,
-        items: {
-          create: [{
-            name: `${prep.dishName} (${data.portionsToSell} portion${data.portionsToSell > 1 ? 's' : ''})`,
-            quantity: data.portionsToSell,
-            unitPrice: prep.unitSellingPrice,
-            costPrice: unitIngredientCost,
-            totalPrice: saleTotal,
-          }],
+    // Transaction atomique garantissant qu'on ne vend pas plus de portions que le disponible
+    const result = await req.prisma.$transaction(async (tx: any) => {
+      const updatedCount = await tx.mealPreparation.updateMany({
+        where: {
+          id,
+          businessId,
+          portionsRemaining: { gte: data.portionsToSell },
         },
-      },
-    });
-
-    // Caisse journalière
-    if (data.paymentMethod !== 'credit' && saleTotal > 0) {
-      const activeSession = await req.prisma.cashSession.findFirst({
-        where: { businessId, status: 'open' },
+        data: {
+          portionsSold: { increment: data.portionsToSell },
+          portionsRemaining: { decrement: data.portionsToSell },
+          totalRevenue: { increment: saleTotal },
+        },
       });
-      if (activeSession) {
-        await req.prisma.cashMovement.create({
+
+      if (updatedCount.count !== 1) {
+        throw new AppError(
+          `Stock insuffisant : il ne reste pas assez de portions pour ${prep.dishName}.`,
+          409
+        );
+      }
+
+      // Enregistrer dans les Ventes
+      const sale = await tx.sale.create({
+        data: {
+          businessId,
+          customerId: data.customerId || null,
+          totalAmount: saleTotal,
+          paidAmount: data.paymentMethod === 'credit' ? 0 : saleTotal,
+          paymentMethod: data.paymentMethod,
+          status: 'completed',
+          notes: `Restauration : ${data.portionsToSell}x ${prep.dishName} ${data.notes ? `(${data.notes})` : ''}`,
+          items: {
+            create: [{
+              name: `${prep.dishName} (${data.portionsToSell} portion${data.portionsToSell > 1 ? 's' : ''})`,
+              quantity: data.portionsToSell,
+              unitPrice: prep.unitSellingPrice,
+              costPrice: unitIngredientCost,
+              totalPrice: saleTotal,
+            }],
+          },
+        },
+      });
+
+      // Si vente à crédit, mettre à jour la dette du client
+      if (data.paymentMethod === 'credit' && data.customerId) {
+        await tx.customer.update({
+          where: { id: data.customerId },
           data: {
-            sessionId: activeSession.id,
-            businessId,
-            type: 'in',
-            amount: saleTotal,
-            method: data.paymentMethod,
-            category: 'sale',
-            referenceId: sale.id,
-            description: `Repas : ${data.portionsToSell}x ${prep.dishName}`,
+            totalBought: { increment: saleTotal },
+            totalOwed: { increment: saleTotal },
           },
         });
       }
-    }
+
+      // Caisse journalière
+      if (data.paymentMethod !== 'credit' && saleTotal > 0) {
+        const activeSession = await tx.cashSession.findFirst({
+          where: { businessId, status: 'open' },
+        });
+        if (activeSession) {
+          await tx.cashMovement.create({
+            data: {
+              sessionId: activeSession.id,
+              businessId,
+              type: 'in',
+              amount: saleTotal,
+              method: data.paymentMethod,
+              category: 'sale',
+              referenceId: sale.id,
+              description: `Repas : ${data.portionsToSell}x ${prep.dishName}`,
+            },
+          });
+        }
+      }
+
+      const freshPrep = await tx.mealPreparation.findUnique({ where: { id } });
+      if (freshPrep && freshPrep.portionsRemaining <= 0) {
+        await tx.mealPreparation.update({
+          where: { id },
+          data: { status: 'closed' },
+        });
+      }
+
+      return { sale, updatedPrep: freshPrep };
+    });
 
     res.json({
       message: `${data.portionsToSell} portion(s) vendue(s) avec succès ! (${saleTotal.toLocaleString('fr-FR')} FCFA)`,
-      preparation: updatedPrep,
-      sale,
+      preparation: result.updatedPrep,
+      sale: result.sale,
     });
   } catch (error) {
     next(error);
@@ -283,33 +337,40 @@ router.put('/preparations/:id/losses', authenticate, async (req: AuthRequest, re
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const data = lossesSchema.parse(req.body);
-
-    const prep = await req.prisma.mealPreparation.findFirst({
-      where: { id, businessId },
-    });
-    if (!prep) throw new AppError('Préparation introuvable.', 404);
-
     const totalToDeduct = data.portionsLost + data.portionsOffered;
-    if (totalToDeduct > prep.portionsRemaining) {
-      throw new AppError(
-        `Impossible d'enregistrer ${totalToDeduct} portions en perte/offerte. Seulement ${prep.portionsRemaining} portions restantes.`,
-        400
-      );
-    }
 
-    const updated = await req.prisma.mealPreparation.update({
-      where: { id },
-      data: {
-        portionsLost: { increment: data.portionsLost },
-        portionsOffered: { increment: data.portionsOffered },
-        portionsRemaining: { decrement: totalToDeduct },
-        status: (prep.portionsRemaining - totalToDeduct <= 0) ? 'closed' : 'active',
-      },
+    const result = await req.prisma.$transaction(async (tx: any) => {
+      const updatedCount = await tx.mealPreparation.updateMany({
+        where: {
+          id,
+          businessId,
+          portionsRemaining: { gte: totalToDeduct },
+        },
+        data: {
+          portionsLost: { increment: data.portionsLost },
+          portionsOffered: { increment: data.portionsOffered },
+          portionsRemaining: { decrement: totalToDeduct },
+        },
+      });
+
+      if (updatedCount.count !== 1) {
+        throw new AppError('Impossible d\'enregistrer les pertes : portions restantes insuffisantes.', 409);
+      }
+
+      const freshPrep = await tx.mealPreparation.findUnique({ where: { id } });
+      if (freshPrep && freshPrep.portionsRemaining <= 0) {
+        await tx.mealPreparation.update({
+          where: { id },
+          data: { status: 'closed' },
+        });
+      }
+
+      return freshPrep;
     });
 
     res.json({
       message: 'Invendus et pertes enregistrés avec succès.',
-      preparation: updated,
+      preparation: result,
     });
   } catch (error) {
     next(error);

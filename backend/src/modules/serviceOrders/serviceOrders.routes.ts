@@ -89,73 +89,102 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
       customerId = newCust.id;
     }
 
-    const orderCount = await req.prisma.serviceOrder.count({ where: { businessId } });
-    const orderNumber = `CMD-${new Date().getFullYear()}-${String(orderCount + 1).padStart(4, '0')}`;
+    const result = await req.prisma.$transaction(async (tx: any) => {
+      const orderCount = await tx.serviceOrder.count({ where: { businessId } });
+      const orderNumber = `CMD-${new Date().getFullYear()}-${String(orderCount + 1).padStart(4, '0')}-${Math.floor(100 + Math.random() * 900)}`;
 
-    const advance = Math.min(data.advancePaid, data.agreedAmount);
-    const balanceDue = Math.max(0, data.agreedAmount - advance);
-    const status = data.isQuoteOnly ? 'devis' : (advance > 0 ? 'confirme' : 'confirme');
+      const advance = Math.min(data.advancePaid, data.agreedAmount);
+      const balanceDue = Math.max(0, data.agreedAmount - advance);
+      const status = data.isQuoteOnly ? 'devis' : (advance > 0 ? 'confirme' : 'confirme');
 
-    const order = await req.prisma.serviceOrder.create({
-      data: {
-        businessId,
-        customerId: customerId || null,
-        orderNumber,
-        title: data.title,
-        serviceType: data.serviceType,
-        agreedAmount: data.agreedAmount,
-        advancePaid: advance,
-        balanceDue,
-        status,
-        estimatedDeliveryDate: data.estimatedDeliveryDate ? new Date(data.estimatedDeliveryDate) : null,
-        specsJson: data.specsJson || null,
-        notes: data.notes || null,
-        payments: advance > 0 ? {
-          create: [{
-            amount: advance,
-            paymentMethod: data.paymentMethod,
-            notes: 'Acompte initial à la commande',
-          }],
-        } : undefined,
-      },
-      include: { customer: true, payments: true, costs: true },
-    });
-
-    // Si acompte encaissé, lier à la session de caisse active
-    if (advance > 0) {
-      const activeSession = await req.prisma.cashSession.findFirst({
-        where: { businessId, status: 'open' },
+      const order = await tx.serviceOrder.create({
+        data: {
+          businessId,
+          customerId: customerId || null,
+          orderNumber,
+          title: data.title,
+          serviceType: data.serviceType,
+          agreedAmount: data.agreedAmount,
+          advancePaid: advance,
+          balanceDue,
+          status,
+          estimatedDeliveryDate: data.estimatedDeliveryDate ? new Date(data.estimatedDeliveryDate) : null,
+          specsJson: data.specsJson || null,
+          notes: data.notes || null,
+          payments: advance > 0 ? {
+            create: [{
+              amount: advance,
+              paymentMethod: data.paymentMethod,
+              notes: 'Acompte initial à la commande',
+            }],
+          } : undefined,
+        },
+        include: { customer: true, payments: true, costs: true },
       });
-      if (activeSession) {
-        await req.prisma.cashMovement.create({
+
+      // Si la commande est confirmée (pas un simple devis), créer une Vente dans le moteur financier
+      let sale = null;
+      if (!data.isQuoteOnly) {
+        sale = await tx.sale.create({
           data: {
-            sessionId: activeSession.id,
             businessId,
-            type: 'in',
-            amount: advance,
-            method: data.paymentMethod,
-            category: 'sale',
-            referenceId: order.id,
-            description: `Acompte ${order.orderNumber} - ${order.title}`,
+            customerId: customerId || null,
+            totalAmount: data.agreedAmount,
+            paidAmount: advance,
+            paymentMethod: data.paymentMethod,
+            status: balanceDue === 0 ? 'completed' : 'pending',
+            notes: `Prestation #${orderNumber} : ${data.title}`,
+            items: {
+              create: [{
+                name: `${data.title} (${data.serviceType})`,
+                quantity: 1,
+                unitPrice: data.agreedAmount,
+                costPrice: 0,
+                totalPrice: data.agreedAmount,
+              }],
+            },
           },
         });
       }
-    }
 
-    // Si un solde reste dû et qu'un client est rattaché, mettre à jour son carnet de dette
-    if (balanceDue > 0 && customerId && !data.isQuoteOnly) {
-      await req.prisma.customer.update({
-        where: { id: customerId },
-        data: {
-          totalBought: { increment: data.agreedAmount },
-          totalOwed: { increment: balanceDue },
-        },
-      });
-    }
+      // Si acompte encaissé, lier à la session de caisse active
+      if (advance > 0) {
+        const activeSession = await tx.cashSession.findFirst({
+          where: { businessId, status: 'open' },
+        });
+        if (activeSession) {
+          await tx.cashMovement.create({
+            data: {
+              sessionId: activeSession.id,
+              businessId,
+              type: 'in',
+              amount: advance,
+              method: data.paymentMethod,
+              category: 'sale',
+              referenceId: sale ? sale.id : order.id,
+              description: `Acompte ${order.orderNumber} - ${order.title}`,
+            },
+          });
+        }
+      }
+
+      // Si un solde reste dû et qu'un client est rattaché, mettre à jour son carnet de dette
+      if (balanceDue > 0 && customerId && !data.isQuoteOnly) {
+        await tx.customer.update({
+          where: { id: customerId },
+          data: {
+            totalBought: { increment: data.agreedAmount },
+            totalOwed: { increment: balanceDue },
+          },
+        });
+      }
+
+      return order;
+    });
 
     res.status(201).json({
       message: data.isQuoteOnly ? 'Devis généré avec succès !' : 'Commande confirmée et acompte enregistré.',
-      order,
+      order: result,
     });
   } catch (error) {
     next(error);
@@ -171,71 +200,85 @@ router.post('/:id/payments', authenticate, async (req: AuthRequest, res: Respons
 
     const data = addPaymentSchema.parse(req.body);
 
-    const order = await req.prisma.serviceOrder.findFirst({
-      where: { id, businessId },
-    });
-    if (!order) throw new AppError('Commande introuvable.', 404);
-
-    if (order.status === 'devis' || order.status === 'annule') {
-      throw new AppError('Aucun paiement possible sur un devis ou une commande annulée.', 400);
-    }
-    if (order.balanceDue <= 0) {
-      throw new AppError('Cette commande est déjà intégralement réglée.', 400);
-    }
-    const paymentAmount = Math.min(data.amount, order.balanceDue);
-    const newAdvance = order.advancePaid + paymentAmount;
-    const newBalance = Math.max(0, order.agreedAmount - newAdvance);
-
-    const payment = await req.prisma.serviceOrderPayment.create({
-      data: {
-        orderId: id,
-        amount: paymentAmount,
-        paymentMethod: data.paymentMethod,
-        notes: data.notes || (newBalance === 0 ? 'Règlement du solde final' : 'Versement partiel'),
-      },
-    });
-
-    const updatedOrder = await req.prisma.serviceOrder.update({
-      where: { id },
-      data: {
-        advancePaid: newAdvance,
-        balanceDue: newBalance,
-        status: newBalance === 0 && order.status === 'pret' ? 'termine' : order.status,
-      },
-      include: { payments: true, customer: true },
-    });
-
-    // Mettre à jour la dette client
-    if (order.customerId && paymentAmount > 0) {
-      await req.prisma.customer.update({
-        where: { id: order.customerId },
-        data: { totalOwed: { decrement: paymentAmount } },
+    const result = await req.prisma.$transaction(async (tx: any) => {
+      const order = await tx.serviceOrder.findFirst({
+        where: { id, businessId },
       });
-    }
+      if (!order) throw new AppError('Commande introuvable.', 404);
 
-    // Enregistrer en caisse
-    const activeSession = await req.prisma.cashSession.findFirst({
-      where: { businessId, status: 'open' },
-    });
-    if (activeSession) {
-      await req.prisma.cashMovement.create({
+      if (order.status === 'devis' || order.status === 'annule') {
+        throw new AppError('Aucun paiement possible sur un devis ou une commande annulée.', 400);
+      }
+      if (order.balanceDue <= 0) {
+        throw new AppError('Cette commande est déjà intégralement réglée.', 400);
+      }
+
+      const paymentAmount = Math.min(data.amount, order.balanceDue);
+      const newAdvance = order.advancePaid + paymentAmount;
+      const newBalance = Math.max(0, order.agreedAmount - newAdvance);
+
+      const payment = await tx.serviceOrderPayment.create({
         data: {
-          sessionId: activeSession.id,
-          businessId,
-          type: 'in',
+          orderId: id,
           amount: paymentAmount,
-          method: data.paymentMethod,
-          category: 'debt_payment',
-          referenceId: payment.id,
-          description: `Paiement ${order.orderNumber} (${newBalance === 0 ? 'Solde complet' : 'Acompte'})`,
+          paymentMethod: data.paymentMethod,
+          notes: data.notes || (newBalance === 0 ? 'Règlement du solde final' : 'Versement partiel'),
         },
       });
-    }
+
+      const updatedOrder = await tx.serviceOrder.update({
+        where: { id },
+        data: {
+          advancePaid: newAdvance,
+          balanceDue: newBalance,
+          status: newBalance === 0 && order.status === 'pret' ? 'termine' : order.status,
+        },
+        include: { payments: true, customer: true },
+      });
+
+      // Mettre à jour la dette client
+      if (order.customerId && paymentAmount > 0) {
+        await tx.customer.update({
+          where: { id: order.customerId },
+          data: { totalOwed: { decrement: paymentAmount } },
+        });
+      }
+
+      // Synchroniser la Vente liée dans le moteur financier
+      await tx.sale.updateMany({
+        where: { businessId, notes: { contains: order.orderNumber } },
+        data: {
+          paidAmount: { increment: paymentAmount },
+          status: newBalance === 0 ? 'completed' : 'pending',
+        },
+      });
+
+      // Enregistrer en caisse
+      const activeSession = await tx.cashSession.findFirst({
+        where: { businessId, status: 'open' },
+      });
+      if (activeSession) {
+        await tx.cashMovement.create({
+          data: {
+            sessionId: activeSession.id,
+            businessId,
+            type: 'in',
+            amount: paymentAmount,
+            method: data.paymentMethod,
+            category: 'debt_payment',
+            referenceId: payment.id,
+            description: `Paiement ${order.orderNumber} (${newBalance === 0 ? 'Solde complet' : 'Acompte'})`,
+          },
+        });
+      }
+
+      return { updatedOrder, payment, paymentAmount };
+    });
 
     res.json({
-      message: `Paiement de ${paymentAmount.toLocaleString('fr-FR')} FCFA enregistré avec succès !`,
-      order: updatedOrder,
-      payment,
+      message: `Paiement de ${result.paymentAmount.toLocaleString('fr-FR')} FCFA enregistré avec succès !`,
+      order: result.updatedOrder,
+      payment: result.payment,
     });
   } catch (error) {
     next(error);
@@ -251,40 +294,55 @@ router.post('/:id/costs', authenticate, async (req: AuthRequest, res: Response, 
 
     const data = addCostSchema.parse(req.body);
 
-    const order = await req.prisma.serviceOrder.findFirst({
-      where: { id, businessId },
-    });
-    if (!order) throw new AppError('Commande introuvable.', 404);
+    const result = await req.prisma.$transaction(async (tx: any) => {
+      const order = await tx.serviceOrder.findFirst({
+        where: { id, businessId },
+      });
+      if (!order) throw new AppError('Commande introuvable.', 404);
 
-    const cost = await req.prisma.serviceOrderCost.create({
-      data: {
-        orderId: id,
-        category: data.category,
-        description: data.description,
-        amount: data.amount,
-      },
-    });
+      const cost = await tx.serviceOrderCost.create({
+        data: {
+          orderId: id,
+          category: data.category,
+          description: data.description,
+          amount: data.amount,
+        },
+      });
 
-    // Mettre à jour le coût total de la commande
-    let costField = 'otherCosts';
-    if (data.category === 'materiel' || data.category === 'piece') {
-      costField = 'materialsCost';
-    } else if (data.category === 'main_d_oeuvre' || data.category === 'sous_traitance') {
-      costField = 'laborCost';
-    }
+      // Enregistrer une Dépense réelle pour que le compte de résultat et la marge nette soient exacts
+      await tx.expense.create({
+        data: {
+          businessId,
+          amount: data.amount,
+          category: data.category === 'materiel' ? 'fournitures' : 'autre',
+          description: `Frais #${order.orderNumber} : ${data.description}`,
+          date: new Date(),
+        },
+      });
 
-    const updatedOrder = await req.prisma.serviceOrder.update({
-      where: { id },
-      data: {
-        [costField]: { increment: data.amount },
-      },
-      include: { costs: true, payments: true },
+      // Mettre à jour le coût total de la commande
+      let costField = 'otherCosts';
+      if (data.category === 'materiel' || data.category === 'piece') {
+        costField = 'materialsCost';
+      } else if (data.category === 'main_d_oeuvre' || data.category === 'sous_traitance') {
+        costField = 'laborCost';
+      }
+
+      const updatedOrder = await tx.serviceOrder.update({
+        where: { id },
+        data: {
+          [costField]: { increment: data.amount },
+        },
+        include: { costs: true, payments: true },
+      });
+
+      return { updatedOrder, cost };
     });
 
     res.json({
-      message: 'Charge directement imputée à la commande.',
-      order: updatedOrder,
-      cost,
+      message: 'Charge directement imputée à la commande et au compte de résultat.',
+      order: result.updatedOrder,
+      cost: result.cost,
     });
   } catch (error) {
     next(error);
@@ -300,25 +358,43 @@ router.put('/:id/status', authenticate, async (req: AuthRequest, res: Response, 
 
     const data = updateStatusSchema.parse(req.body);
 
-    const order = await req.prisma.serviceOrder.findFirst({
-      where: { id, businessId },
-    });
-    if (!order) throw new AppError('Commande introuvable.', 404);
+    const result = await req.prisma.$transaction(async (tx: any) => {
+      const order = await tx.serviceOrder.findFirst({
+        where: { id, businessId },
+      });
+      if (!order) throw new AppError('Commande introuvable.', 404);
 
-    const completionDate = (data.status === 'termine' || data.status === 'livre') ? new Date() : order.completionDate;
+      if (order.status === 'annule' && data.status !== 'annule') {
+        throw new AppError('Une commande annulée ne peut plus être réactivée directement.', 400);
+      }
 
-    const updated = await req.prisma.serviceOrder.update({
-      where: { id },
-      data: {
-        status: data.status,
-        completionDate,
-        notes: data.notes ? `${order.notes || ''}\n[Statut: ${data.status}] ${data.notes}` : order.notes,
-      },
+      // Si la commande est annulée, annuler la dette client restante s'il y en avait une
+      if (data.status === 'annule' && order.balanceDue > 0 && order.customerId) {
+        await tx.customer.update({
+          where: { id: order.customerId },
+          data: {
+            totalOwed: { decrement: order.balanceDue },
+          },
+        });
+      }
+
+      const completionDate = (data.status === 'termine' || data.status === 'livre') ? new Date() : order.completionDate;
+
+      const updated = await tx.serviceOrder.update({
+        where: { id },
+        data: {
+          status: data.status,
+          completionDate,
+          notes: data.notes ? `${order.notes || ''}\n[Statut: ${data.status}] ${data.notes}` : order.notes,
+        },
+      });
+
+      return updated;
     });
 
     res.json({
       message: `Statut de la commande mis à jour : ${data.status}`,
-      order: updated,
+      order: result,
     });
   } catch (error) {
     next(error);
