@@ -1,6 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -21,7 +21,7 @@ const operationSchema = z.object({
 // GET /api/mobile-money/operations
 router.get('/operations', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     const { operator, type, limit } = req.query;
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
@@ -44,7 +44,7 @@ router.get('/operations', authenticate, async (req: AuthRequest, res: Response, 
 // POST /api/mobile-money/operations
 router.post('/operations', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const data = operationSchema.parse(req.body);
@@ -99,7 +99,7 @@ router.post('/operations', authenticate, async (req: AuthRequest, res: Response,
 // GET /api/mobile-money/reconciliation
 router.get('/reconciliation', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const today = new Date();

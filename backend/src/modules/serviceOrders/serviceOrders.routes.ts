@@ -1,6 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -41,7 +41,7 @@ const updateStatusSchema = z.object({
 // GET /api/service-orders
 router.get('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     const { status, serviceType } = req.query;
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
@@ -68,12 +68,16 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
 // POST /api/service-orders
 router.post('/', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const data = createOrderSchema.parse(req.body);
 
     let customerId = data.customerId;
+    if (customerId) {
+      const owned = await req.prisma.customer.findFirst({ where: { id: customerId, businessId } });
+      if (!owned) throw new AppError('Client introuvable pour cette entreprise.', 404);
+    }
     if (!customerId && (data.customerName || data.customerPhone)) {
       const newCust = await req.prisma.customer.create({
         data: {
@@ -161,7 +165,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
 // POST /api/service-orders/:id/payments (Règlement acompte supplémentaire ou solde final)
 router.post('/:id/payments', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     const { id } = req.params;
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
@@ -172,7 +176,13 @@ router.post('/:id/payments', authenticate, async (req: AuthRequest, res: Respons
     });
     if (!order) throw new AppError('Commande introuvable.', 404);
 
-    const paymentAmount = Math.min(data.amount, order.balanceDue > 0 ? order.balanceDue : data.amount);
+    if (order.status === 'devis' || order.status === 'annule') {
+      throw new AppError('Aucun paiement possible sur un devis ou une commande annulée.', 400);
+    }
+    if (order.balanceDue <= 0) {
+      throw new AppError('Cette commande est déjà intégralement réglée.', 400);
+    }
+    const paymentAmount = Math.min(data.amount, order.balanceDue);
     const newAdvance = order.advancePaid + paymentAmount;
     const newBalance = Math.max(0, order.agreedAmount - newAdvance);
 
@@ -235,7 +245,7 @@ router.post('/:id/payments', authenticate, async (req: AuthRequest, res: Respons
 // POST /api/service-orders/:id/costs (Enregistrer des matériaux, pièces détachées ou sous-traitance)
 router.post('/:id/costs', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     const { id } = req.params;
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
@@ -284,7 +294,7 @@ router.post('/:id/costs', authenticate, async (req: AuthRequest, res: Response, 
 // PUT /api/service-orders/:id/status
 router.put('/:id/status', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     const { id } = req.params;
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 

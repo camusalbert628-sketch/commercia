@@ -41,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   const { user, activeBusinessId, logout } = useAuthStore();
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
 
-  const profile = getBusinessProfile(activeBusiness?.profileId || 'epicerie_alimentaire');
+  const profile = getBusinessProfile(activeBusiness?.profileId || 'epicerie_alimentation');
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [callbackSent, setCallbackSent] = useState(false);
@@ -52,12 +52,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && subStatus === 'active'));
 
   const trackingMode = activeBusiness?.trackingMode || 'complet';
-  const hasStockModule = isPro || trackingMode === 'avec_stock' || trackingMode === 'complet' || activeBusiness?.activeModules?.includes('stock_inventaire');
-  const hasCreditModule = isPro || trackingMode === 'avec_credit' || trackingMode === 'complet' || activeBusiness?.activeModules?.includes('credit_clients');
-  const hasLotsModule = isPro || activeBusiness?.activeModules?.includes('lots_ballots');
-  const hasFoodPrep = activeBusiness?.activeModules?.includes('food_preparation') || ['restauration_fastfood', 'boulangerie_patisserie'].includes(profile.id);
-  const hasServiceOrders = activeBusiness?.activeModules?.includes('service_orders') || ['couture_confection', 'reparation_informatique', 'garage_mecanique', 'services_digitaux'].includes(profile.id);
-  const hasMobileMoney = activeBusiness?.activeModules?.includes('mobile_money_ops') || profile.id === 'agence_mobile_money';
+  const enabledModules: string[] = activeBusiness?.activeModules?.length
+    ? activeBusiness.activeModules
+    : (activeBusiness?.profileId ? profile.recommendedModules : []);
+  const hasStockModule = isPro || trackingMode === 'avec_stock' || trackingMode === 'complet' || enabledModules.includes('stock_alerts');
+  const hasCreditModule = isPro || trackingMode === 'avec_credit' || trackingMode === 'complet' || enabledModules.includes('customer_credits');
+  // Les lots restent réservés au plan Pro (contrôle serveur dans lots.routes.ts)
+  const hasLotsModule = isPro;
+  const hasFoodPrep = enabledModules.includes('food_preparation');
+  const hasServiceOrders = enabledModules.includes('service_orders');
+  const hasMobileMoney = enabledModules.includes('mobile_money_ops');
 
   const modeBadge = trackingMode === 'simple'
     ? { label: '⚡ Mode Simplifié', bg: 'rgba(2, 132, 199, 0.25)', color: '#38BDF8' }

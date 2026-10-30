@@ -1,6 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -48,7 +48,7 @@ const lossesSchema = z.object({
 // GET /api/food-prep/recipes
 router.get('/recipes', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const recipes = await req.prisma.recipe.findMany({
@@ -66,7 +66,7 @@ router.get('/recipes', authenticate, async (req: AuthRequest, res: Response, nex
 // POST /api/food-prep/recipes
 router.post('/recipes', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const data = recipeSchema.parse(req.body);
@@ -105,7 +105,7 @@ router.post('/recipes', authenticate, async (req: AuthRequest, res: Response, ne
 // GET /api/food-prep/preparations
 router.get('/preparations', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const preparations = await req.prisma.mealPreparation.findMany({
@@ -123,7 +123,7 @@ router.get('/preparations', authenticate, async (req: AuthRequest, res: Response
 // POST /api/food-prep/preparations
 router.post('/preparations', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const data = preparationSchema.parse(req.body);
@@ -133,10 +133,11 @@ router.post('/preparations', authenticate, async (req: AuthRequest, res: Respons
 
     // Si une recette est liée, reprendre ses ratios
     if (data.recipeId) {
-      const recipe = await req.prisma.recipe.findUnique({
-        where: { id: data.recipeId },
+      const recipe = await req.prisma.recipe.findFirst({
+        where: { id: data.recipeId, businessId },
         include: { ingredients: true },
       });
+      if (!recipe) throw new AppError('Recette introuvable pour cette entreprise.', 404);
       if (recipe) {
         if (!sellingPrice || sellingPrice === 0) {
           sellingPrice = recipe.sellingPricePerPortion;
@@ -179,7 +180,7 @@ router.post('/preparations', authenticate, async (req: AuthRequest, res: Respons
 // PUT /api/food-prep/preparations/:id/sell
 router.put('/preparations/:id/sell', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     const { id } = req.params;
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
@@ -196,6 +197,14 @@ router.put('/preparations/:id/sell', authenticate, async (req: AuthRequest, res:
         `Stock insuffisant : impossible de vendre ${data.portionsToSell} portions. Il ne reste que ${prep.portionsRemaining} portions disponibles pour ${prep.dishName}.`,
         400
       );
+    }
+
+    if (data.customerId) {
+      const cust = await req.prisma.customer.findFirst({ where: { id: data.customerId, businessId } });
+      if (!cust) throw new AppError('Client introuvable pour cette entreprise.', 404);
+    }
+    if (data.paymentMethod === 'credit' && !data.customerId) {
+      throw new AppError('Une vente à crédit nécessite un client afin d’enregistrer la créance.', 400);
     }
 
     const saleTotal = data.portionsToSell * prep.unitSellingPrice;
@@ -269,7 +278,7 @@ router.put('/preparations/:id/sell', authenticate, async (req: AuthRequest, res:
 // PUT /api/food-prep/preparations/:id/losses
 router.put('/preparations/:id/losses', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     const { id } = req.params;
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
@@ -310,7 +319,7 @@ router.put('/preparations/:id/losses', authenticate, async (req: AuthRequest, re
 // GET /api/food-prep/summary (Calcul rigoureux des ingrédients consommés et du bénéfice journalier)
 router.get('/summary', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const businessId = req.headers['x-business-id'] as string;
+    const businessId = await getTenantBusinessId(req);
     if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
 
     const today = new Date();

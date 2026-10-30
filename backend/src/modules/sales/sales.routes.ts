@@ -36,6 +36,40 @@ router.post('/', async (req: AuthRequest, res, next) => {
     
     const data = saleSchema.parse(req.body);
 
+    // Idempotence : un rejeu avec la même clé ne recrée ni vente ni mouvement de stock
+    const idemKeyRaw = req.headers['idempotency-key'];
+    const idemKey = typeof idemKeyRaw === 'string' && idemKeyRaw.trim() ? idemKeyRaw.trim().slice(0, 100) : null;
+    const idemMarker = idemKey ? `[idem:${idemKey}]` : null;
+    if (idemMarker) {
+      const existing = await req.prisma.sale.findFirst({
+        where: { businessId, notes: { contains: idemMarker } },
+        include: { items: true, customer: true, channel: true },
+      });
+      if (existing) {
+        res.status(200).json({ message: 'Vente déjà enregistrée (requête rejouée).', sale: existing, idempotentReplay: true });
+        return;
+      }
+    }
+
+    // Isolation : client et produits doivent appartenir à l'entreprise active
+    if (data.customerId) {
+      const ownedCustomer = await req.prisma.customer.findFirst({ where: { id: data.customerId, businessId } });
+      if (!ownedCustomer) throw new AppError('Client introuvable pour cette entreprise.', 404);
+    }
+    if (data.paymentMethod === 'credit' && !data.customerId) {
+      throw new AppError('Une vente à crédit nécessite un client afin d’enregistrer la créance.', 400);
+    }
+    const productIds = Array.from(new Set(data.items.map(i => i.productId).filter(Boolean) as string[]));
+    if (productIds.length > 0) {
+      const ownedProducts = await req.prisma.product.findMany({
+        where: { id: { in: productIds }, businessId },
+        select: { id: true },
+      });
+      if (ownedProducts.length !== productIds.length) {
+        throw new AppError('Un ou plusieurs produits sont introuvables pour cette entreprise.', 404);
+      }
+    }
+
     // Vérifier les droits et quotas de l'abonnement en temps réel
     const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId!);
 
@@ -117,53 +151,62 @@ router.post('/', async (req: AuthRequest, res, next) => {
       }
     }
 
-    const sale = await req.prisma.sale.create({
-      data: {
-        businessId,
-        customerId: data.customerId || null,
-        channelId: data.channelId || null,
-        campaignId: data.campaignId || null,
-        totalAmount: computedTotal,
-        paidAmount,
-        discountAmount: data.discountAmount || 0,
-        variableCosts: data.variableCosts || 0,
-        paymentMethod: data.paymentMethod,
-        status: data.status,
-        notes: data.notes || null,
-        saleDate: data.saleDate ? new Date(data.saleDate) : new Date(),
-        items: {
-          create: enrichedItems.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            costPrice: item.costPrice,
-            variableCosts: item.variableCosts,
-            totalPrice: item.unitPrice * item.quantity,
-            productId: item.productId || null,
-          })),
+    // Vente + décrément de stock + mouvement : une seule transaction atomique.
+    // Le décrément est conditionnel (quantity >= demandée) : pas de stock négatif ni de double vente concurrente.
+    const sale = await req.prisma.$transaction(async (tx: any) => {
+      const created = await tx.sale.create({
+        data: {
+          businessId,
+          customerId: data.customerId || null,
+          channelId: data.channelId || null,
+          campaignId: data.campaignId || null,
+          totalAmount: computedTotal,
+          paidAmount,
+          discountAmount: data.discountAmount || 0,
+          variableCosts: data.variableCosts || 0,
+          paymentMethod: data.paymentMethod,
+          status: data.status,
+          notes: [data.notes, idemMarker].filter(Boolean).join(' ') || null,
+          saleDate: data.saleDate ? new Date(data.saleDate) : new Date(),
+          items: {
+            create: enrichedItems.map(item => ({
+              name: item.name,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              costPrice: item.costPrice,
+              variableCosts: item.variableCosts,
+              totalPrice: item.unitPrice * item.quantity,
+              productId: item.productId || null,
+            })),
+          },
         },
-      },
-      include: { items: true, customer: true, channel: true },
-    });
+        include: { items: true, customer: true, channel: true },
+      });
 
-
-    // Update stock if products are linked
-    for (const item of data.items) {
-      if (item.productId) {
-        await req.prisma.product.update({
-          where: { id: item.productId },
+      for (const item of data.items) {
+        if (!item.productId) continue;
+        const updated = await tx.product.updateMany({
+          where: { id: item.productId, businessId, quantity: { gte: item.quantity } },
           data: { quantity: { decrement: item.quantity } },
         });
-        await req.prisma.inventoryMovement.create({
+        if (updated.count !== 1) {
+          throw new AppError(`Stock insuffisant pour « ${item.name} » : la vente est annulée.`, 409);
+        }
+        await tx.inventoryMovement.create({
           data: {
             productId: item.productId,
             type: 'out',
             quantity: item.quantity,
-            reason: `Vente #${sale.id.slice(0, 8)}`,
+            reason: `Vente #${created.id.slice(0, 8)}`,
           },
         });
       }
 
+      return created;
+    });
+
+    // Synchronisation avec les lots (hors transaction critique)
+    for (const item of data.items) {
       // SYNCHRONISATION AUTOMATIQUE AVEC LES LOTS COMMERCIAUX :
       // Si l'article vendu correspond au nom d'un article d'un lot actif de cette boutique,
       // la vente et le mouvement de stock du lot sont décrémentés et comptabilisés en temps réel !
