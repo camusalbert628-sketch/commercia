@@ -368,14 +368,59 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
     });
   }, [wItems, wAllocationMethod, wizardTotalLandedCost, wizardTotalUnits, wizardTotalEstimatedSalesValue]);
 
+  // Next step navigation with step validation
+  const handleNextWizardStep = () => {
+    if (wizardStep === 1) {
+      if (!wName.trim()) {
+        alert('Veuillez renseigner un nom pour la campagne de lot (ex: Balle Friperie Robes Dubaï).');
+        return;
+      }
+    } else if (wizardStep === 2) {
+      if (wPurchasePrice === '' || Number(wPurchasePrice) < 0) {
+        alert('Veuillez renseigner le prix d\'achat du lot (Étape 2).');
+        return;
+      }
+    } else if (wizardStep === 3) {
+      if (wItems.length === 0) {
+        alert('Veuillez ajouter au moins un article dans le lot.');
+        return;
+      }
+      const emptyNameIndex = wItems.findIndex(it => !it.name || !it.name.trim());
+      if (emptyNameIndex !== -1) {
+        alert(`Veuillez renseigner la désignation de l'article à la ligne ${emptyNameIndex + 1} avant de continuer.`);
+        return;
+      }
+      const invalidQtyIndex = wItems.findIndex(it => !it.quantityReceived || Number(it.quantityReceived) < 1);
+      if (invalidQtyIndex !== -1) {
+        alert(`La quantité de l'article à la ligne ${invalidQtyIndex + 1} doit être d'au moins 1 pièce.`);
+        return;
+      }
+    }
+    setWizardStep((wizardStep + 1) as any);
+  };
+
   // Create Campaign Submit
   const handleCreateCampaignSubmit = async (statusToUse: 'active' | 'draft') => {
     if (!wName.trim()) {
       alert('Veuillez renseigner un nom pour la campagne.');
+      setWizardStep(1);
       return;
     }
     if (wItems.length === 0) {
       alert('Veuillez ajouter au moins un article dans le lot.');
+      setWizardStep(3);
+      return;
+    }
+    const emptyNameIndex = wItems.findIndex(it => !it.name || !it.name.trim());
+    if (emptyNameIndex !== -1) {
+      alert(`Veuillez renseigner la désignation de l'article à la ligne ${emptyNameIndex + 1} avant de valider la création.`);
+      setWizardStep(3);
+      return;
+    }
+    const invalidQtyIndex = wItems.findIndex(it => !it.quantityReceived || Number(it.quantityReceived) < 1);
+    if (invalidQtyIndex !== -1) {
+      alert(`La quantité de l'article à la ligne ${invalidQtyIndex + 1} doit être au minimum de 1 pièce.`);
+      setWizardStep(3);
       return;
     }
 
@@ -383,7 +428,7 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
       setLoading(true);
       const res = await lotsService.createCampaign({
         name: wName.trim(),
-        goodsType: wGoodsType,
+        goodsType: wGoodsType.trim() || 'Marchandise diverse',
         description: wDescription.trim() || undefined,
         supplierName: wSupplier.trim() || undefined,
         originCountry: wOrigin.trim() || undefined,
@@ -400,12 +445,12 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
         status: statusToUse,
         notes: wNotes.trim() || undefined,
         items: computedWizardItems.map(it => ({
-          name: it.name,
-          reference: it.reference,
-          category: it.category,
-          variant: it.variant,
-          quantityReceived: it.quantityReceived,
-          estimatedSellingPrice: it.estimatedSellingPrice,
+          name: it.name.trim(),
+          reference: it.reference?.trim() || undefined,
+          category: it.category?.trim() || undefined,
+          variant: it.variant?.trim() || undefined,
+          quantityReceived: Number(it.quantityReceived) || 1,
+          estimatedSellingPrice: Number(it.estimatedSellingPrice) || 0,
           customUnitCost: it.unitCost,
         })),
       });
@@ -772,6 +817,9 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
               className="btn btn-primary"
               onClick={() => {
                 setWizardStep(1);
+                if (wItems.length === 0) {
+                  setWItems([{ name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 }]);
+                }
                 setShowWizardModal(true);
               }}
               style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)' }}
@@ -2990,6 +3038,22 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
               ].map(s => (
                 <div
                   key={s.step}
+                  onClick={() => {
+                    if (s.step > wizardStep) {
+                      if (wizardStep === 1 && !wName.trim()) {
+                        alert('Veuillez renseigner un nom pour la campagne d\'abord.');
+                        return;
+                      }
+                      if (wizardStep === 3) {
+                        const emptyIndex = wItems.findIndex(it => !it.name || !it.name.trim());
+                        if (emptyIndex !== -1) {
+                          alert(`Veuillez renseigner la désignation de l'article ligne ${emptyIndex + 1}.`);
+                          return;
+                        }
+                      }
+                    }
+                    setWizardStep(s.step as any);
+                  }}
                   style={{
                     flex: 1,
                     textAlign: 'center',
@@ -2998,6 +3062,7 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                     color: wizardStep === s.step ? '#0062FF' : wizardStep > s.step ? '#10B981' : '#64748B',
                     borderBottom: wizardStep === s.step ? '2px solid #0062FF' : 'none',
                     paddingBottom: '4px',
+                    cursor: 'pointer',
                   }}
                 >
                   {s.label}
@@ -3308,10 +3373,16 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                       >
                         <input
                           type="text"
-                          placeholder="Désignation (ex: Robe Longue)"
+                          placeholder="Désignation article * (ex: Robe Longue)"
                           value={item.name}
                           onChange={e => updateWizardItemLine(idx, 'name', e.target.value)}
-                          style={{ fontSize: '0.82rem', padding: '6px 8px' }}
+                          style={{
+                            fontSize: '0.82rem',
+                            padding: '6px 8px',
+                            border: !item.name.trim() ? '1.5px solid #F59E0B' : '1px solid #CBD5E1',
+                            borderRadius: '6px',
+                            background: !item.name.trim() ? '#FFFBEB' : '#FFFFFF',
+                          }}
                           required
                         />
 
@@ -3426,8 +3497,18 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                       Articles Prêts à être Déstockés :
                     </div>
                     {computedWizardItems.map((it, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '4px 0', borderBottom: '1px dashed #E2E8F0' }}>
-                        <span>{it.quantityReceived}x {it.name} ({it.variant})</span>
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '6px 0', borderBottom: '1px dashed #E2E8F0' }}>
+                        <span>
+                          <strong>{it.quantityReceived}x</strong>{' '}
+                          {it.name && it.name.trim() ? (
+                            <span style={{ fontWeight: 600, color: '#1E293B' }}>{it.name.trim()}</span>
+                          ) : (
+                            <span style={{ color: '#DC2626', fontWeight: 600, background: '#FEE2E2', padding: '2px 6px', borderRadius: '4px' }}>
+                              ⚠️ Désignation manquante (Retournez à l'étape 3)
+                            </span>
+                          )}
+                          {it.variant ? ` (${it.variant})` : ''}
+                        </span>
                         <span>Coût: {fmt(it.unitCost)} • Vente: {fmt(it.estimatedSellingPrice)}</span>
                       </div>
                     ))}
@@ -3455,7 +3536,7 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                   <button
                     type="button"
                     className="btn btn-primary"
-                    onClick={() => setWizardStep((wizardStep + 1) as any)}
+                    onClick={handleNextWizardStep}
                   >
                     Suivant ({wizardStep + 1}/4)
                   </button>

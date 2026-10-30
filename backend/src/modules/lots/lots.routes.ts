@@ -215,6 +215,14 @@ router.post('/campaigns', async (req: AuthRequest, res: Response, next: NextFunc
       };
     });
 
+    let purchaseDate = new Date();
+    if (parsed.purchaseDate) {
+      const d = new Date(parsed.purchaseDate);
+      if (!isNaN(d.getTime())) {
+        purchaseDate = d;
+      }
+    }
+
     const campaign = await prisma.commercialLotCampaign.create({
       data: {
         businessId,
@@ -223,7 +231,7 @@ router.post('/campaigns', async (req: AuthRequest, res: Response, next: NextFunc
         description: parsed.description?.trim() || null,
         supplierName: parsed.supplierName?.trim() || null,
         originCountry: parsed.originCountry?.trim() || null,
-        purchaseDate: parsed.purchaseDate ? new Date(parsed.purchaseDate) : new Date(),
+        purchaseDate,
         purchaseCurrency: parsed.purchaseCurrency,
         exchangeRate: parsed.exchangeRate,
         purchasePriceOriginal: parsed.purchasePriceOriginal,
@@ -267,7 +275,10 @@ router.post('/campaigns', async (req: AuthRequest, res: Response, next: NextFunc
       message: 'Campagne de lot commercial créée avec succès.',
       campaign,
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return next(new AppError(err.errors[0]?.message || 'Données du lot invalides', 400));
+    }
     next(err);
   }
 });
