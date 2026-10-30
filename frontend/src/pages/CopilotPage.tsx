@@ -26,6 +26,7 @@ import {
   clearAIMemories,
   AIMemoryItem,
   LLMConfig,
+  generateCopilotLLMResponse,
 } from '../services/llmService';
 import { renderNaturalFormattedText } from '../utils/textFormatter';
 
@@ -137,12 +138,22 @@ export const CopilotPage: React.FC = () => {
     setInput('');
     setLoading(true);
 
+    const cfg = getLLMConfig();
+
     try {
-      // Pass full conversation history for multi-turn contextual memory
-      const res = await api.post<{ reply: string; memorizedFact?: string | null; providerUsed?: string }>('/ai/chat', {
-        message: text,
-        history: newHistory.slice(-10),
-      });
+      const res = await api.post<{ reply: string; memorizedFact?: string | null; providerUsed?: string }>(
+        '/ai/chat',
+        {
+          message: text,
+          history: newHistory.slice(-10),
+          userConfig: {
+            provider: cfg.provider,
+            model: cfg.model,
+            apiKey: cfg.apiKey,
+          },
+        },
+        cfg.apiKey ? { 'x-ai-api-key': cfg.apiKey } : undefined
+      );
 
       if (res.memorizedFact) {
         reloadMemories();
@@ -158,13 +169,30 @@ export const CopilotPage: React.FC = () => {
         },
       ]);
     } catch (err: any) {
-      setMessages(prev => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Désolé, une erreur est survenue lors de l\'analyse de vos données. Veuillez réessayer.',
-        },
-      ]);
+      console.warn('Backend /ai/chat call failed, using client-side generative LLM fallback:', err);
+      try {
+        const clientRes = await generateCopilotLLMResponse(text, newHistory.slice(-8));
+        if (clientRes.memorizedFact) {
+          reloadMemories();
+        }
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: clientRes.reply,
+            providerUsed: clientRes.providerUsed || activeProvider,
+            memorizedFact: clientRes.memorizedFact,
+          },
+        ]);
+      } catch (fallbackErr) {
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: 'Désolé, une erreur temporaire est survenue lors de l\'analyse de vos données financières. Veuillez vérifier votre connexion ou réessayer.',
+          },
+        ]);
+      }
     } finally {
       setLoading(false);
     }
@@ -698,9 +726,9 @@ export const CopilotPage: React.FC = () => {
                   }}
                   style={{ width: '100%', padding: '10px 12px', fontSize: '0.9rem' }}
                 >
-                  <option value="gemini">Google Gemini (Recommandé - Très rapide & Quota gratuit)</option>
+                  <option value="gemini">Google Gemini (Recommandé - Quota gratuit & Très intelligent)</option>
                   <option value="openai">OpenAI (GPT-4o Mini / GPT-4o)</option>
-                  <option value="groq">Groq (Llama 3.3 70B ultra-rapide)</option>
+                  <option value="groq">Groq (Llama 3.3 70B - Vitesse éclair)</option>
                 </select>
               </div>
 
@@ -708,28 +736,70 @@ export const CopilotPage: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                   Modèle d'IA
                 </label>
-                <input
-                  type="text"
-                  value={llmConfig.model}
-                  onChange={e => setLlmConfig(prev => ({ ...prev, model: e.target.value }))}
-                  placeholder="gemini-1.5-flash ou gpt-4o-mini"
-                  style={{ width: '100%', padding: '10px 12px', fontSize: '0.9rem' }}
-                />
+                {llmConfig.provider === 'gemini' ? (
+                  <select
+                    value={llmConfig.model}
+                    onChange={e => setLlmConfig(prev => ({ ...prev, model: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '0.9rem' }}
+                  >
+                    <option value="gemini-1.5-flash">gemini-1.5-flash (Standard - Équilibré & Rapide)</option>
+                    <option value="gemini-2.0-flash">gemini-2.0-flash (Nouvelle Génération - Ultra-rapide)</option>
+                    <option value="gemini-1.5-pro">gemini-1.5-pro (Raisonnement Complexe & Analyse Maximale)</option>
+                  </select>
+                ) : llmConfig.provider === 'openai' ? (
+                  <select
+                    value={llmConfig.model}
+                    onChange={e => setLlmConfig(prev => ({ ...prev, model: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '0.9rem' }}
+                  >
+                    <option value="gpt-4o-mini">gpt-4o-mini (Recommandé - Économique & Performant)</option>
+                    <option value="gpt-4o">gpt-4o (Modèle Flagship d'OpenAI)</option>
+                  </select>
+                ) : (
+                  <select
+                    value={llmConfig.model}
+                    onChange={e => setLlmConfig(prev => ({ ...prev, model: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '0.9rem' }}
+                  >
+                    <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Le plus intelligent sur Groq)</option>
+                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Ultra-léger et instantané)</option>
+                  </select>
+                )}
               </div>
 
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155' }}>
-                    Clé d'API {llmConfig.provider === 'gemini' ? 'Google AI Studio' : 'OpenAI / Groq'}
+                    Clé d'API {llmConfig.provider === 'gemini' ? 'Google AI Studio' : llmConfig.provider === 'groq' ? 'Groq Console' : 'OpenAI'}
                   </label>
-                  {llmConfig.provider === 'gemini' && (
+                  {llmConfig.provider === 'gemini' ? (
                     <a
                       href="https://aistudio.google.com/app/apikey"
                       target="_blank"
                       rel="noreferrer"
                       style={{ fontSize: '0.74rem', color: '#0062FF', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none' }}
                     >
-                      <span>Obtenir une clé gratuite</span>
+                      <span>Obtenir une clé Gemini gratuite</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  ) : llmConfig.provider === 'groq' ? (
+                    <a
+                      href="https://console.groq.com/keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: '0.74rem', color: '#0062FF', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none' }}
+                    >
+                      <span>Obtenir une clé Groq gratuite</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  ) : (
+                    <a
+                      href="https://platform.openai.com/api-keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: '0.74rem', color: '#0062FF', display: 'flex', alignItems: 'center', gap: '3px', textDecoration: 'none' }}
+                    >
+                      <span>Gérer vos clés OpenAI</span>
                       <ExternalLink size={11} />
                     </a>
                   )}

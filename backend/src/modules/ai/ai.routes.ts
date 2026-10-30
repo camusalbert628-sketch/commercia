@@ -104,176 +104,50 @@ router.get('/insights', async (req: AuthRequest, res, next) => {
   }
 });
 
-// POST /api/ai/chat — Copilote interactif guidant le commerçant (Réservé aux comptes PRO)
+import { handleCopilotChat } from './copilotService';
+
+// POST /api/ai/chat — Copilote interactif guidant le commerçant (Propulsé par Véritable LLM & RAG Temps Réel)
 router.post('/chat', requireProSubscription, async (req: AuthRequest, res, next) => {
   try {
     const businessId = await getTenantBusinessId(req);
     const schema = z.object({
       message: z.string().min(1, 'Message requis'),
       conversationId: z.string().optional(),
-      history: z.array(z.object({
-        role: z.string(),
-        content: z.string(),
-      })).optional(),
+      history: z
+        .array(
+          z.object({
+            role: z.string(),
+            content: z.string(),
+          })
+        )
+        .optional(),
+      userConfig: z
+        .object({
+          provider: z.enum(['gemini', 'openai', 'groq', 'custom']).optional(),
+          model: z.string().optional(),
+          apiKey: z.string().optional(),
+        })
+        .optional(),
     });
     const data = schema.parse(req.body);
 
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - 7);
+    const customApiKey = (req.headers['x-ai-api-key'] ||
+      req.headers['x-gemini-api-key'] ||
+      req.headers['x-openai-api-key'] ||
+      req.headers['x-groq-api-key']) as string | undefined;
 
-    // Charger les données financières réelles pour le contexte
-    const [
-      salesToday,
-      expensesToday,
-      salesWeek,
-      expensesWeek,
-      debtors,
-      lowStockProducts,
-      topProducts,
-      activeLotCampaigns,
-    ] = await Promise.all([
-      req.prisma.sale.findMany({
-        where: { businessId, saleDate: { gte: startOfToday } },
-        include: { items: true },
-      }),
-      req.prisma.expense.findMany({
-        where: { businessId, expenseDate: { gte: startOfToday } },
-      }),
-      req.prisma.sale.findMany({
-        where: { businessId, saleDate: { gte: startOfWeek } },
-        include: { items: true },
-      }),
-      req.prisma.expense.findMany({
-        where: { businessId, expenseDate: { gte: startOfWeek } },
-      }),
-      req.prisma.customer.findMany({
-        where: { businessId, totalOwed: { gt: 0 } },
-        orderBy: { totalOwed: 'desc' },
-        take: 5,
-      }),
-      req.prisma.product.findMany({
-        where: { businessId, isActive: true, quantity: { lte: 5 } },
-        take: 5,
-      }),
-      req.prisma.saleItem.groupBy({
-        by: ['name'],
-        where: { sale: { businessId, saleDate: { gte: startOfWeek } } },
-        _sum: { totalPrice: true, quantity: true },
-        orderBy: { _sum: { totalPrice: 'desc' } },
-        take: 3,
-      }),
-      req.prisma.commercialLotCampaign.findMany({
-        where: { businessId, status: { in: ['active', 'paused'] } },
-        include: {
-          items: true,
-          sales: { include: { items: true } },
-          expenses: true,
-        },
-      }),
-    ]);
-
-    const activeLots = (activeLotCampaigns || []) as any[];
-
-    const metricsToday = calculateFinancialMetrics({
-      sales: salesToday,
-      expenses: expensesToday,
+    const result = await handleCopilotChat({
+      prisma: req.prisma,
+      userId: req.userId!,
+      businessId,
+      message: data.message,
+      conversationId: data.conversationId,
+      history: (data.history || []) as any,
+      userConfig: data.userConfig,
+      customApiKey,
     });
 
-    const metricsWeek = calculateFinancialMetrics({
-      sales: salesWeek,
-      expenses: expensesWeek,
-    });
-
-    const totalDebt = debtors.reduce((sum: number, d: any) => sum + d.totalOwed, 0);
-
-    const lower = data.message.toLowerCase();
-    let reply = '';
-
-    if (
-      lower.includes('lot') ||
-      lower.includes('campagne') ||
-      lower.includes('redmi') ||
-      lower.includes('téléphone') ||
-      lower.includes('telephone') ||
-      lower.includes('14c') ||
-      lower.includes('remboursement') ||
-      lower.includes('point mort')
-    ) {
-      if (activeLots.length > 0) {
-        const lotSummaries = activeLots.map((lot: any) => {
-          const totalLandedCost = lot.totalLandedCost || 0;
-          const salesTotal = (lot.sales || []).reduce((acc: number, s: any) => acc + (s.netAmount || s.totalAmount || 0), 0);
-          const totalUnitsSold = (lot.items || []).reduce((acc: number, it: any) => acc + (it.quantitySold || 0), 0);
-          const totalUnitsRemaining = (lot.items || []).reduce((acc: number, it: any) => acc + (it.quantityRemaining || 0), 0);
-          const recoveryRate = totalLandedCost > 0 ? Math.min(100, Math.round((salesTotal / totalLandedCost) * 1000) / 10) : 0;
-          const remainingToBreakeven = Math.max(0, totalLandedCost - salesTotal);
-          const avgPrice = totalUnitsSold > 0 ? Math.round(salesTotal / totalUnitsSold) : ((lot.items?.[0]?.estimatedSellingPrice) || 85000);
-          const unitsToBreakeven = avgPrice > 0 ? Math.ceil(remainingToBreakeven / avgPrice) : 0;
-          const itemNames = (lot.items || []).map((it: any) => `${it.name} (${it.quantityRemaining} restants sur ${it.quantityReceived})`).join(', ');
-
-          return (
-            `📦 **Campagne : ${lot.name}** (${lot.goodsType || 'Marchandise'})\n` +
-            `• **Investissement total engagé** : **${totalLandedCost.toLocaleString('fr-FR')} FCFA**\n` +
-            `• **Chiffre d'affaires déjà encaissé** : **${salesTotal.toLocaleString('fr-FR')} FCFA** (${totalUnitsSold} articles vendus)\n` +
-            `• **Progression du Remboursement** : **${recoveryRate}% récupéré**\n` +
-            `• **Reste à récupérer pour amortissement 100%** : **${remainingToBreakeven.toLocaleString('fr-FR')} FCFA**\n` +
-            `• **Prix moyen de vente constaté** : **${avgPrice.toLocaleString('fr-FR')} FCFA**\n` +
-            `• **Nombre d'articles pour point mort** : **${unitsToBreakeven} article(s)** à vendre pour couvrir la somme restante !\n` +
-            `• **Stock restant en magasin** : **${totalUnitsRemaining} articles** (${itemNames})\n` +
-            `💡 **Conseil d'écoulement rapide Copilote** : Activez vos canaux prioritaires (WhatsApp Statuts VIP & Live déballage TikTok). Vos marges sont excellentes et seulement ${unitsToBreakeven} vente(s) supplémentaire(s) vous permettront de basculer en bénéfice 100% net !`
-          );
-        }).join('\n\n---\n\n');
-
-        reply = `🚀 **Analyse Copilote de vos Lots Commerciaux Pro :**\n\n${lotSummaries}`;
-      } else {
-        reply = `📦 Vous n'avez aucune campagne de lot active pour le moment. Vous pouvez créer un nouveau lot commercial depuis l'onglet **Gestion des lots** !`;
-      }
-    } else if (lower.includes('bénéfice') || lower.includes('profit') || lower.includes('combien j\'ai gagné') || lower.includes('gagné')) {
-      reply = `📊 **Situation de vos bénéfices :**\n\n` +
-        `• **Aujourd'hui** : Chiffre d'affaires de **${metricsToday.revenue.toLocaleString('fr-FR')} FCFA** et dépenses de **${(metricsToday.operatingExpenses + metricsToday.inventoryExpenses).toLocaleString('fr-FR')} FCFA**.\n` +
-        `• **Bénéfice net estimé du jour** : **${metricsToday.estimatedNetProfit.toLocaleString('fr-FR')} FCFA** (Taux de marge brute : ${metricsToday.grossMarginPercent}%).\n` +
-        `• **Sur les 7 derniers jours** : Ventes totales de **${metricsWeek.revenue.toLocaleString('fr-FR')} FCFA** pour un bénéfice de **${metricsWeek.estimatedNetProfit.toLocaleString('fr-FR')} FCFA**.\n\n` +
-        `💡 ${metricsToday.estimatedNetProfit >= 0 ? "Votre journée est positive ! Maintenez ce rythme." : "Attention, vos dépenses dépassent vos ventes aujourd'hui."}`;
-    } else if (lower.includes('dette') || lower.includes('crédit') || lower.includes('qui me doit') || lower.includes('doit')) {
-      if (debtors.length > 0) {
-        const list = debtors.map((d: any) => `• **${d.name}** : ${d.totalOwed.toLocaleString('fr-FR')} FCFA${d.phone ? ` (${d.phone})` : ''}`).join('\n');
-        reply = `👥 **Argent en attente chez vos clients :**\n\n` +
-          `Au total, vous avez **${totalDebt.toLocaleString('fr-FR')} FCFA** dehors auprès de ${debtors.length} client(s) :\n\n${list}\n\n` +
-          `💡 **Conseil du Copilote** : Depuis l'onglet *Clients*, utilisez le bouton vert WhatsApp pour envoyer un rappel amical en 1 clic !`;
-      } else {
-        reply = `🎉 **Excellente nouvelle !** Aucun client ne vous doit de l'argent actuellement. Votre trésorerie est 100% sécurisée.`;
-      }
-    } else if (lower.includes('dépense') || lower.includes('charge') || lower.includes('où part')) {
-      reply = `💸 **Analyse de vos dépenses :**\n\n` +
-        `• Dépenses du jour : **${(metricsToday.operatingExpenses + metricsToday.inventoryExpenses).toLocaleString('fr-FR')} FCFA** (Fonctionnement : ${metricsToday.operatingExpenses.toLocaleString('fr-FR')} FCFA, Achats stock : ${metricsToday.inventoryExpenses.toLocaleString('fr-FR')} FCFA).\n` +
-        `• Dépenses des 7 derniers jours : **${(metricsWeek.operatingExpenses + metricsWeek.inventoryExpenses).toLocaleString('fr-FR')} FCFA**.\n\n` +
-        `💡 **Règle d'or** : Veillez à ce que vos charges opérationnelles (loyer, transport, électricité) ne dépassent pas 25% à 30% de votre chiffre d'affaires.`;
-    } else if (lower.includes('stock') || lower.includes('rupture') || lower.includes('produit')) {
-      if (lowStockProducts.length > 0) {
-        const list = lowStockProducts.map((p: any) => `• **${p.name}** : reste **${p.quantity}** ${p.unit || 'unités'} (alerte : <= ${p.lowStockAlert})`).join('\n');
-        reply = `⚠️ **Alertes de stock critique :**\n\n${list}\n\n` +
-          `💡 Pensez à réapprovisionner ces articles rapidement pour éviter de rater des ventes !`;
-      } else {
-        reply = `📦 **Vos stocks sont sous contrôle !** Aucun produit n'a atteint le seuil d'alerte critique.`;
-      }
-    } else if (lower.includes('conseil') || lower.includes('améliorer') || lower.includes('booster') || lower.includes('stratégie')) {
-      const bestProduct = topProducts[0]?.name || 'vos articles phares';
-      reply = `🚀 **3 actions concrètes pour maximiser vos revenus :**\n\n` +
-        `1. **Misez sur vos meilleures ventes** : *${bestProduct}* génère vos plus fortes rentrées. Assurez-vous d'en avoir toujours en réserve.\n` +
-        `2. **Recouvrez vos créances** : Vous avez ${totalDebt.toLocaleString('fr-FR')} FCFA en attente. En récupérer ne serait-ce que la moitié injectera immédiatement des liquidités.\n` +
-        `3. **Pointez votre caisse chaque soir** : Utilisez le module *Caisse Journalière* pour rapprocher espèces et Mobile Money et éliminer tout écart.`;
-    } else {
-      reply = `Bonjour ! Je suis votre Copilote Financier COMMERCIA 🤖.\n\n` +
-        `Voici un coup d'œil rapide sur votre activité :\n` +
-        `• Ventes aujourd'hui : **${metricsToday.revenue.toLocaleString('fr-FR')} FCFA**\n` +
-        `• Bénéfice estimé : **${metricsToday.estimatedNetProfit.toLocaleString('fr-FR')} FCFA**\n` +
-        `• Créances clients : **${totalDebt.toLocaleString('fr-FR')} FCFA**\n\n` +
-        `Que souhaitez-vous analyser ? (Exemples : *"Quel est mon bénéfice réel ?"*, *"Qui me doit de l'argent ?"*, *"Alerte stock"*, *"Conseils pour booster mes ventes"*).`;
-    }
-
-    res.json({ reply });
+    res.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) return next(new AppError(error.errors[0].message, 400));
     next(error);
@@ -281,3 +155,4 @@ router.post('/chat', requireProSubscription, async (req: AuthRequest, res, next)
 });
 
 export { router as aiRouter };
+

@@ -1008,7 +1008,7 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
 
               <button
                 className="btn btn-secondary"
-                onClick={() => handleDeleteCampaign(campaignDetail.campaign.id, campaignDetail.campaign.name)}
+                onClick={() => campaignDetail && handleDeleteCampaign(campaignDetail.campaign.id, campaignDetail.campaign.name)}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#DC2626', background: '#FEE2E2', border: '1px solid #FECACA' }}
                 title="Supprimer définitivement cette campagne et toutes ses données"
               >
