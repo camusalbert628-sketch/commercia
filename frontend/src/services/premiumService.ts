@@ -240,22 +240,7 @@ export function getPaymentReceipts(): PaymentReceipt[] {
     const raw = localStorage.getItem(RECEIPTS_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
-  const defaults: PaymentReceipt[] = [
-    {
-      id: 'rcpt-demo-1',
-      numero: 'REC-2026-1042',
-      date: new Date(Date.now() - 5 * 86400000).toISOString(),
-      commerceNom: 'Mon Activité COMMERCIA',
-      planNom: 'Plan Pro (Croissance)',
-      montant: 4500,
-      devise: 'FCFA',
-      periodeCouverte: '01/10/2026 au 31/10/2026',
-      moyenPaiement: 'Mobile Money (+237 670 123 456)',
-      reference: 'TX-OM89201F',
-    },
-  ];
-  try { localStorage.setItem(RECEIPTS_KEY, JSON.stringify(defaults)); } catch (e) { /* ignore */ }
-  return defaults;
+  return [];
 }
 
 export function hasPremiumAccess(): 'full' | 'read_only' | 'none' {
@@ -294,39 +279,163 @@ export function getAcquisitionCampaigns(): AcquisitionCampaign[] {
 // 3. MODULE B : TRÉSORERIE AVANCÉE & SCÉNARIOS
 // -------------------------------------------------------------
 
-export function getTreasuryAccounts(): TreasuryAccount[] {
+// Sanitizes any residual demo data lingering in user browser's localStorage
+export function sanitizeLegacyData(): void {
   try {
-    const raw = localStorage.getItem(ACCOUNTS_KEY);
-    if (raw) return JSON.parse(raw);
+    const rawAcc = localStorage.getItem(ACCOUNTS_KEY);
+    if (rawAcc) {
+      const parsed = JSON.parse(rawAcc);
+      if (
+        Array.isArray(parsed) &&
+        parsed.some(
+          (a: any) =>
+            a.id === 'acc-caisse' ||
+            a.id === 'acc-banque' ||
+            a.nom === 'Caisse Boutique' ||
+            a.nom === 'Compte Pro UBA' ||
+            (a.nom?.includes('Boutique') && a.soldeActuel === 200000)
+        )
+      ) {
+        localStorage.removeItem(ACCOUNTS_KEY);
+      }
+    }
+
+    const rawMvt = localStorage.getItem(MOVEMENTS_KEY);
+    if (rawMvt) {
+      const parsed = JSON.parse(rawMvt);
+      if (
+        Array.isArray(parsed) &&
+        parsed.some(
+          (m: any) =>
+            m.numero === 'MVT-001' ||
+            m.numero === 'MVT-002' ||
+            m.numero === 'MVT-003' ||
+            m.libelle?.includes('Apport initial') ||
+            m.libelle?.includes('Approvisionnement caisse boutique')
+        )
+      ) {
+        localStorage.removeItem(MOVEMENTS_KEY);
+      }
+    }
+
+    const rawEch = localStorage.getItem(ECHEANCES_KEY);
+    if (rawEch) {
+      const parsed = JSON.parse(rawEch);
+      if (
+        Array.isArray(parsed) &&
+        parsed.some(
+          (e: any) =>
+            e.tiers?.includes('Maman Chantal') ||
+            e.id === 'ech-demo-1' ||
+            e.id === 'ech-demo-2'
+        )
+      ) {
+        localStorage.removeItem(ECHEANCES_KEY);
+      }
+    }
+
+    const rawReceipts = localStorage.getItem(RECEIPTS_KEY);
+    if (rawReceipts) {
+      const parsed = JSON.parse(rawReceipts);
+      if (
+        Array.isArray(parsed) &&
+        parsed.some((r: any) => r.id === 'rcpt-demo-1' || r.numero === 'REC-2026-1042')
+      ) {
+        localStorage.removeItem(RECEIPTS_KEY);
+      }
+    }
+  } catch (_) {
+    // Ignore any json parse error
+  }
+}
+
+function getAccountsKey(): string {
+  const bizId = localStorage.getItem('activeBusinessId') || 'default';
+  return `${ACCOUNTS_KEY}_${bizId}`;
+}
+
+function getMovementsKey(): string {
+  const bizId = localStorage.getItem('activeBusinessId') || 'default';
+  return `${MOVEMENTS_KEY}_${bizId}`;
+}
+
+function getEcheancesKey(): string {
+  const bizId = localStorage.getItem('activeBusinessId') || 'default';
+  return `${ECHEANCES_KEY}_${bizId}`;
+}
+
+export function getTreasuryAccounts(): TreasuryAccount[] {
+  sanitizeLegacyData();
+  try {
+    const key = getAccountsKey();
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (a: any) => a.id !== 'acc-caisse' && a.id !== 'acc-banque' && a.nom !== 'Caisse Boutique'
+        );
+      }
+    }
   } catch (e) { /* ignore */ }
   return [];
 }
 
 export function saveTreasuryAccounts(accs: TreasuryAccount[]) {
-  try { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accs)); } catch (e) { /* ignore */ }
+  try {
+    const key = getAccountsKey();
+    localStorage.setItem(key, JSON.stringify(accs));
+  } catch (e) { /* ignore */ }
 }
 
 export function getTreasuryMovements(): TreasuryMovement[] {
+  sanitizeLegacyData();
   try {
-    const raw = localStorage.getItem(MOVEMENTS_KEY);
-    if (raw) return JSON.parse(raw);
+    const key = getMovementsKey();
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (m: any) => !m.numero?.startsWith('MVT-001') && !m.libelle?.includes('Apport initial')
+        );
+      }
+    }
   } catch (e) { /* ignore */ }
   return [];
 }
 
 export function saveTreasuryMovements(mvs: TreasuryMovement[]) {
-  try { localStorage.setItem(MOVEMENTS_KEY, JSON.stringify(mvs)); } catch (e) { /* ignore */ }
+  try {
+    const key = getMovementsKey();
+    localStorage.setItem(key, JSON.stringify(mvs));
+  } catch (e) { /* ignore */ }
 }
 
 export function getTreasuryEcheances(): TreasuryEcheance[] {
+  sanitizeLegacyData();
   try {
-    const raw = localStorage.getItem(ECHEANCES_KEY);
-    if (raw) return JSON.parse(raw);
+    const key = getEcheancesKey();
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((e: any) => !e.tiers?.includes('Maman Chantal'));
+      }
+    }
   } catch (e) { /* ignore */ }
   return [];
 }
 
+export function saveTreasuryEcheances(echs: TreasuryEcheance[]) {
+  try {
+    const key = getEcheancesKey();
+    localStorage.setItem(key, JSON.stringify(echs));
+  } catch (e) { /* ignore */ }
+}
+
 export function calculateTreasuryOverview(): TreasuryOverview {
+  sanitizeLegacyData();
   const accounts = getTreasuryAccounts();
   const echeances = getTreasuryEcheances();
   const movements = getTreasuryMovements();
@@ -335,14 +444,16 @@ export function calculateTreasuryOverview(): TreasuryOverview {
     .filter(a => a.actif)
     .reduce((sum, a) => sum + (Number(a.soldeActuel) || 0), 0);
 
-  // Daily average expenses calculation over 90 days (Rule B.6)
-  // Excludes internal transfers, owner deposits; includes owner withdrawals by default
+  // Daily average expenses strictly based on real recorded outflows
   const operatingOutflows = movements
     .filter(m => m.type === 'SORTIE')
     .reduce((sum, m) => sum + Number(m.montant || 0), 0);
 
-  const depensesMoyennesJour = Math.max(1000, Math.round(operatingOutflows / 30));
-  const autonomieJours = depensesMoyennesJour > 0 ? Math.floor(tresorerieDisponible / depensesMoyennesJour) : null;
+  const depensesMoyennesJour = operatingOutflows > 0 ? Math.round(operatingOutflows / 30) : 0;
+  const autonomieJours =
+    depensesMoyennesJour > 0 && tresorerieDisponible > 0
+      ? Math.floor(tresorerieDisponible / depensesMoyennesJour)
+      : null;
 
   // Expected 30 days inflows & outflows
   const entreesAttendues30j = echeances
@@ -355,13 +466,13 @@ export function calculateTreasuryOverview(): TreasuryOverview {
 
   const tresoreriePrevue30j = tresorerieDisponible + entreesAttendues30j - sortiesPrevues30j;
 
-  // Result of current month (Operating sales minus operating expenses, excluding owner deposits/withdrawals)
+  // Result of current month
   const resultatMois = movements.reduce((acc, m) => {
     if (!m.imputableResultat) return acc;
     return m.type === 'ENTREE' ? acc + m.montant : acc - m.montant;
   }, 0);
 
-  // Status Badge Evaluation (Rule B.7 strictly prioritized)
+  // Status Badge Evaluation
   let statutBadge: TreasuryStatusBadge = 'TRESORERIE_SAINE';
   if (accounts.length === 0) {
     statutBadge = 'NON_INITIALISEE';
@@ -376,21 +487,25 @@ export function calculateTreasuryOverview(): TreasuryOverview {
   }
 
   const phraseLecture =
-    autonomieJours !== null
-      ? `Vous pouvez tenir environ ${autonomieJours} jours au rythme actuel de vos dépenses.`
-      : 'Trésorerie stable.';
+    accounts.length === 0
+      ? 'Aucun compte financier configuré. Ajoutez votre premier compte (Caisse, Banque ou Mobile Money) pour activer le suivi.'
+      : autonomieJours !== null
+        ? `Vous pouvez tenir environ ${autonomieJours} jours au rythme actuel de vos dépenses.`
+        : 'Trésorerie disponible sans historique de charges régulières.';
 
-  // 30-day daily forecast simulation
+  // 30-day forecast simulation only generated when accounts exist
   const historiquePrevisionnel: Array<{ date: string; solde: number; dateJour: string }> = [];
-  const runningSolde = tresorerieDisponible;
-  for (let i = 0; i <= 30; i += 5) {
-    const d = new Date(Date.now() + i * 86400000);
-    const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-    historiquePrevisionnel.push({
-      date: dateStr,
-      solde: runningSolde,
-      dateJour: `J+${i}`,
-    });
+  if (accounts.length > 0) {
+    const runningSolde = tresorerieDisponible;
+    for (let i = 0; i <= 30; i += 5) {
+      const d = new Date(Date.now() + i * 86400000);
+      const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+      historiquePrevisionnel.push({
+        date: dateStr,
+        solde: runningSolde,
+        dateJour: `J+${i}`,
+      });
+    }
   }
 
   return {
@@ -408,3 +523,4 @@ export function calculateTreasuryOverview(): TreasuryOverview {
     historiquePrevisionnel,
   };
 }
+

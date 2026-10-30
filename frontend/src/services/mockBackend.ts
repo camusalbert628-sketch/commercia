@@ -288,8 +288,13 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     localStorage.setItem('commercia_active_cash_session', '');
     localStorage.removeItem('commercia_active_cash_session');
     localStorage.setItem('commercia_past_cash_sessions', JSON.stringify([]));
+    localStorage.setItem('commercia_treasury_accounts', JSON.stringify([]));
     localStorage.setItem('commercia_treasury_movements', JSON.stringify([]));
     localStorage.setItem('commercia_treasury_echeances', JSON.stringify([]));
+    localStorage.setItem(`commercia_treasury_accounts_${newBizz.id}`, JSON.stringify([]));
+    localStorage.setItem(`commercia_treasury_movements_${newBizz.id}`, JSON.stringify([]));
+    localStorage.setItem(`commercia_treasury_echeances_${newBizz.id}`, JSON.stringify([]));
+    localStorage.setItem('commercia_deliveries', JSON.stringify([]));
 
     // Sync subscription engine state
     const subState = {

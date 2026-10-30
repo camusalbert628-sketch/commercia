@@ -53,7 +53,22 @@ export const DeliveriesPage: React.FC = () => {
   const [deliveries, setDeliveries] = useState<DeliveryItem[]>(() => {
     try {
       const saved = localStorage.getItem('commercia_deliveries');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter(
+            (d: any) =>
+              d &&
+              !d.id?.startsWith('del-') &&
+              !d.customerName?.includes('Fatou Ndiaye') &&
+              !d.customerName?.includes('Moussa')
+          );
+          if (valid.length !== parsed.length) {
+            localStorage.setItem('commercia_deliveries', JSON.stringify(valid));
+          }
+          return valid;
+        }
+      }
     } catch (_) {}
     return [];
   });
