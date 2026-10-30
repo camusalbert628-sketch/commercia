@@ -596,7 +596,7 @@ export const CashPage: React.FC = () => {
                     type="text"
                     value={openNotes}
                     onChange={e => setOpenNotes(e.target.value)}
-                    placeholder="Ex: Prise de poste Moussa - 08h00"
+                    placeholder="Ex: Prise de poste matin - 08h00"
                   />
                 </div>
               </div>

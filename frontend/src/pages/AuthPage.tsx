@@ -231,20 +231,6 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  const fillDemoMoussa = () => {
-    setIsLogin(true);
-    setEmail('moussa@boutique.cm');
-    setPassword('bizz1234');
-    setError('');
-  };
-
-  const fillDemoAdmin = () => {
-    setIsLogin(true);
-    setEmail('admin@commercia.com');
-    setPassword('admin1234');
-    setError('');
-  };
-
   return (
     <div
       style={{
@@ -298,42 +284,6 @@ export const AuthPage: React.FC = () => {
           <p style={{ fontSize: '0.92rem', color: '#BFDBFE', margin: 0, fontWeight: 500 }}>
             Le copilote financier & SaaS des entrepreneurs africains
           </p>
-        </div>
-
-        {/* Demo Fast Login Badges */}
-        <div style={{ padding: '16px 32px 0', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-          <button
-            type="button"
-            onClick={fillDemoMoussa}
-            style={{
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              padding: '6px 14px',
-              borderRadius: '20px',
-              background: '#EFF6FF',
-              color: '#0062FF',
-              border: '1px solid #BFDBFE',
-              cursor: 'pointer',
-            }}
-          >
-            👉 Démo Moussa
-          </button>
-          <button
-            type="button"
-            onClick={fillDemoAdmin}
-            style={{
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              padding: '6px 14px',
-              borderRadius: '20px',
-              background: '#FFF4ED',
-              color: '#FF6B00',
-              border: '1px solid #FFD8BE',
-              cursor: 'pointer',
-            }}
-          >
-            🛡️ Démo Admin
-          </button>
         </div>
 
         <div style={{ padding: '24px 32px 32px' }}>
@@ -583,7 +533,7 @@ export const AuthPage: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      placeholder="Moussa"
+                      placeholder="Votre prénom"
                       value={firstName}
                       onChange={e => setFirstName(e.target.value)}
                       required
@@ -885,7 +835,7 @@ export const AuthPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="Moussa Ibrahim"
+                  placeholder="Votre nom complet"
                   value={googleNameInput}
                   onChange={e => setGoogleNameInput(e.target.value)}
                 />

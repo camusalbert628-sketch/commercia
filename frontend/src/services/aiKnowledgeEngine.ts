@@ -86,56 +86,31 @@ export function getLiveStoreContext(): LiveStoreContext {
         const parsedLot = JSON.parse(lotRaw);
         const camp = parsedLot.campaign || parsedLot;
         const fin = parsedLot.financials || {};
-        activeLotCampaign = {
-          id: camp.id,
-          name: camp.name,
-          goodsType: camp.goodsType,
-          totalLandedCost: fin.totalLandedCost || camp.totalLandedCost || 820000,
-          totalRevenue: fin.totalRevenue || 425000,
-          realizedProfit: fin.realizedProfit || 397667,
-          recoveryRate: fin.recoveryRate || 51.8,
-          remainingToBreakeven: fin.remainingToBreakeven !== undefined ? fin.remainingToBreakeven : 395000,
-          unitsToBreakeven: fin.unitsToBreakeven || 5,
-          avgSellingPrice: fin.avgSellingPrice || 85000,
-          totalQuantityReceived: fin.totalQuantityReceived || 150,
-          totalQuantitySold: fin.totalQuantitySold || 5,
-          totalQuantityRemaining: fin.totalQuantityRemaining || 145,
-          items: (camp.items || []).map((it: any) => ({
-            name: it.name,
-            quantityReceived: it.quantityReceived,
-            quantitySold: it.quantitySold,
-            quantityRemaining: it.quantityRemaining,
-            unitCost: it.unitCost,
-            price: it.estimatedSellingPrice,
-          })),
-        };
-      } else {
-        // Default active campaign context for Redmi 14C
-        activeLotCampaign = {
-          id: '2e095d73-cbef-46f4-95e7-44c622434cfd',
-          name: 'Lot de 150 téléphones portables',
-          goodsType: 'téléphone Android',
-          totalLandedCost: 820000,
-          totalRevenue: 425000,
-          realizedProfit: 397667,
-          recoveryRate: 51.8,
-          remainingToBreakeven: 395000,
-          unitsToBreakeven: 5,
-          avgSellingPrice: 85000,
-          totalQuantityReceived: 150,
-          totalQuantitySold: 5,
-          totalQuantityRemaining: 145,
-          items: [
-            {
-              name: 'Téléphone Redmi 14C',
-              quantityReceived: 150,
-              quantitySold: 5,
-              quantityRemaining: 145,
-              unitCost: 5467,
-              price: 85000,
-            },
-          ],
-        };
+        if (camp && camp.id) {
+          activeLotCampaign = {
+            id: camp.id,
+            name: camp.name,
+            goodsType: camp.goodsType,
+            totalLandedCost: fin.totalLandedCost || camp.totalLandedCost || 0,
+            totalRevenue: fin.totalRevenue || 0,
+            realizedProfit: fin.realizedProfit || 0,
+            recoveryRate: fin.recoveryRate || 0,
+            remainingToBreakeven: fin.remainingToBreakeven !== undefined ? fin.remainingToBreakeven : 0,
+            unitsToBreakeven: fin.unitsToBreakeven || 0,
+            avgSellingPrice: fin.avgSellingPrice || 0,
+            totalQuantityReceived: fin.totalQuantityReceived || 0,
+            totalQuantitySold: fin.totalQuantitySold || 0,
+            totalQuantityRemaining: fin.totalQuantityRemaining || 0,
+            items: (camp.items || []).map((it: any) => ({
+              name: it.name,
+              quantityReceived: it.quantityReceived,
+              quantitySold: it.quantitySold,
+              quantityRemaining: it.quantityRemaining,
+              unitCost: it.unitCost,
+              price: it.estimatedSellingPrice,
+            })),
+          };
+        }
       }
     } catch (e) {
       // Ignored
@@ -177,15 +152,12 @@ export function getLiveStoreContext(): LiveStoreContext {
       todaySalesCount: 0,
       todaySalesTotal: 0,
       todayExpensesTotal: 0,
-      totalDebtsOwed: 38500,
-      debtorsCount: 3,
-      topDebtors: [
-        { name: 'Maman Chantal', amount: 15000 },
-        { name: 'Papa Pierre', amount: 13500 },
-        { name: 'Tantie Rose', amount: 10000 },
-      ],
-      lowStockCount: 1,
-      lowStockProducts: [{ name: 'Huile Mayor 1L', quantity: 3 }],
+      totalDebtsOwed: 0,
+      debtorsCount: 0,
+      topDebtors: [],
+      lowStockCount: 0,
+      lowStockProducts: [],
+      activeLotCampaign: null,
     };
   }
 }
@@ -411,20 +383,19 @@ ${lowTxt}
   // 7b. MODULE PRO : GESTION DES LOTS COMMERCIAUX & CAMPAGNES DE DÉSTOCKAGE
   if (
     q.includes('lot') ||
-    q.includes('redmi') ||
-    q.includes('14c') ||
-    q.includes('téléphone') ||
-    q.includes('telephone') ||
+    q.includes('ballot') ||
+    q.includes('conteneur') ||
+    q.includes('friperie') ||
     q.includes('déstock') ||
     q.includes('destock') ||
     q.includes('canal rapide') ||
-    q.includes('point mort lot')
+    q.includes('point mort')
   ) {
     const lot = ctx.activeLotCampaign;
     if (lot) {
-      const itemsList = lot.items.map(it => `  • **${it.name}** : ${it.quantitySold} vendus sur ${it.quantityReceived} reçus (Reste : **${it.quantityRemaining} en stock**), Prix unitaire : ${fmt(it.price)}, Coût unitaire calculé : ${fmt(it.unitCost)}`).join('\n');
+      const itemsList = lot.items.map((it: any) => `  • **${it.name}** : ${it.quantitySold} vendus sur ${it.quantityReceived} reçus (Reste : **${it.quantityRemaining} en stock**), Prix unitaire : ${fmt(it.price)}, Coût unitaire calculé : ${fmt(it.unitCost)}`).join('\n');
 
-      return `📱 **Analyse en Direct de votre Lot Commercial : ${lot.name}**
+      return `📦 **Analyse en Direct de votre Lot Commercial : ${lot.name}**
 
 • **Marchandise & Inventaire Réel :**
 ${itemsList}
@@ -438,15 +409,16 @@ ${itemsList}
   - **Articles restants à vendre pour le point mort** : **${lot.unitsToBreakeven} article(s)** seulement !
   - **Bénéfice net réalisé à ce jour** : **+${fmt(lot.realizedProfit)}**
 
-• **Vitesse d'écoulement & Temps d'Épuisement :**
-  - 5 téléphones vendus dès le 1er jour (rythme moyen : 5 pcs/jour).
-  - Au rythme actuel, les **${lot.totalQuantityRemaining} téléphones restants** seront totalement épuisés dans environ **29 jours**.
-
-💡 **Canaux Prioritaires Recommandés par le Copilote IA pour Écoulement Éclair :**
-1. **WhatsApp Business & Statuts VIP** (Score 93%) : Envoyez une vidéo de déballage du Redmi 14C avec l'offre *"Exclusivité Arrivage Flash 24h : 85 000 FCFA avec verre trempé offert"*.
-2. **TikTok Live & Démonstrations Déballage** (Score 88%) : Présentez la fluidité de l'écran 90Hz et l'autonomie de la batterie 5000mAh.
-3. **Packs Vendeurs / Revendeurs** : Proposez des lots de 3 à 5 pièces à 80 000 FCFA/pièce pour déstocker en bloc !`;
+💡 **Canaux Prioritaires Recommandés par le Copilote IA :**
+1. **WhatsApp Business & Statuts VIP** : Proposez des ventes flash à vos clients fidèles pour écouler rapidement le stock.
+2. **Packs & Ventes en gros** : Proposez des remises sur quantité pour accélérer la rotation de trésorerie !`;
     }
+
+    return `📦 **Gestion des Lots Commerciaux & Friperie :**
+
+Vous n'avez actuellement aucun lot commercial actif enregistré.
+
+Rendez-vous dans le menu **Lots & Friperie** pour créer votre premier arrivage (ballot de friperie, conteneur ou lot de marchandises). COMMERCIA calculera automatiquement votre coût de revient complet (achat + transport + douane) et votre point mort d'écoulement !`;
   }
 
   // 8. MODULE PREMIUM A : CROISSANCE CLIENTS & CAC

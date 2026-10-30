@@ -45,28 +45,28 @@ export interface DeliveryItem {
 }
 
 export const DeliveriesPage: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, activeBusinessId } = useAuthStore();
   const navigate = useNavigate();
+
+  const activeBizId = activeBusinessId || user?.businesses?.[0]?.id || 'default';
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBizId) || user?.businesses?.[0];
+  const currency = activeBusiness?.currency || 'XAF';
+  const deliveryKey = `commercia_deliveries_${activeBizId}`;
 
   const isPro = Boolean(user?.isAdmin || user?.subscription?.isPro);
 
   const [deliveries, setDeliveries] = useState<DeliveryItem[]>(() => {
     try {
-      const saved = localStorage.getItem('commercia_deliveries');
+      const saved = localStorage.getItem(deliveryKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const valid = parsed.filter(
+          return parsed.filter(
             (d: any) =>
               d &&
-              !d.id?.startsWith('del-') &&
-              !d.customerName?.includes('Fatou Ndiaye') &&
-              !d.customerName?.includes('Moussa')
+              !d.id?.startsWith('del-demo-') &&
+              !d.customerName?.includes('Fatou Ndiaye')
           );
-          if (valid.length !== parsed.length) {
-            localStorage.setItem('commercia_deliveries', JSON.stringify(valid));
-          }
-          return valid;
         }
       }
     } catch (_) {}
@@ -81,24 +81,39 @@ export const DeliveriesPage: React.FC = () => {
   // Form states
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [city, setCity] = useState('Douala');
+  const [city, setCity] = useState('');
   const [address, setAddress] = useState('');
   const [landmark, setLandmark] = useState('');
   const [itemsDescription, setItemsDescription] = useState('');
   const [amountToCollect, setAmountToCollect] = useState<number | ''>('');
-  const [deliveryFee, setDeliveryFee] = useState<number | ''>(1500);
+  const [deliveryFee, setDeliveryFee] = useState<number | ''>('');
   const [feePaidBy, setFeePaidBy] = useState<'client' | 'merchant'>('client');
   const [courierName, setCourierName] = useState('');
   const [courierPhone, setCourierPhone] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Synchronize on active business change
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(deliveryKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setDeliveries(parsed.filter((d: any) => d && !d.customerName?.includes('Fatou Ndiaye')));
+          return;
+        }
+      }
+    } catch (_) {}
+    setDeliveries([]);
+  }, [deliveryKey]);
+
   // Save changes locally
   useEffect(() => {
     try {
-      localStorage.setItem('commercia_deliveries', JSON.stringify(deliveries));
+      localStorage.setItem(deliveryKey, JSON.stringify(deliveries));
     } catch (_) {}
-  }, [deliveries]);
+  }, [deliveries, deliveryKey]);
 
   const handleCreateDelivery = (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,7 +169,7 @@ export const DeliveriesPage: React.FC = () => {
 📍 *Destination :* ${d.city} - ${d.address}
 🗺️ *Repère :* ${d.landmark || 'Non précisé'}
 🛍️ *Articles :* ${d.itemsDescription}
-💵 *Montant à encaisser :* ${d.amountToCollect.toLocaleString('fr-FR')} FCFA (${d.feePaidBy === 'client' ? `Articles + Frais de livraison inclus ${d.deliveryFee} FCFA` : 'Frais de livraison déjà payés'})
+💵 *Montant à encaisser :* ${d.amountToCollect.toLocaleString('fr-FR')} ${currency} (${d.feePaidBy === 'client' ? `Articles + Frais de livraison inclus ${d.deliveryFee} ${currency}` : 'Frais de livraison déjà payés'})
 ⏰ *Heure prévue :* ${d.scheduledTime || 'Aujourd hui'}
 📝 *Remarque :* ${d.notes || 'Aucune'}
 
@@ -575,7 +590,7 @@ _Transmis via COMMERCIA SaaS Gestion Commerciale_`;
                     </label>
                     <input
                       type="text"
-                      placeholder="Douala"
+                      placeholder="Ex: Douala, Yaoundé..."
                       value={city}
                       onChange={e => setCity(e.target.value)}
                       required
@@ -635,11 +650,11 @@ _Transmis via COMMERCIA SaaS Gestion Commerciale_`;
                 >
                   <div>
                     <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0062FF', display: 'block', marginBottom: '4px' }}>
-                      Montant à encaisser (FCFA)
+                      Montant à encaisser ({currency})
                     </label>
                     <input
                       type="number"
-                      placeholder="Ex: 25000"
+                      placeholder="0"
                       min="0"
                       value={amountToCollect}
                       onChange={e => setAmountToCollect(parseFloat(e.target.value) || '')}
@@ -648,11 +663,11 @@ _Transmis via COMMERCIA SaaS Gestion Commerciale_`;
                   </div>
                   <div>
                     <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
-                      Frais de livraison (FCFA)
+                      Frais de livraison ({currency})
                     </label>
                     <input
                       type="number"
-                      placeholder="1500"
+                      placeholder="0"
                       min="0"
                       value={deliveryFee}
                       onChange={e => setDeliveryFee(parseFloat(e.target.value) || '')}

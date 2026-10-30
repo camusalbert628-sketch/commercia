@@ -117,7 +117,7 @@ export const GrowthPage: React.FC = () => {
   const [prodCategory, setProdCategory] = useState('Général');
   const [prodSellingPrice, setProdSellingPrice] = useState<number | ''>('');
   const [prodCostPrice, setProdCostPrice] = useState<number | ''>('');
-  const [prodQuantity, setProdQuantity] = useState<number | ''>(10);
+  const [prodQuantity, setProdQuantity] = useState<number | ''>('');
   const [prodTransport, setProdTransport] = useState<number | ''>(0);
   const [prodPackaging, setProdPackaging] = useState<number | ''>(0);
   const [prodDelivery, setProdDelivery] = useState<number | ''>(0);

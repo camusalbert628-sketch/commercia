@@ -19,10 +19,15 @@ import {
 } from 'recharts';
 import { BarChart3, TrendingUp, TrendingDown, Award, Sparkles, Printer, Compass, Target, PieChart as PieIcon } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuthStore } from '../store/authStore';
 
 const PIE_COLORS = ['#0062FF', '#FF6B00', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4', '#64748B'];
 
 export const AnalyticsPage: React.FC = () => {
+  const { user, activeBusinessId } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const currency = activeBusiness?.currency || 'XAF';
+
   const [report, setReport] = useState<any>(null);
   const [trends, setTrends] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -77,12 +82,13 @@ export const AnalyticsPage: React.FC = () => {
   const expVal = metrics.totalExpenses || 0;
   const profitVal = metrics.netProfit || 0;
   const debtVal = metrics.totalDebt || 0;
+  const hasActivity = salesVal > 0 || expVal > 0 || (metrics.salesCount || 0) > 0;
 
-  const rentabiliteScore = salesVal > 0 ? Math.min(100, Math.max(30, Math.round((profitVal / salesVal) * 100))) : 85;
-  const chargesScore = salesVal > 0 ? Math.min(100, Math.max(35, Math.round(100 - (expVal / salesVal) * 40))) : 80;
-  const recouvrementScore = debtVal === 0 ? 98 : Math.max(40, Math.min(95, Math.round(100 - (debtVal / (salesVal || 1)) * 100)));
-  const rotationScore = Math.min(95, Math.max(50, (metrics.salesCount || 1) * 12 + 45));
-  const regulariteScore = trends.length >= 7 ? 90 : 75;
+  const rentabiliteScore = salesVal > 0 ? Math.min(100, Math.max(0, Math.round((profitVal / salesVal) * 100))) : 0;
+  const chargesScore = salesVal > 0 ? Math.min(100, Math.max(0, Math.round(100 - (expVal / salesVal) * 40))) : (expVal > 0 ? 50 : 0);
+  const recouvrementScore = debtVal === 0 ? (salesVal > 0 ? 100 : 0) : Math.max(0, Math.min(100, Math.round(100 - (debtVal / (salesVal || 1)) * 100)));
+  const rotationScore = (metrics.salesCount || 0) > 0 ? Math.min(100, Math.max(20, (metrics.salesCount || 1) * 12 + 40)) : 0;
+  const regulariteScore = trends.length >= 7 ? 90 : (trends.some(t => t.sales > 0) ? 60 : 0);
 
   const radarData = [
     { subject: 'Rentabilité Nette', score: rentabiliteScore, fullMark: 100 },
@@ -92,9 +98,9 @@ export const AnalyticsPage: React.FC = () => {
     { subject: 'Régularité Ventes', score: regulariteScore, fullMark: 100 },
   ];
 
-  const overallHealthScore = Math.round(
-    (rentabiliteScore + chargesScore + recouvrementScore + rotationScore + regulariteScore) / 5
-  );
+  const overallHealthScore = hasActivity
+    ? Math.round((rentabiliteScore + chargesScore + recouvrementScore + rotationScore + regulariteScore) / 5)
+    : null;
 
   return (
     <div className="page-wrapper">
@@ -157,7 +163,7 @@ export const AnalyticsPage: React.FC = () => {
         <div className="stat-card sales">
           <div>
             <div className="stat-label">Chiffre d'Affaires Hebdo</div>
-            <div className="stat-value">{metrics.totalSales.toLocaleString('fr-FR')} FCFA</div>
+            <div className="stat-value">{metrics.totalSales.toLocaleString('fr-FR')} {currency}</div>
             <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '4px' }}>
               {metrics.salesCount} vente(s) réalisée(s)
             </div>
@@ -171,7 +177,7 @@ export const AnalyticsPage: React.FC = () => {
           <div>
             <div className="stat-label">Charges & Dépenses Hebdo</div>
             <div className="stat-value" style={{ color: '#FF6B00' }}>
-              {metrics.totalExpenses.toLocaleString('fr-FR')} FCFA
+              {metrics.totalExpenses.toLocaleString('fr-FR')} {currency}
             </div>
             <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '4px' }}>Dépenses opérationnelles</div>
           </div>
@@ -185,7 +191,7 @@ export const AnalyticsPage: React.FC = () => {
             <div className="stat-label">Bénéfice Net Réel</div>
             <div className="stat-value" style={{ color: metrics.netProfit >= 0 ? '#10B981' : '#EF4444' }}>
               {metrics.netProfit > 0 ? '+' : ''}
-              {metrics.netProfit.toLocaleString('fr-FR')} FCFA
+              {metrics.netProfit.toLocaleString('fr-FR')} {currency}
             </div>
             <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '4px' }}>
               Trésorerie nette générée
@@ -219,7 +225,7 @@ export const AnalyticsPage: React.FC = () => {
                 />
                 <YAxis stroke="#94A3B8" fontSize={11} />
                 <Tooltip
-                  formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} FCFA`}
+                  formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} ${currency}`}
                   contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
                 />
                 <Bar dataKey="sales" name="Ventes" fill="#0062FF" radius={[5, 5, 0, 0]} />
@@ -272,7 +278,7 @@ export const AnalyticsPage: React.FC = () => {
                 </div>
 
                 <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#059669' }}>
-                  {p.revenue.toLocaleString('fr-FR')} FCFA
+                  {p.revenue.toLocaleString('fr-FR')} {currency}
                 </div>
               </div>
             ))}
@@ -321,7 +327,7 @@ export const AnalyticsPage: React.FC = () => {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} FCFA`}
+                    formatter={(val: any) => `${Number(val || 0).toLocaleString('fr-FR')} ${currency}`}
                     contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
                   />
                   <Legend
@@ -370,40 +376,66 @@ export const AnalyticsPage: React.FC = () => {
             <span
               style={{
                 fontSize: '0.8rem',
-                background: '#EFF6FF',
-                color: '#0062FF',
+                background: hasActivity ? '#EFF6FF' : '#F1F5F9',
+                color: hasActivity ? '#0062FF' : '#64748B',
                 fontWeight: 800,
                 padding: '3px 8px',
                 borderRadius: '6px',
               }}
             >
-              Score : {overallHealthScore}/100
+              {hasActivity ? `Score : ${overallHealthScore}/100` : 'En attente'}
             </span>
           </div>
           <p style={{ fontSize: '0.8rem', color: '#64748B', marginBottom: '12px' }}>
             Évaluation multidimensionnelle : Marges, Dépenses, Recouvrement, Stock & Fréquence
           </p>
 
-          <div style={{ width: '100%', height: '280px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
-                <PolarGrid stroke="#E2E8F0" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} />
-                <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#CBD5E1" fontSize={10} />
-                <Radar
-                  name="Score Boutique"
-                  dataKey="score"
-                  stroke="#0062FF"
-                  fill="#0062FF"
-                  fillOpacity={0.45}
-                />
-                <Tooltip
-                  formatter={(val: any) => [`${val} / 100`, 'Indice']}
-                  contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
+          {hasActivity ? (
+            <div style={{ width: '100%', height: '280px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
+                  <PolarGrid stroke="#E2E8F0" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="#CBD5E1" fontSize={10} />
+                  <Radar
+                    name="Score Boutique"
+                    dataKey="score"
+                    stroke="#0062FF"
+                    fill="#0062FF"
+                    fillOpacity={0.45}
+                  />
+                  <Tooltip
+                    formatter={(val: any) => [`${val} / 100`, 'Indice']}
+                    contentStyle={{ background: '#FFFFFF', borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '0.85rem' }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div
+              style={{
+                height: '280px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#94A3B8',
+                textAlign: 'center',
+                padding: '20px',
+                background: '#F8FAFC',
+                borderRadius: '12px',
+                border: '1px dashed #CBD5E1',
+              }}
+            >
+              <Target size={38} color="#94A3B8" style={{ marginBottom: '10px', opacity: 0.7 }} />
+              <strong style={{ color: '#475569', fontSize: '0.92rem', marginBottom: '4px' }}>
+                En attente de vos premières opérations
+              </strong>
+              <p style={{ fontSize: '0.80rem', margin: 0, maxWidth: '280px', color: '#64748B', lineHeight: 1.5 }}>
+                Enregistrez vos premières ventes et dépenses pour que le diagnostic 360° s'affiche.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -425,7 +457,7 @@ export const AnalyticsPage: React.FC = () => {
                 {c.category}
               </div>
               <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#DC2626' }}>
-                {c.amount.toLocaleString('fr-FR')} FCFA
+                {c.amount.toLocaleString('fr-FR')} {currency}
               </div>
             </div>
           ))}

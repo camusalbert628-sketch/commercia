@@ -271,7 +271,7 @@ export const CustomersPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: Maman Chantal, Papa Jean..."
+                    placeholder="Nom et prénom ou entreprise"
                     value={newName}
                     onChange={e => setNewName(e.target.value)}
                     required

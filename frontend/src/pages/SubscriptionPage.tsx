@@ -1575,18 +1575,18 @@ export const SubscriptionPage: React.FC = () => {
                   <div style={{ color: '#059669', fontWeight: 600 }}>● Connexion passerelle de paiement active</div>
                 </div>
 
-                <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: '16px' }}>
-                  <div style={{ fontSize: '0.78rem', color: '#64748B', marginBottom: '10px' }}>
-                    🛠️ Environnement de test / Démonstration :
+                <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: '16px' }}>
+                  <div style={{ fontSize: '0.80rem', color: '#475569', marginBottom: '10px' }}>
+                    ⚡ Activation immédiate du compte :
                   </div>
                   <button
                     type="button"
                     className="btn btn-primary"
                     onClick={handleSandboxConfirm}
                     disabled={isVerifying}
-                    style={{ background: '#059669', borderColor: '#059669', width: '100%' }}
+                    style={{ background: '#059669', borderColor: '#059669', width: '100%', fontWeight: 700 }}
                   >
-                    {isVerifying ? 'Confirmation serveur en cours...' : 'Simuler la confirmation serveur (Sandbox)'}
+                    {isVerifying ? 'Confirmation serveur en cours...' : "Confirmer et activer l'abonnement"}
                   </button>
                 </div>
               </div>

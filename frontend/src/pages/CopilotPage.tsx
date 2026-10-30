@@ -515,7 +515,7 @@ export const CopilotPage: React.FC = () => {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   type="text"
-                  placeholder="Ex: Mon fournisseur d'huile Mayor livre chaque jeudi matin..."
+                  placeholder="Ex: Le fournisseur principal livre chaque jeudi matin..."
                   value={newMemoryText}
                   onChange={e => setNewMemoryText(e.target.value)}
                   style={{ flex: 1, padding: '10px 14px', fontSize: '0.88rem' }}

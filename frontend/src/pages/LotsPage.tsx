@@ -55,7 +55,9 @@ import {
 
 export const LotsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, activeBusinessId } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const currency = activeBusiness?.currency || 'XAF';
   const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && user?.subscription?.status === 'active'));
 
   // View state: 'list' (overview of all campaigns) or 'detail' (single campaign)
@@ -117,19 +119,19 @@ export const LotsPage: React.FC = () => {
   const [wGoodsType, setWGoodsType] = useState('Vêtements / Friperie');
   const [wDescription, setWDescription] = useState('');
   const [wSupplier, setWSupplier] = useState('');
-  const [wOrigin, setWOrigin] = useState('Dubaï');
+  const [wOrigin, setWOrigin] = useState('');
   const [wDate, setWDate] = useState(new Date().toISOString().slice(0, 10));
-  const [wCurrency, setWCurrency] = useState('XAF');
+  const [wCurrency, setWCurrency] = useState(currency || 'XAF');
   const [wExchangeRate, setWExchangeRate] = useState<number>(1.0);
-  const [wPurchasePrice, setWPurchasePrice] = useState<number>(200000);
+  const [wPurchasePrice, setWPurchasePrice] = useState<number | ''>('');
   const [wNotes, setWNotes] = useState('');
 
   // Step 2: Supply costs
-  const [wTransport, setWTransport] = useState<number>(25000);
-  const [wCustoms, setWCustoms] = useState<number>(20000);
-  const [wFees, setWFees] = useState<number>(5000);
-  const [wPackaging, setWPackaging] = useState<number>(5000);
-  const [wOtherCosts, setWOtherCosts] = useState<number>(0);
+  const [wTransport, setWTransport] = useState<number | ''>('');
+  const [wCustoms, setWCustoms] = useState<number | ''>('');
+  const [wFees, setWFees] = useState<number | ''>('');
+  const [wPackaging, setWPackaging] = useState<number | ''>('');
+  const [wOtherCosts, setWOtherCosts] = useState<number | ''>('');
 
   // Step 3: Items & Allocation
   const [wAllocationMethod, setWAllocationMethod] = useState<'unit' | 'value_weighted' | 'custom'>('value_weighted');
@@ -143,11 +145,7 @@ export const LotsPage: React.FC = () => {
       estimatedSellingPrice: number;
       customUnitCost?: number;
     }>
-  >([
-    { name: 'Robes Soie 1er Choix', variant: 'Taille Unique', quantityReceived: 40, estimatedSellingPrice: 5000 },
-    { name: 'Jupes & Ensembles 2ème Choix', variant: 'Standard', quantityReceived: 60, estimatedSellingPrice: 3000 },
-    { name: 'T-Shirts & Tops Décontractés', variant: 'Mixte', quantityReceived: 50, estimatedSellingPrice: 1500 },
-  ]);
+  >([]);
 
   // Sale form state inside campaign
   const [saleLotItemId, setSaleLotItemId] = useState('');
@@ -161,21 +159,21 @@ export const LotsPage: React.FC = () => {
   const [salePaymentMethod, setSalePaymentMethod] = useState<'cash' | 'mobile_money' | 'bank_transfer' | 'credit'>('cash');
 
   // Expense form state inside campaign
-  const [expAmount, setExpAmount] = useState<number>(5000);
-  const [expCategory, setExpCategory] = useState('blanchisserie');
-  const [expDescription, setExpDescription] = useState('Pressing et défroissage pour exposition');
+  const [expAmount, setExpAmount] = useState<number | ''>('');
+  const [expCategory, setExpCategory] = useState('logistique');
+  const [expDescription, setExpDescription] = useState('');
 
   // Stock Loss form state
   const [lossItemId, setLossItemId] = useState('');
   const [lossQuantity, setLossQuantity] = useState(1);
-  const [lossReason, setLossReason] = useState('Tache indélébile / fermeture cassée');
+  const [lossReason, setLossReason] = useState('');
 
   // Add Item to existing lot state
   const [newItemName, setNewItemName] = useState('');
   const [newItemVariant, setNewItemVariant] = useState('');
-  const [newItemQty, setNewItemQty] = useState(10);
-  const [newItemPrice, setNewItemPrice] = useState(3000);
-  const [newItemCost, setNewItemCost] = useState(1500);
+  const [newItemQty, setNewItemQty] = useState<number | ''>('');
+  const [newItemPrice, setNewItemPrice] = useState<number | ''>('');
+  const [newItemCost, setNewItemCost] = useState<number | ''>('');
 
   // Copilot LLM Handlers for this Lot Campaign (Isolated by Campaign ID)
   const handleGenerateLLMStrategy = async () => {
@@ -416,6 +414,18 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
       setWizardStep(1);
       // Reset form
       setWName('');
+      setWGoodsType('Vêtements / Friperie');
+      setWDescription('');
+      setWSupplier('');
+      setWOrigin('');
+      setWPurchasePrice('');
+      setWTransport('');
+      setWCustoms('');
+      setWFees('');
+      setWPackaging('');
+      setWOtherCosts('');
+      setWNotes('');
+      setWItems([]);
       alert(`Campagne "${res.campaign.name}" créée avec succès !`);
       await loadOverview();
       loadCampaignDetail(res.campaign.id);
@@ -430,7 +440,7 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
   const addWizardItemLine = () => {
     setWItems([
       ...wItems,
-      { name: 'Nouvel article', variant: 'Standard', quantityReceived: 20, estimatedSellingPrice: 2500 },
+      { name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 },
     ]);
   };
 
@@ -546,10 +556,10 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
     }
   };
 
-  // Format FCFA
+  // Format Currency
   const fmt = (num?: number | null) => {
-    if (num === undefined || num === null) return '0 FCFA';
-    return `${Math.round(num).toLocaleString('fr-FR')} FCFA`;
+    if (num === undefined || num === null) return `0 ${currency}`;
+    return `${Math.round(num).toLocaleString('fr-FR')} ${currency}`;
   };
 
   // Filtered campaigns
@@ -2320,7 +2330,7 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                 {/* Suggestions chips */}
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
                   {[
-                    'Comment vendre mes 145 Redmi 14C plus vite ?',
+                    campaignDetail?.campaign?.name ? `Comment vendre mon lot "${campaignDetail.campaign.name}" plus vite ?` : 'Comment écouler le stock restant plus vite ?',
                     'Combien me reste-t-il à vendre pour être rentable ?',
                     'Rédige-moi une annonce WhatsApp statut VIP irrésistible',
                     'Quel pack promo fixer pour les revendeurs ?',
@@ -3350,6 +3360,34 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                         </button>
                       </div>
                     ))}
+
+                    {computedWizardItems.length === 0 && (
+                      <div
+                        style={{
+                          textAlign: 'center',
+                          padding: '28px 20px',
+                          background: '#F8FAFC',
+                          borderRadius: '12px',
+                          border: '1.5px dashed #CBD5E1',
+                          color: '#64748B',
+                        }}
+                      >
+                        <p style={{ margin: '0 0 12px 0', fontSize: '0.88rem', fontWeight: 600, color: '#334155' }}>
+                          Aucun article ajouté pour l'instant dans ce lot.
+                        </p>
+                        <p style={{ margin: '0 0 16px 0', fontSize: '0.80rem', color: '#64748B' }}>
+                          Cliquez ci-dessous pour ajouter les différents articles ou catégories qui composent votre lot.
+                        </p>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={addWizardItemLine}
+                          style={{ fontSize: '0.84rem', padding: '8px 16px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <Plus size={16} /> Ajouter le premier article
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

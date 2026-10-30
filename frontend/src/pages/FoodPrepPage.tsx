@@ -39,9 +39,9 @@ export const FoodPrepPage: React.FC = () => {
 
   // Formulaire préparation
   const [prepDishName, setPrepDishName] = useState('');
-  const [prepPortions, setPrepPortions] = useState(25);
-  const [prepSellingPrice, setPrepSellingPrice] = useState(1000);
-  const [prepIngredientsCost, setPrepIngredientsCost] = useState(15000);
+  const [prepPortions, setPrepPortions] = useState<number | ''>('');
+  const [prepSellingPrice, setPrepSellingPrice] = useState<number | ''>('');
+  const [prepIngredientsCost, setPrepIngredientsCost] = useState<number | ''>('');
   const [prepRecipeId, setPrepRecipeId] = useState('');
 
   // Formulaire recette
@@ -80,12 +80,17 @@ export const FoodPrepPage: React.FC = () => {
     try {
       await api.post('/food-prep/preparations', {
         dishName: prepDishName.trim(),
-        portionsPrepared: Number(prepPortions),
-        unitSellingPrice: Number(prepSellingPrice),
-        ingredientsCost: Number(prepIngredientsCost),
+        portionsPrepared: Number(prepPortions) || 1,
+        unitSellingPrice: Number(prepSellingPrice) || 0,
+        ingredientsCost: Number(prepIngredientsCost) || 0,
         recipeId: prepRecipeId || undefined,
       });
       setShowPrepModal(false);
+      setPrepDishName('');
+      setPrepPortions('');
+      setPrepSellingPrice('');
+      setPrepIngredientsCost('');
+      setPrepRecipeId('');
       setSuccess('Préparation journalière enregistrée avec succès !');
       fetchData();
     } catch (err: any) {
@@ -567,8 +572,9 @@ export const FoodPrepPage: React.FC = () => {
                   <input
                     type="number"
                     min="1"
+                    placeholder="ex: 20"
                     value={prepPortions}
-                    onChange={(e) => setPrepPortions(Number(e.target.value))}
+                    onChange={(e) => setPrepPortions(e.target.value === '' ? '' : Number(e.target.value))}
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
                     required
                   />
@@ -580,8 +586,9 @@ export const FoodPrepPage: React.FC = () => {
                   <input
                     type="number"
                     min="0"
+                    placeholder="ex: 1500"
                     value={prepSellingPrice}
-                    onChange={(e) => setPrepSellingPrice(Number(e.target.value))}
+                    onChange={(e) => setPrepSellingPrice(e.target.value === '' ? '' : Number(e.target.value))}
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
                     required
                   />
@@ -595,8 +602,9 @@ export const FoodPrepPage: React.FC = () => {
                 <input
                   type="number"
                   min="0"
+                  placeholder="ex: 12000"
                   value={prepIngredientsCost}
-                  onChange={(e) => setPrepIngredientsCost(Number(e.target.value))}
+                  onChange={(e) => setPrepIngredientsCost(e.target.value === '' ? '' : Number(e.target.value))}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
                   required
                 />

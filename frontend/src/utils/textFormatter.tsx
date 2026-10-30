@@ -255,7 +255,7 @@ function renderStylizedScriptText(text: string): React.ReactNode {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {paragraphs.map((p, pIdx) => {
         const parts: React.ReactNode[] = [];
-        const tokenRegex = /(\d+[\s\d]*\s*FCFA|\b\d+\s*(?:pièces?|unités?|articles?|habits?|vêtements?|robes?|téléphones?)(?:\s*(?:restantes?|en stock))?|Redmi\s*14C|🚨[^!]+!🚨|Offre\s+Flash|[“"][^”"]+[”"])/gi;
+        const tokenRegex = /(\d+[\s\d]*\s*(?:FCFA|EUR|USD|XAF|XOF)|\b\d+\s*(?:pièces?|unités?|articles?|habits?|vêtements?|robes?|téléphones?)(?:\s*(?:restantes?|en stock))?|🚨[^!]+!🚨|Offre\s+Flash|[“"][^”"]+[”"])/gi;
 
         let lastPos = 0;
         let match: RegExpExecArray | null;
@@ -266,7 +266,7 @@ function renderStylizedScriptText(text: string): React.ReactNode {
           }
 
           const matchedText = match[0];
-          if (/FCFA/i.test(matchedText)) {
+          if (/(?:FCFA|EUR|USD|XAF|XOF)/i.test(matchedText)) {
             // Price pill in luminous Emerald Green with strict middle alignment and clean spacing
             parts.push(
               <span
@@ -318,7 +318,7 @@ function renderStylizedScriptText(text: string): React.ReactNode {
                 <span>{matchedText}</span>
               </span>
             );
-          } else if (/Redmi\s*14C/i.test(matchedText)) {
+          } else if (/[“"][^”"]+[”"]/.test(matchedText)) {
             // Product tag in Royal Violet
             parts.push(
               <span
@@ -340,7 +340,7 @@ function renderStylizedScriptText(text: string): React.ReactNode {
                   verticalAlign: 'middle',
                 }}
               >
-                <span>📱</span>
+                <span>📦</span>
                 <span>{matchedText}</span>
               </span>
             );

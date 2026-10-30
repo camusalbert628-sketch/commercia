@@ -34,7 +34,7 @@ export const ServiceOrdersPage: React.FC = () => {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<any>(null);
-  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentAmount, setPaymentAmount] = useState<number | ''>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [paymentNotes, setPaymentNotes] = useState<string>('');
 
@@ -412,7 +412,7 @@ export const ServiceOrdersPage: React.FC = () => {
                   min="100"
                   max={selectedOrderForPayment.balanceDue}
                   value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                  onChange={(e) => setPaymentAmount(e.target.value === '' ? '' : Number(e.target.value))}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '1.1rem', fontWeight: 800 }}
                   required
                 />
@@ -486,7 +486,7 @@ export const ServiceOrdersPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="ex: Mme Chantal B."
+                    placeholder="Nom et prénom du client"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}

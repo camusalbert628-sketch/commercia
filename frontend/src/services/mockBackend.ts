@@ -627,7 +627,6 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   if (endpoint.startsWith('/sales')) {
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = false;
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
     const saleKey = `commercia_sales_${activeBizId}`;
 
@@ -686,11 +685,10 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       };
       sales.unshift(newSale);
       localStorage.setItem(saleKey, JSON.stringify(sales));
-      if (isDemoMoussa) localStorage.setItem('commercia_sales', JSON.stringify(sales));
 
       // Sync with active cash session if open
       const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
-      const activeCashRaw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
+      const activeCashRaw = localStorage.getItem(activeCashKey);
       if (activeCashRaw) {
         try {
           const cs = JSON.parse(activeCashRaw);
@@ -720,7 +718,6 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
               cs.theoreticalMomo = (cs.theoreticalMomo || 0) + paid;
             }
             localStorage.setItem(activeCashKey, JSON.stringify(cs));
-            if (isDemoMoussa) localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
           }
         } catch (e) { /* ignore */ }
       }
@@ -731,15 +728,14 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     if (method === 'DELETE') {
       const parts = endpoint.split('?')[0].split('/');
       const saleId = parts[2];
-      const raw = localStorage.getItem(saleKey) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+      const raw = localStorage.getItem(saleKey);
       let sales = raw ? JSON.parse(raw) : [];
       sales = sales.filter((s: any) => s.id !== saleId);
       localStorage.setItem(saleKey, JSON.stringify(sales));
-      if (isDemoMoussa) localStorage.setItem('commercia_sales', JSON.stringify(sales));
       return { message: 'Vente annulée avec succès.' };
     }
 
-    const raw = localStorage.getItem(saleKey) || (isDemoMoussa ? localStorage.getItem('commercia_sales') : null);
+    const raw = localStorage.getItem(saleKey);
     const list = raw ? JSON.parse(raw) : [];
     return { sales: list, pagination: { total: list.length } };
   }
@@ -748,12 +744,11 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   if (endpoint.startsWith('/expenses')) {
     const rawUser = localStorage.getItem('commercia_user');
     const userObj = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = false;
     const activeBizId = localStorage.getItem('activeBusinessId') || userObj?.businesses?.[0]?.id || 'default';
     const expKey = `commercia_expenses_${activeBizId}`;
 
     if (method === 'POST') {
-      const raw = localStorage.getItem(expKey) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
+      const raw = localStorage.getItem(expKey);
       const expenses = raw ? JSON.parse(raw) : [];
       const newExpense = {
         id: 'e-' + Date.now(),
@@ -764,11 +759,10 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       };
       expenses.unshift(newExpense);
       localStorage.setItem(expKey, JSON.stringify(expenses));
-      if (isDemoMoussa) localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
 
       // Sync with active cash session if open
       const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
-      const activeCashRaw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
+      const activeCashRaw = localStorage.getItem(activeCashKey);
       if (activeCashRaw) {
         try {
           const cs = JSON.parse(activeCashRaw);
@@ -790,7 +784,6 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
             cs.totalCashOut = (cs.totalCashOut || 0) + amt;
             cs.theoreticalCash = (cs.theoreticalCash || 0) - amt;
             localStorage.setItem(activeCashKey, JSON.stringify(cs));
-            if (isDemoMoussa) localStorage.setItem('commercia_active_cash_session', JSON.stringify(cs));
           }
         } catch (e) { /* ignore */ }
       }
@@ -801,15 +794,14 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     if (method === 'DELETE') {
       const parts = endpoint.split('?')[0].split('/');
       const expId = parts[2];
-      const raw = localStorage.getItem(expKey) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
+      const raw = localStorage.getItem(expKey);
       let expenses = raw ? JSON.parse(raw) : [];
       expenses = expenses.filter((e: any) => e.id !== expId);
       localStorage.setItem(expKey, JSON.stringify(expenses));
-      if (isDemoMoussa) localStorage.setItem('commercia_expenses', JSON.stringify(expenses));
       return { message: 'Dépense supprimée avec succès.' };
     }
 
-    const raw = localStorage.getItem(expKey) || (isDemoMoussa ? localStorage.getItem('commercia_expenses') : null);
+    const raw = localStorage.getItem(expKey);
     const list = raw ? JSON.parse(raw) : [];
     return { expenses: list, pagination: { total: list.length } };
   }
@@ -898,7 +890,6 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     const rawUser = localStorage.getItem('commercia_user');
     const u = rawUser ? JSON.parse(rawUser) : currentUser;
     const planName = u?.subscription?.planName || 'free';
-    const isDemoMoussa = u?.email === 'moussa@boutique.cm' || u?.id === 'user-moussa';
 
     const list: any[] = [];
 
@@ -957,7 +948,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         method: body?.paymentMethod || 'mobile_money',
         status: 'pending',
         createdAt: new Date().toISOString(),
-        phoneNumber: body?.phoneNumber || '+237 670 123 456',
+        phoneNumber: body?.phoneNumber || '',
         billingCycle: isYearly ? 'Annuel' : 'Mensuel',
       };
       payments.unshift(newPayment);
@@ -1328,7 +1319,6 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   if (endpoint.startsWith('/cash')) {
     const rawUser = localStorage.getItem('commercia_user');
     const u = rawUser ? JSON.parse(rawUser) : currentUser;
-    const isDemoMoussa = false;
     const activeBizId = localStorage.getItem('activeBusinessId') || u?.businesses?.[0]?.id || 'default';
     const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
     const pastCashKey = `commercia_past_cash_sessions_${activeBizId}`;
@@ -1383,13 +1373,12 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         ],
       };
       localStorage.setItem(activeCashKey, JSON.stringify(newSession));
-      if (isDemoMoussa) localStorage.setItem('commercia_active_cash_session', JSON.stringify(newSession));
       return { message: 'Caisse ouverte avec succès ! 💼', session: newSession };
     }
 
     // C. Add manual cash movement (in/out)
     if (endpoint === '/cash/movement' && method === 'POST') {
-      const raw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
+      const raw = localStorage.getItem(activeCashKey);
       if (!raw) {
         throw new Error('Aucune caisse n\'est actuellement ouverte.');
       }
@@ -1416,13 +1405,12 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         sess.theoreticalCash = (sess.theoreticalCash || 0) - amt;
       }
       localStorage.setItem(activeCashKey, JSON.stringify(sess));
-      if (isDemoMoussa) localStorage.setItem('commercia_active_cash_session', JSON.stringify(sess));
       return { message: 'Mouvement de caisse enregistré !', movement: move, session: sess };
     }
 
     // D. Close cash session
     if (endpoint === '/cash/close' && method === 'POST') {
-      const raw = localStorage.getItem(activeCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_active_cash_session') : null);
+      const raw = localStorage.getItem(activeCashKey);
       if (!raw) {
         throw new Error('Aucune caisse n\'est actuellement ouverte.');
       }
@@ -1442,13 +1430,11 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       }
 
       // Add to past sessions
-      const pastRaw = localStorage.getItem(pastCashKey) || (isDemoMoussa ? localStorage.getItem('commercia_past_cash_sessions') : null);
+      const pastRaw = localStorage.getItem(pastCashKey);
       const past = pastRaw ? JSON.parse(pastRaw) : [];
       past.unshift(sess);
       localStorage.setItem(pastCashKey, JSON.stringify(past));
-      if (isDemoMoussa) localStorage.setItem('commercia_past_cash_sessions', JSON.stringify(past));
       localStorage.removeItem(activeCashKey);
-      if (isDemoMoussa) localStorage.removeItem('commercia_active_cash_session');
 
       return { message: 'Caisse clôturée avec succès ! 🔒', session: sess };
     }
