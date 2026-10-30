@@ -2,6 +2,7 @@
 // Ensures zero-downtime demonstration on static cloud deployments (Vercel)
 import { calculateFinancialMetrics } from '../utils/finance';
 import { generateAIAnswer } from './aiKnowledgeEngine';
+import { generateCopilotLLMResponse } from './llmService';
 
 const USERS_DB_KEY = 'commercia_users_db';
 
@@ -1896,6 +1897,20 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         dataUsed: { totalSalesAnalyzed: 70, totalExpensesAnalyzed: 1, activeChannelsCount: 11 },
       };
     }
+  }
+
+  // 24. COPILOTE IA CHAT (Conversationnel, Réponses attendues, Mémoire)
+  if ((endpoint.startsWith('/ai/chat') || endpoint.startsWith('/analytics/chat')) && method === 'POST') {
+    const message = body?.message || '';
+    const history = body?.history || [];
+    const activeBizId = localStorage.getItem('activeBusinessId') || undefined;
+    const llmResult = await generateCopilotLLMResponse(message, history, activeBizId);
+    return {
+      reply: llmResult.reply,
+      memorizedFact: llmResult.memorizedFact,
+      providerUsed: llmResult.providerUsed,
+      conversationId: 'mock-conv-' + Date.now(),
+    };
   }
 
   // Default fallback

@@ -34,14 +34,22 @@ export function extractMemoryTrigger(text: string): string | null {
     'mémorise que',
     'memorise que',
     'mémorise :',
+    'retiens que',
     'note que',
     'garde en mémoire que',
     "n'oublie pas que",
+    "n'oublie jamais que",
     'mon fournisseur est',
+    'mon fournisseur de',
     'mon fournisseur principal est',
     'mon livreur est',
+    'mon livreur s\'appelle',
+    'je ferme le',
+    'mes horaires sont',
+    'mon plafond de crédit est',
     'notre politique de prix est',
     'notre règle est',
+    'notre règle d\'or est',
   ];
 
   for (const trigger of triggers) {
@@ -447,15 +455,18 @@ Tu maîtrises chaque recoin de l'application COMMERCIA et sais guider le commer�
 3. **Séparation Stricte du Cash** : L'argent en caisse ne doit jamais être confondu avec le solde Mobile Money ou les créances clients.
 
 ============================================================
-9. DIRECTIVES COMPORTEMENTALES DU COPILOTE IA :
+9. DIRECTIVES COMPORTEMENTALES & CONVERSATIONNELLES :
 ============================================================
-- Parle avec un français impeccable, naturel, chaleureux, professionnel et percutant.
-- Réponds TOUJOURS avec une intelligence et une précision chirurgicales en citant directement les VRAIS CHIFFRES de la boutique ci-dessus.
-- Ne réponds JAMAIS de façon générique ou floue ("consultez vos ventes"). Donne les montants exacts, les noms des produits, des clients ou des lots concernés.
-- Si le commerçant demande une relance client, rédige directement le message WhatsApp complet et courtois prêt à être copié-collé, incluant le nom du client et le montant exact.
-- Si le commerçant demande où en est son lot ou sa rentabilité, cite le taux de récupération exact et le nombre précis d'articles restant à écouler pour le point mort.
-- Si le commerçant dit "Rappelle-toi que..." ou donne une consigne, confirme-lui avec enthousiasme que c'est mémorisé dans son dossier d'entreprise.
-- Interdiction stricte de générer du code brut, des balises HTML ou des blocs JSON. Utilise du texte fluide, des puces claires et des mises en gras lisibles sur smartphone.`;
+- STYLE NATUREL & HUMAIN : Tu es un conseiller d'affaires et ami de confiance du commerçant. Parle avec chaleur, empathie, fluidité et naturel. Fais des phrases agréables à lire, pas des pavés robotiques.
+- SALUTATION CONVERSATIONNELLE : Si l'utilisateur te salue simplement ("salut", "bonjour", "ça va ?", "hello", "coucou"), NE LUI DÉVERSE PAS un gros rapport de chiffres non sollicité ! Salue-le amicalement par son prénom en citant sa boutique ("${data.business.name}"), et demande-lui simplement comment se passe sa journée ou sur quel sujet il aimerait de l'aide.
+- RÉPONDS CLAIREMENT ET DIRECTEMENT À LA QUESTION EXACTE POSÉE :
+  * S'il demande son bénéfice : donne directement le chiffre du bénéfice net du jour, les recettes et dépenses, avec 1 conseil clair.
+  * S'il demande qui lui doit de l'argent : liste les débiteurs avec leurs montants et téléphones, et propose le message de relance.
+  * S'il demande où en est son lot : donne le taux d'amortissement et le nombre précis d'articles restant à vendre pour atteindre le point mort.
+  * S'il demande comment utiliser une fonctionnalité : donne les 3 étapes simples et claires dans COMMERCIA.
+  * S'il demande ce que tu sais sur lui ou ce que tu as en mémoire : récapitule fièrement son nom, sa boutique et tous les faits de la section 6 (MÉMOIRE CONTINUE).
+- MÉMOIRE PERMANENTE : Si le commerçant t'apprend une information ("Je vends...", "Mon fournisseur est...", "Rappelle-toi que..."), confirme-lui chaleureusement que c'est gravé dans ta mémoire.
+- LISIBILITÉ MOBILE : Texte fluide, aéré, puces courtes, gras stratégique. Aucun code HTML, ni balises brutes, ni blocs JSON.`;
 }
 
 // 5. Appel direct Google Gemini REST API (gemini-2.0-flash / gemini-1.5-flash)
@@ -579,7 +590,7 @@ async function callPublicGenerativeLLM(
 
   const payload = {
     messages,
-    model: 'openai-fast',
+    model: 'openai',
     temperature: 0.6,
   };
 
@@ -604,13 +615,83 @@ async function callPublicGenerativeLLM(
 
 // 8. Synthèse Analytique Haut de Gamme (Fallback Ultra-Riche si hors-ligne)
 function generateDataDenseFallbackAnswer(query: string, data: any, memorizedFact: string | null): string {
-  const q = query.toLowerCase();
+  const q = query.toLowerCase().trim();
   const cur = data.business.currency || 'FCFA';
+  const firstName = data.user.name.split(' ')[0] || data.user.name || 'cher commerçant';
 
+  // A. Si un nouveau souvenir a été dicté
   if (memorizedFact) {
-    return `🧠 **Information enregistrée avec succès dans la mémoire continue de votre entreprise !**\n\nJ'ai retenu : « **${memorizedFact}** ».\n\nJe tiendrai désormais compte de cette consigne dans toutes les recommandations et analyses futures pour **${data.business.name}**.`;
+    return `🧠 **C'est bien noté dans ma mémoire d'entreprise !**\n\nJ'ai retenu : « **${memorizedFact}** ».\n\nJe tiendrai désormais compte de cette information dans toutes mes analyses futures pour **${data.business.name}**. Que souhaitez-vous savoir d'autre ?`;
   }
 
+  // B. Salutations et politesses conversationnelles
+  if (
+    q === 'salut' ||
+    q === 'bonjour' ||
+    q === 'hello' ||
+    q === 'coucou' ||
+    q === 'yo' ||
+    q === 'bonsoir' ||
+    q === 'ça va' ||
+    q === 'ca va' ||
+    q === 'comment tu vas' ||
+    q === 'comment vas-tu' ||
+    q === 'tu vas bien' ||
+    q.startsWith('salut ') ||
+    q.startsWith('bonjour ')
+  ) {
+    return `Bonjour ${firstName} ! Ravi d'échanger avec vous. Comment se passe votre journée chez **${data.business.name}** ?\n\nJe suis à vos côtés pour surveiller vos finances et vous conseiller. Que souhaitez-vous regarder aujourd'hui : vos ventes, votre caisse, vos lots ou vos clients débiteurs ?`;
+  }
+
+  // C. Consultation de la mémoire du Copilote
+  if (
+    q.includes('que sais-tu sur moi') ||
+    q.includes('que sais tu sur moi') ||
+    q.includes('qu\'as-tu en mémoire') ||
+    q.includes('qu as tu en memoire') ||
+    q.includes('qu\'est-ce que tu sais') ||
+    q.includes('qu est ce que tu sais') ||
+    q.includes('te souviens-tu') ||
+    q.includes('mes souvenirs') ||
+    q.includes('ma mémoire') ||
+    q === 'mémoire' ||
+    q === 'memoire'
+  ) {
+    const memoryItems = (data.savedMemories || []).length > 0
+      ? data.savedMemories.map((m: string) => `• ${m}`).join('\n')
+      : '*(Vous ne m\'avez pas encore partagé de faits spécifiques. Dites-moi par exemple : « Rappelle-toi que mon fournisseur de riz me livre le mardi » pour enrichir ma mémoire !)*';
+
+    return `🧠 **Voici ce que j'ai en mémoire sur vous et votre boutique :**\n\n` +
+      `• **Responsable** : ${data.user.name} (${data.user.email})\n` +
+      `• **Établissement** : ${data.business.name} (Secteur : ${data.business.sector}, Devise : ${cur})\n\n` +
+      `📌 **Faits et règles personnalisées mémorisés :**\n${memoryItems}`;
+  }
+
+  // D. Modèle de message WhatsApp pour relance client
+  if (q.includes('whatsapp') || q.includes('relance') || q.includes('message pour relancer') || q.includes('texte de relance')) {
+    const debtor = data.debtors.list[0];
+    const clientName = debtor?.name || 'Nom du client';
+    const amountDue = debtor?.owed ? `${debtor.owed.toLocaleString('fr-FR')} ${cur}` : `15 000 ${cur}`;
+
+    return `📱 **Modèle de message WhatsApp de relance prêt à envoyer :**\n\n` +
+      `> *« Bonjour ${clientName}, j'espère que vous vous portez bien. Je vous contacte cordialement au sujet de votre facture en cours chez ${data.business.name} d'un montant de ${amountDue}. Pourriez-vous nous indiquer quand vous prévoyez d'effectuer votre règlement ? Merci beaucoup pour votre fidélité et excellente journée ! »*\n\n` +
+      `💡 Vous pouvez aussi aller dans **Clients & Dettes**, ouvrir la fiche du client et cliquer directement sur l'icône WhatsApp verte pour l'envoyer en 1 clic !`;
+  }
+
+  // E. Comment faire / utilisation de l'application
+  if (q.includes('comment faire') || q.includes('comment enregistrer') || q.includes('comment créer') || q.includes('comment clôturer') || q.includes('comment ajouter')) {
+    if (q.includes('vente')) {
+      return `🛍️ **Pour enregistrer une nouvelle vente :**\n\n1. Cliquez sur le bouton bleu **+ Vente** (en haut à droite de l'écran ou dans le menu *Ventes & Déballages*).\n2. Choisissez vos articles ou tapez directement le nom du produit et son prix.\n3. Sélectionnez le mode de règlement (**Espèces**, **Mobile Money** ou **Crédit/Ardoise** si le client paie plus tard).\n4. Validez : le stock est décompté automatiquement et vous pouvez imprimer ou partager le reçu WhatsApp au client !`;
+    }
+    if (q.includes('caisse')) {
+      return `💼 **Pour clôturer votre caisse du soir :**\n\n1. Rendez-vous dans le menu **Caisse Journalière**.\n2. Cliquez sur le bouton **Clôturer la Caisse**.\n3. Comptez physiquement vos billets et pièces dans votre tiroir, puis saisissez le montant compté.\n4. Le système compare immédiatement avec le solde théorique. En cas d'écart, notez simplement la justification et validez pour sceller la journée !`;
+    }
+    if (q.includes('lot') || q.includes('campagne')) {
+      return `📦 **Pour créer une nouvelle campagne de lots :**\n\n1. Allez dans le menu **Lots & Déballages**.\n2. Cliquez sur **+ Nouvelle Campagne**.\n3. Indiquez le type de marchandise (friperie, téléphones, etc.) et vos coûts (achat, transport, douane).\n4. Ajoutez la liste de vos articles avec le nouveau tableau rapide.\n5. Validez : COMMERCIA calcule automatiquement votre coût de revient unitaire (*Landed Cost*) et votre point mort !`;
+    }
+  }
+
+  // F. Lots commerciaux et point mort
   if (q.includes('lot') || q.includes('campagne') || q.includes('point mort') || q.includes('remboursement') || q.includes('redmi') || q.includes('balle') || q.includes('friperie')) {
     if (data.commercialLots.length > 0) {
       const summaries = data.commercialLots.map((lot: any) => {
@@ -632,6 +713,7 @@ function generateDataDenseFallbackAnswer(query: string, data: any, memorizedFact
     return `📦 **Gestion des Lots Commerciaux :**\n\nVous n'avez pas de campagne active actuellement pour ${data.business.name}. Rendez-vous dans le menu **Lots Commerciaux** pour lancer un lot (friperie, arrivage ou cartons importés) et calculer immédiatement votre coût de revient débarqué et votre point mort.`;
   }
 
+  // G. Bénéfice & Rentabilité
   if (q.includes('bénéfice') || q.includes('profit') || q.includes('marge') || q.includes('gagné') || q.includes('rentab')) {
     return (
       `📊 **Analyse de Rentabilité en Direct pour ${data.business.name} :**\n\n` +
@@ -646,7 +728,8 @@ function generateDataDenseFallbackAnswer(query: string, data: any, memorizedFact
     );
   }
 
-  if (q.includes('dette') || q.includes('crédit') || q.includes('qui me doit') || q.includes('doit') || q.includes('relanc') || q.includes('créance')) {
+  // H. Créances & Dettes clients
+  if (q.includes('dette') || q.includes('crédit') || q.includes('qui me doit') || q.includes('doit') || q.includes('créance')) {
     if (data.debtors.count > 0) {
       const topList = data.debtors.list
         .map((d: any) => `• **${d.name}** : **${d.owed.toLocaleString('fr-FR')} ${cur}** 📱 ${d.phone}`)
@@ -663,6 +746,7 @@ function generateDataDenseFallbackAnswer(query: string, data: any, memorizedFact
     return `🎉 **Félicitations pour votre gestion !** Aucun client ne vous doit de l'argent actuellement. Votre trésorerie est 100% sécurisée et liquide.`;
   }
 
+  // I. Caisse journalière
   if (q.includes('caisse') || q.includes('fond') || q.includes('clôtur') || q.includes('cloture') || q.includes('espèces') || q.includes('momo') || q.includes('wave')) {
     return (
       `💼 **Contrôle du Journal de Caisse (${data.business.name}) :**\n\n` +
@@ -676,6 +760,7 @@ function generateDataDenseFallbackAnswer(query: string, data: any, memorizedFact
     );
   }
 
+  // J. Stocks & alertes
   if (q.includes('stock') || q.includes('rupture') || q.includes('approvision') || q.includes('produit')) {
     if (data.stocks.lowStockCount > 0) {
       const stockList = data.stocks.lowStockList
@@ -692,21 +777,8 @@ function generateDataDenseFallbackAnswer(query: string, data: any, memorizedFact
     return `📦 **Vos stocks sont sous contrôle !** Aucun produit n'a atteint le seuil d'alerte critique dans votre catalogue.`;
   }
 
-  // Synthèse générale personnalisée
-  return (
-    `Bonjour **${data.user.name}** ! Je suis votre **Copilote IA COMMERCIA** 🤖.\n\n` +
-    `Voici l'état instantané de votre établissement (**${data.business.name}**) :\n` +
-    `• Ventes du jour : **${data.salesToday.revenue.toLocaleString('fr-FR')} ${cur}** (${data.salesToday.count} vente(s))\n` +
-    `• Solde espèces en caisse : **${data.cash.theoreticalCash.toLocaleString('fr-FR')} ${cur}** (${data.cash.isCashOpen ? 'Caisse ouverte ✅' : 'Caisse fermée ⚠️'})\n` +
-    `• Crédits clients à recouvrer : **${data.debtors.totalOwed.toLocaleString('fr-FR')} ${cur}** (${data.debtors.count} débiteurs)\n` +
-    (data.stocks.lowStockCount > 0 ? `• Alertes stock : **${data.stocks.lowStockCount} article(s) à réapprovisionner**\n` : `• Alertes stock : Tout est au vert ✅\n`) +
-    (data.commercialLots.length > 0 ? `• Campagne active de lot : **"${data.commercialLots[0].name}"** (${data.commercialLots[0].recoveryRate}% amorti)\n\n` : `\n`) +
-    `💡 **Que souhaitez-vous examiner ?** Vous pouvez me demander :\n` +
-    `1. *"Quel est mon bénéfice net réel aujourd'hui ?"*\n` +
-    `2. *"Rédige-moi un message WhatsApp pour relancer mes clients débiteurs"*\n` +
-    `3. *"Où en est le point mort de mon lot commercial ?"*\n` +
-    `4. *"Rappelle-toi que mon fournisseur me livre chaque mardi"* (pour enrichir ma mémoire)`
-  );
+  // K. Conseil d'affaires général
+  return `Bonjour **${firstName}** ! Je suis à votre écoute pour optimiser la gestion de **${data.business.name}**.\n\nPosez-moi votre question en toute simplicité (ex: *"Quel est mon bénéfice aujourd'hui ?"*, *"Qui me doit de l'argent ?"*, *"Comment clôturer ma caisse ?"* ou *"Où en est mon lot ?"*) et je vous répondrai directement avec vos chiffres en main !`;
 }
 
 // 9. Chef d'Orchestre Principal : Traitement de la requête Chat IA

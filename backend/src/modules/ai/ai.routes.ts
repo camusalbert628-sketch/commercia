@@ -107,7 +107,7 @@ router.get('/insights', async (req: AuthRequest, res, next) => {
 import { handleCopilotChat } from './copilotService';
 
 // POST /api/ai/chat — Copilote interactif guidant le commerçant (Propulsé par Véritable LLM & RAG Temps Réel)
-router.post('/chat', requireProSubscription, async (req: AuthRequest, res, next) => {
+router.post('/chat', async (req: AuthRequest, res, next) => {
   try {
     const businessId = await getTenantBusinessId(req);
     const schema = z.object({

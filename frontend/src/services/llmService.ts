@@ -124,27 +124,38 @@ export function clearAIMemories(businessId?: string): void {
   localStorage.removeItem(key);
 }
 
-// 3. Heuristic Automatic Memory Extractor
-// If the user explicitly asks to remember something ("Rappelle-toi que...", "Mémorise...", "Mon fournisseur est...")
 export function extractAndSaveMemoryIfPresent(userMessage: string, businessId?: string): string | null {
   const lower = userMessage.toLowerCase().trim();
   const triggers = [
     'rappelle-toi que',
+    'rappelle toi que',
     'souviens-toi que',
+    'souviens toi que',
     'mémorise que',
+    'memorise que',
     'mémorise :',
+    'retiens que',
     'note que',
     'garde en mémoire que',
-    'n\'oublie pas que',
+    "n'oublie pas que",
+    "n'oublie jamais que",
     'mon fournisseur est',
+    'mon fournisseur de',
+    'mon fournisseur principal est',
     'mon livreur est',
+    'mon livreur s\'appelle',
+    'je ferme le',
+    'mes horaires sont',
+    'mon plafond de crédit est',
+    'notre règle est',
+    'notre politique est',
   ];
 
   for (const trigger of triggers) {
     if (lower.includes(trigger)) {
       const idx = lower.indexOf(trigger);
       const fact = userMessage.slice(idx + trigger.length).trim().replace(/^[:,\s]+/, '');
-      if (fact.length > 5) {
+      if (fact.length > 3) {
         addAIMemory(fact, 'preference', businessId);
         return fact;
       }
@@ -349,27 +360,46 @@ async function callDirectFreeLLM(
     }
   }
 
-  // Option B: Public CORS Generative LLM Gateway (Pollinations)
-  // Encodes system prompt, live store data, conversation history and user query
-  const conversationSummary = history.slice(-4).map(h => `${h.role === 'user' ? 'Commerçant' : 'Copilote'}: ${h.content}`).join('\n');
-  const fullPrompt = `${systemInstruction}\n\nHistorique de la conversation récente :\n${conversationSummary}\n\nQuestion actuelle du commerçant :\n${prompt}`;
-  
-  const encoded = encodeURIComponent(fullPrompt);
-  const resp = await fetch(`https://text.pollinations.ai/${encoded}?model=openai&cache=false`, {
-    method: 'GET',
-    headers: { 'Accept': 'text/plain' },
-  });
+  // Option B: Public CORS Generative LLM Gateway (Pollinations via POST)
+  const messages = [
+    { role: 'system', content: systemInstruction },
+    ...history.slice(-6).map(h => ({
+      role: h.role === 'assistant' ? 'assistant' : 'user',
+      content: h.content,
+    })),
+    { role: 'user', content: prompt },
+  ];
 
-  if (!resp.ok) {
-    throw new Error(`Pollinations HTTP error ${resp.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 16000);
+
+  try {
+    const resp = await fetch('https://text.pollinations.ai/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages,
+        model: 'openai',
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) {
+      throw new Error(`Pollinations HTTP error ${resp.status}`);
+    }
+
+    const rawText = await resp.text();
+    if (!rawText || rawText.includes('Free limit reached') || rawText.trim().length < 5) {
+      throw new Error('Réponse vide du LLM gratuit');
+    }
+
+    return rawText.trim();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
-
-  const rawText = await resp.text();
-  if (!rawText || rawText.trim().length < 5) {
-    throw new Error('Réponse vide du LLM gratuit');
-  }
-
-  return rawText.trim();
 }
 
 // 7. High-Level Orchestrator: Generate Intelligent LLM Answer
@@ -423,29 +453,109 @@ export async function generateCopilotLLMResponse(
     const freeLLMReply = await callDirectFreeLLM(userMessage, history, systemPrompt);
     let finalReply = sanitizeNaturalText(freeLLMReply);
     if (memorized && !finalReply.toLowerCase().includes('mémorisé') && !finalReply.toLowerCase().includes('noté')) {
-      finalReply = `J'ai bien enregistré cette information dans ma mémoire continue pour votre établissement.\n\n${finalReply}`;
+      finalReply = `🧠 **C'est bien noté dans ma mémoire !**\n\nJ'ai mémorisé : « *${memorized}* ».\n\n${finalReply}`;
     }
     return {
       reply: finalReply,
       memorizedFact: memorized,
-      providerUsed: 'LLM Intelligent (GPT-4o-mini / Pollinations)',
+      providerUsed: 'LLM Intelligent (GPT / Raisonnement RAG)',
     };
   } catch (freeErr) {
     console.warn('Public LLM gateway unavailable, continuing to conversational local intelligence:', freeErr);
   }
 
-  // 8. Advanced Contextual & Memory-Augmented Engine (When no personal API key is configured or offline)
-  // This is NOT a canned generic response! It uses the live store data and remembers conversation context + memories.
-  const lower = userMessage.toLowerCase();
+  // 8. Advanced Conversational & Memory-Augmented Engine (Fallback avec réponses attendues et précises)
+  const q = userMessage.toLowerCase().trim();
+  const firstName = storeContext.userName.split(' ')[0] || storeContext.userName || 'cher commerçant';
   let smartReply = '';
 
+  // A. Si un nouveau souvenir a été mémorisé
   if (memorized) {
-    smartReply = `🧠 **C'est bien noté dans ma mémoire !**\n\nJ'ai mémorisé le fait suivant pour votre établissement :\n> *« ${memorized} »*\n\nJe tiendrai désormais compte de cette information dans toutes mes analyses et recommandations pour votre boutique.`;
-  } else if (lower.includes('mémoire') || lower.includes('que sais-tu') || lower.includes('souviens')) {
-    smartReply = `🧠 **Voici ce que j'ai en mémoire sur votre activité (${storeContext.businessName}) :**\n\n` +
-      memories.map(m => `• **${m.category.toUpperCase()}** : ${m.content}`).join('\n') +
-      `\n\n💡 *Astuce : Pour m'apprendre un nouveau fait, dites-moi simplement : « Rappelle-toi que mon produit le plus rentable est... » ou « Note que... » !*`;
-  } else if (lower.includes('vente') || lower.includes('vendu') || lower.includes('chiffre d\'affaire') || lower.includes('recette') || lower.includes('encaiss')) {
+    smartReply = `🧠 **C'est bien noté dans ma mémoire d'entreprise !**\n\nJ'ai mémorisé le fait suivant pour votre établissement :\n> *« ${memorized} »*\n\nJe tiendrai désormais compte de cette information dans toutes mes analyses et recommandations pour **${storeContext.businessName}**. Que souhaitez-vous vérifier maintenant ?`;
+  }
+  // B. Salutations & politesse conversationnelle (Ne JAMAIS déverser un rapport comptable non sollicité)
+  else if (
+    q === 'salut' ||
+    q === 'bonjour' ||
+    q === 'hello' ||
+    q === 'coucou' ||
+    q === 'yo' ||
+    q === 'bonsoir' ||
+    q === 'ça va' ||
+    q === 'ca va' ||
+    q === 'comment tu vas' ||
+    q === 'comment vas-tu' ||
+    q === 'tu vas bien' ||
+    q.startsWith('salut ') ||
+    q.startsWith('bonjour ')
+  ) {
+    smartReply = `Bonjour **${firstName}** ! Je vais très bien, merci. Comment se passe votre journée chez **${storeContext.businessName}** ? 😊\n\nJe suis à vos côtés pour surveiller vos finances et vous conseiller. Que souhaitez-vous regarder aujourd'hui : vos ventes du jour, l'état de votre caisse, vos dettes clients ou un lot en cours ?`;
+  }
+  // C. Consultation de la mémoire continue
+  else if (
+    q.includes('que sais-tu sur moi') ||
+    q.includes('que sais tu sur moi') ||
+    q.includes('qu\'as-tu en mémoire') ||
+    q.includes('qu as tu en memoire') ||
+    q.includes('qu\'est-ce que tu sais') ||
+    q.includes('qu est ce que tu sais') ||
+    q.includes('te souviens-tu') ||
+    q.includes('mes souvenirs') ||
+    q.includes('ma mémoire') ||
+    q === 'mémoire' ||
+    q === 'memoire'
+  ) {
+    const memoryItems = memories.length > 0
+      ? memories.map(m => `• **${m.category.toUpperCase()}** : ${m.content}`).join('\n')
+      : '*(Vous ne m\'avez pas encore partagé de faits spécifiques. Dites-moi par exemple : « Rappelle-toi que mon livreur passe le jeudi » pour enrichir ma mémoire !)*';
+
+    smartReply = `🧠 **Voici ce que j'ai en mémoire sur vous et votre boutique :**\n\n` +
+      `• **Responsable** : ${storeContext.userName}\n` +
+      `• **Établissement** : ${storeContext.businessName} (Secteur : ${storeContext.sector})\n` +
+      `• **Forfait COMMERCIA** : ${storeContext.planName}\n\n` +
+      `📌 **Faits et règles personnalisées mémorisés :**\n${memoryItems}\n\n` +
+      `💡 *Astuce : Pour m'apprendre une nouvelle règle, dites-moi simplement : « Rappelle-toi que... » ou « Note que... » !*`;
+  }
+  // D. Modèle de message WhatsApp de relance
+  else if (q.includes('whatsapp') || q.includes('relance') || q.includes('message pour relancer') || q.includes('texte de relance')) {
+    const debtor = storeContext.topDebtors[0];
+    const debtorName = debtor?.name || 'Nom du Client';
+    const amountDue = debtor?.amount ? `${debtor.amount.toLocaleString('fr-FR')} FCFA` : '15 000 FCFA';
+
+    smartReply = `📱 **Modèle de message WhatsApp de relance prêt à envoyer :**\n\n` +
+      `> *« Bonjour ${debtorName}, j'espère que vous vous portez bien. Je vous contacte cordialement au sujet de votre facture en cours chez ${storeContext.businessName} d'un montant de ${amountDue}. Pourriez-vous nous indiquer quand vous prévoyez d'effectuer votre règlement ? Merci beaucoup pour votre fidélité et excellente journée ! »*\n\n` +
+      `💡 Vous pouvez aussi aller dans l'onglet **Clients & Dettes**, ouvrir la fiche du client et cliquer directement sur l'icône WhatsApp verte pour l'envoyer en 1 clic !`;
+  }
+  // E. Comment faire / utilisation de l'application
+  else if (q.includes('comment faire') || q.includes('comment enregistrer') || q.includes('comment créer') || q.includes('comment clôturer') || q.includes('comment ajouter')) {
+    if (q.includes('vente')) {
+      smartReply = `🛍️ **Pour enregistrer une nouvelle vente :**\n\n1. Cliquez sur le bouton bleu **+ Nouvelle Vente** (en haut à droite de l'écran).\n2. Choisissez vos articles ou tapez directement le montant.\n3. Sélectionnez le mode de règlement (**Espèces**, **Mobile Money** ou **Crédit/Ardoise** si le client paie plus tard).\n4. Validez : le stock est décompté automatiquement et vous pouvez imprimer ou partager le reçu WhatsApp au client !`;
+    } else if (q.includes('caisse')) {
+      smartReply = `💼 **Pour clôturer votre caisse du soir :**\n\n1. Rendez-vous dans le menu **Caisse Journalière**.\n2. Cliquez sur le bouton **Clôturer la Caisse**.\n3. Comptez physiquement vos billets et pièces dans votre tiroir, puis saisissez le montant compté.\n4. Le système compare immédiatement avec le solde théorique. En cas d'écart, notez simplement la justification et validez pour sceller la journée !`;
+    } else if (q.includes('lot') || q.includes('campagne')) {
+      smartReply = `📦 **Pour créer une nouvelle campagne de lots :**\n\n1. Allez dans le menu **Lots & Déballages**.\n2. Cliquez sur **+ Nouvelle Campagne**.\n3. Indiquez le type de marchandise (friperie, téléphones, etc.) et vos coûts (achat, transport, douane).\n4. Ajoutez la liste de vos articles avec le tableau rapide.\n5. Validez : COMMERCIA calcule automatiquement votre coût de revient unitaire (*Landed Cost*) et votre point mort !`;
+    } else {
+      smartReply = `💡 **Astuces d'utilisation COMMERCIA :**\n\n• **+ Nouvelle Vente** : Toujours accessible en haut à droite pour encaisser un client en 10 secondes.\n• **Caisse Journalière** : Ouvrez chaque matin avec le fond de départ et clôturez le soir.\n• **Clients** : Suivez les ardoises et relancez sur WhatsApp en un clic.\n\nSur quelle fonctionnalité spécifique souhaitez-vous un guidage pas à pas ?`;
+    }
+  }
+  // F. Lots commerciaux et point mort
+  else if (q.includes('lot') || q.includes('campagne') || q.includes('point mort') || q.includes('remboursement') || q.includes('redmi') || q.includes('friperie') || q.includes('déballage')) {
+    if (storeContext.activeLotCampaign) {
+      const lot = storeContext.activeLotCampaign;
+      smartReply = `📦 **Campagne Active : "${lot.name}"** (${lot.goodsType})\n\n` +
+        `• **Investissement global (Landed Cost)** : **${lot.totalLandedCost.toLocaleString('fr-FR')} FCFA** (Achat + transport + douane)\n` +
+        `• **Chiffre d'affaires déjà encaissé** : **${lot.totalRevenue.toLocaleString('fr-FR')} FCFA**\n` +
+        `• **Taux d'amortissement actuel** : **${lot.recoveryRate}% récupéré**\n` +
+        `• **Somme restante pour point mort** : **${lot.remainingToBreakeven.toLocaleString('fr-FR')} FCFA**\n` +
+        `• **Nombre d'articles à écouler pour rentabilité 100%** : **${lot.unitsToBreakeven} article(s)** au prix moyen de ${lot.avgSellingPrice.toLocaleString('fr-FR')} FCFA\n` +
+        `• **Bénéfice net réalisé à ce jour** : **${lot.realizedProfit.toLocaleString('fr-FR')} FCFA**\n\n` +
+        `🎯 **Recommandation Stratégique Copilote** : Avec seulement ${lot.unitsToBreakeven} pièce(s) restante(s) à vendre pour couvrir l'intégralité de vos coûts, vous entrez dans la zone de profit pur (100% net). Lancez un déballage VIP sur vos statuts WhatsApp pour liquider ce solde rapidement !`;
+    } else {
+      smartReply = `📦 **Gestion des Lots Commerciaux :**\n\nVous n'avez pas de campagne de lot active actuellement pour **${storeContext.businessName}**.\n\nRendez-vous dans le menu **Lots & Déballages** pour lancer un lot (friperie, arrivage ou cartons importés) et calculer immédiatement votre coût de revient débarqué et votre point mort.`;
+    }
+  }
+  // G. Ventes & Chiffre d'affaires
+  else if (q.includes('vente') || q.includes('vendu') || q.includes('chiffre d\'affaire') || q.includes('recette') || q.includes('encaiss')) {
     smartReply = `🛍️ **Activité commerciale et ventes pour ${storeContext.businessName} :**\n\n` +
       (storeContext.todaySalesCount > 0
         ? `Aujourd'hui, vous avez réalisé **${storeContext.todaySalesCount} vente(s)** pour un total encaissé de **${storeContext.todaySalesTotal.toLocaleString('fr-FR')} FCFA**.\n\n` +
@@ -453,8 +563,10 @@ export async function generateCopilotLLMResponse(
           `• Reçu par Mobile Money / Wave : ${storeContext.totalMomoIn.toLocaleString('fr-FR')} FCFA\n\n` +
           `💡 Continuez sur cette dynamique ! Pensez à enregistrer chaque vente au fur et à mesure pour garder votre livre de caisse parfaitement exact.`
         : `Pour le moment, **aucune vente n'a encore été enregistrée aujourd'hui** pour votre établissement.\n\n` +
-          `Dès que vous réalisez une vente au comptoir, cliquez sur le bouton bleu **+ Nouvelle Vente** en haut ou utilisez le raccourci rapide pour enregistrer le ticket et mettre à jour votre caisse en direct.`);
-  } else if (lower.includes('bénéfice') || lower.includes('profit') || lower.includes('gagné') || lower.includes('rentab')) {
+          `Dès que vous réalisez une vente au comptoir, cliquez sur le bouton bleu **+ Nouvelle Vente** en haut pour enregistrer le ticket et mettre à jour votre caisse en direct.`);
+  }
+  // H. Bénéfice & Rentabilité
+  else if (q.includes('bénéfice') || q.includes('profit') || q.includes('marge') || q.includes('gagné') || q.includes('rentab')) {
     const estimatedMargin = storeContext.todaySalesTotal > 0
       ? Math.round(((storeContext.todaySalesTotal - storeContext.todayExpensesTotal) / storeContext.todaySalesTotal) * 100)
       : 0;
@@ -463,13 +575,15 @@ export async function generateCopilotLLMResponse(
     smartReply = `📊 **Analyse de rentabilité en direct pour ${storeContext.businessName} :**\n\n` +
       `• **Chiffre d'affaires encaissé aujourd'hui** : **${storeContext.todaySalesTotal.toLocaleString('fr-FR')} FCFA** (${storeContext.todaySalesCount} vente(s))\n` +
       `• **Dépenses et sorties aujourd'hui** : **${storeContext.todayExpensesTotal.toLocaleString('fr-FR')} FCFA**\n` +
-      `• **Marge nette estimée du jour** : **${netToday.toLocaleString('fr-FR')} FCFA** (${estimatedMargin}% de marge)\n` +
+      `• **Bénéfice Net Estimé du jour** : **${netToday.toLocaleString('fr-FR')} FCFA** (${estimatedMargin}% de marge)\n` +
       `• **Fonds en caisse physique** : **${storeContext.theoreticalCash.toLocaleString('fr-FR')} FCFA** (Caisse ${storeContext.isCashOpen ? 'ouverte ✅' : 'non ouverte ⚠️'})\n\n` +
-      `💡 **Conseil Stratégique Copilote** :\n` +
+      `💡 **Règle des 3 Poches COMMERCIA** :\n` +
       (netToday >= 0
-        ? `Votre journée est rentable (+${netToday.toLocaleString('fr-FR')} FCFA). Respectez la règle des 3 poches : mettez au moins 70% de côté pour reconstituer vos stocks et couvrir vos charges fixes.`
+        ? `Votre journée est rentable (+${netToday.toLocaleString('fr-FR')} FCFA). Mettez 70% de côté dans la Poche 1 pour réapprovisionner vos produits vendus, 15% pour les charges fixes (Poche 2) et conservez 15% pour votre salaire personnel (Poche 3).`
         : `Attention, vos sorties du jour (${storeContext.todayExpensesTotal.toLocaleString('fr-FR')} FCFA) dépassent vos encaissements. Surveillez vos achats non prioritaires.`);
-  } else if (lower.includes('crédit') || lower.includes('dette') || lower.includes('qui me doit') || lower.includes('doit')) {
+  }
+  // I. Créances & Dettes clients
+  else if (q.includes('crédit') || q.includes('dette') || q.includes('qui me doit') || q.includes('doit') || q.includes('créance')) {
     if (storeContext.debtorsCount > 0) {
       const list = storeContext.topDebtors
         .map(d => `• **${d.name}** : **${d.amount.toLocaleString('fr-FR')} FCFA**${d.phone ? ` 📱 ${d.phone}` : ''}`)
@@ -482,16 +596,20 @@ export async function generateCopilotLLMResponse(
     } else {
       smartReply = `🎉 **Félicitations pour votre gestion !** Aucun client ne vous doit de l'argent actuellement. Votre trésorerie est 100% saine et liquide.`;
     }
-  } else if (lower.includes('caisse') || lower.includes('clôtur') || lower.includes('espèces') || lower.includes('momo') || lower.includes('orange')) {
-    smartReply = `💼 **État de la Caisse Journalière :**\n\n` +
-      `• Statut : **${storeContext.isCashOpen ? 'Caisse OUVERTE' : 'Caisse FERMÉE'}**\n` +
+  }
+  // J. Caisse journalière
+  else if (q.includes('caisse') || q.includes('clôtur') || q.includes('espèces') || q.includes('momo') || q.includes('orange') || q.includes('wave')) {
+    smartReply = `💼 **État de la Caisse Journalière (${storeContext.businessName}) :**\n\n` +
+      `• Statut : **${storeContext.isCashOpen ? '🟢 Caisse OUVERTE' : '🔴 Caisse FERMÉE'}**\n` +
       `• Solde théorique en caisse : **${storeContext.theoreticalCash.toLocaleString('fr-FR')} FCFA**\n` +
-      `• Entrées espèces : **${storeContext.totalCashIn.toLocaleString('fr-FR')} FCFA**\n` +
-      `• Entrées Mobile Money / Wave : **${storeContext.totalMomoIn.toLocaleString('fr-FR')} FCFA**\n` +
-      `• Sorties / Décaissements : **${storeContext.totalCashOut.toLocaleString('fr-FR')} FCFA**\n\n` +
+      `• Entrées espèces : +${storeContext.totalCashIn.toLocaleString('fr-FR')} FCFA\n` +
+      `• Entrées Mobile Money / Wave : 📱 ${storeContext.totalMomoIn.toLocaleString('fr-FR')} FCFA\n` +
+      `• Sorties / Décaissements : -${storeContext.totalCashOut.toLocaleString('fr-FR')} FCFA\n\n` +
       `🔒 **Recommandation de fin de journée** :\n` +
       `À la clôture, comptez chaque billet et pièce dans le module *Caisse Journalière*. Tout écart vous sera immédiatement signalé avec justification.`;
-  } else if (lower.includes('stock') || lower.includes('rupture') || lower.includes('approvisionn')) {
+  }
+  // K. Stocks & alertes
+  else if (q.includes('stock') || q.includes('rupture') || q.includes('approvisionn')) {
     if (storeContext.lowStockCount > 0) {
       const list = storeContext.lowStockProducts.map(p => `• **${p.name}** : reste seulement **${p.quantity} unité(s)**`).join('\n');
       smartReply = `⚠️ **Alertes de réassort prioritaire :**\n\n` +
@@ -501,7 +619,9 @@ export async function generateCopilotLLMResponse(
     } else {
       smartReply = `📦 **Vos stocks sont au vert !** Aucun article n'a franchi le seuil d'alerte pour le moment.`;
     }
-  } else if (lower.includes('3 poches') || lower.includes('poche') || lower.includes('syscohada')) {
+  }
+  // L. Règle des 3 poches
+  else if (q.includes('3 poches') || q.includes('poche') || q.includes('syscohada')) {
     smartReply = `🎯 **La Règle d'or des 3 Poches COMMERCIA :**\n\n` +
       `C'est le secret des commerçants qui durent et deviennent prospères :\n\n` +
       `1️⃣ **Poche 1 : Le Capital Marchandise (60% à 70%)**\n` +
@@ -510,24 +630,30 @@ export async function generateCopilotLLMResponse(
       `Réservée au loyer de la boutique, facture d'électricité, sacs d'emballage, transport et imprévus.\n\n` +
       `3️⃣ **Poche 3 : Votre Salaire & Bénéfice Net (10% à 15%)**\n` +
       `C'est VOTRE argent personnel. Fixez-vous une rémunération mensuelle ou hebdomadaire fixe au lieu de puiser directement dans le tiroir-caisse !`;
-  } else {
-    // Dynamic personalized dialogue quoting real live figures
-    smartReply = `Bonjour **${storeContext.userName}** ! Je suis votre Copilote Intelligent COMMERCIA 🤖.\n\n` +
-      `Voici la synthèse actuelle pour **${storeContext.businessName}** :\n` +
-      `• Encaissements du jour : **${storeContext.todaySalesTotal.toLocaleString('fr-FR')} FCFA**\n` +
-      `• Solde en caisse : **${storeContext.theoreticalCash.toLocaleString('fr-FR')} FCFA**\n` +
-      `• Crédits clients en attente : **${storeContext.totalDebtsOwed.toLocaleString('fr-FR')} FCFA** (${storeContext.debtorsCount} clients)\n` +
-      (storeContext.lowStockCount > 0 ? `• Alertes stock : **${storeContext.lowStockCount} article(s) à réapprovisionner**\n\n` : `\n`) +
-      `💡 **Comment puis-je vous guider ?** Vous pouvez me demander :\n` +
-      `1. *"Quel est mon bénéfice réel aujourd'hui ?"*\n` +
-      `2. *"Qui me doit de l'argent et comment les relancer ?"*\n` +
-      `3. *"Rappelle-toi que mon fournisseur de riz me livre le mardi"* (pour enrichir ma mémoire)\n` +
-      `4. *"Comment clôturer ma caisse sans erreur ?"*`;
   }
-
-  // If memory was configured, prepend memory note
-  if (memorized && !smartReply.startsWith('🧠')) {
-    smartReply = `🧠 *(J'ai mémorisé : « ${memorized} »)*\n\n` + smartReply;
+  // M. Remerciements et politesse de clôture
+  else if (
+    q === 'merci' ||
+    q === 'merci beaucoup' ||
+    q === 'super' ||
+    q === 'parfait' ||
+    q === 'génial' ||
+    q === 'top' ||
+    q === 'au revoir' ||
+    q.startsWith('merci ')
+  ) {
+    smartReply = `Avec grand plaisir **${firstName}** ! C'est toujours un honneur de vous accompagner dans le succès de **${storeContext.businessName}**. Excellentes ventes et à très vite ! 🚀`;
+  }
+  // N. Présentation / Qui es-tu
+  else if (q.includes('qui es-tu') || q.includes('qui est tu') || q.includes('tu sers à quoi') || q.includes('présente-toi')) {
+    smartReply = `Je suis votre **Copilote Intelligent COMMERCIA** 🤖, votre conseiller financier et commercial personnel.\n\n` +
+      `Je surveille en temps réel votre caisse, votre bénéfice net, vos créances clients, vos stocks et vos lots commerciaux pour sécuriser votre trésorerie et développer votre boutique.\n\n` +
+      `Posez-moi vos questions naturellement à tout moment !`;
+  }
+  // O. Réponse générale conversationnelle (sans pavé mécanique !)
+  else {
+    smartReply = `Bonjour **${firstName}** ! Je suis à votre écoute pour optimiser la gestion de **${storeContext.businessName}**.\n\n` +
+      `Posez-moi votre question en toute simplicité (ex: *"Quel est mon bénéfice aujourd'hui ?"*, *"Qui me doit de l'argent ?"*, *"Comment clôturer ma caisse ?"* ou *"Où en est mon lot ?"*) et je vous répondrai directement avec vos chiffres en main !`;
   }
 
   return {
