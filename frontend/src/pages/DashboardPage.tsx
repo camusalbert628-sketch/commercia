@@ -36,8 +36,8 @@ import { api } from '../services/api';
 import { DashboardData } from '../types';
 import { useModals } from '../context/ModalContext';
 import { useAuthStore } from '../store/authStore';
-
 import { DashboardSkeleton } from '../components/common/SkeletonLoader';
+import { getBusinessProfile } from '../config/businessProfiles';
 
 const TRACKING_MODES_CONFIG = [
   {
@@ -160,6 +160,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   };
 
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const profile = getBusinessProfile(activeBusiness?.profileId || 'epicerie_alimentation');
   const businessName = activeBusiness?.name || (data as any)?.businessName || 'Votre Boutique';
   const userName = user?.firstName || 'Commerçant';
 
@@ -530,18 +531,94 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <p style={{ color: '#475569', fontSize: '0.98rem', margin: 0 }}>
               Voici comment va <span style={{ color: '#0062FF', fontWeight: 800, fontSize: '1.05rem' }}>{businessName}</span> aujourd'hui — Devise : <strong>{user?.currency || 'FCFA'}</strong>
             </p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#F1F5F9', padding: '3px 10px', borderRadius: '12px', marginTop: '6px' }}>
+              <span style={{ fontSize: '0.95rem' }}>{profile.emoji}</span>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155' }}>Profil métier : {profile.name}</span>
+            </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button className="btn btn-primary btn-lg" onClick={onOpenSaleModal}>
             <Plus size={18} />
-            <span>+ Nouvelle Vente</span>
+            <span>{profile.terminology.quickActionSale || '+ Nouvelle Vente'}</span>
           </button>
           <button className="btn btn-secondary btn-lg" onClick={onOpenExpenseModal}>
             <Minus size={18} />
             <span>- Dépense</span>
           </button>
+          {profile.id === 'restauration_repas' && (
+            <Link
+              to="/food-prep"
+              className="btn btn-lg"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                textDecoration: 'none',
+                background: '#FFF7ED',
+                border: '1.5px solid #FDBA74',
+                color: '#C2410C',
+                fontWeight: 700,
+              }}
+            >
+              <span>🍲 Préparation du jour</span>
+            </Link>
+          )}
+          {['atelier_couture', 'reparation_telephones_info', 'garage_mecanique', 'services_agence_digitale'].includes(profile.id) && (
+            <Link
+              to="/service-orders"
+              className="btn btn-lg"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                textDecoration: 'none',
+                background: '#EEF2FF',
+                border: '1.5px solid #C7D2FE',
+                color: '#4338CA',
+                fontWeight: 700,
+              }}
+            >
+              <span>📋 Commandes & Devis</span>
+            </Link>
+          )}
+          {profile.id === 'friperie_vetements' && (
+            <Link
+              to="/lots"
+              className="btn btn-lg"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                textDecoration: 'none',
+                background: '#F5F3FF',
+                border: '1.5px solid #DDD6FE',
+                color: '#6D28D9',
+                fontWeight: 700,
+              }}
+            >
+              <span>📦 Ballots & Lots</span>
+            </Link>
+          )}
+          {profile.id === 'agence_mobile_money' && (
+            <Link
+              to="/mobile-money"
+              className="btn btn-lg"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                textDecoration: 'none',
+                background: '#ECFDF5',
+                border: '1.5px solid #A7F3D0',
+                color: '#047857',
+                fontWeight: 700,
+              }}
+            >
+              <span>📲 MoMo & Commissions</span>
+            </Link>
+          )}
           <Link
             to="/cash"
             className="btn btn-outline btn-lg"
@@ -1170,6 +1247,53 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         )}
       </div>
+
+      {/* Trade-Specific KPIs Spotlight */}
+      {profile.dashboardKpis && profile.dashboardKpis.length > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)',
+            border: '1.5px solid #E2E8F0',
+            borderRadius: '16px',
+            padding: '16px 20px',
+            marginBottom: '24px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.2rem' }}>{profile.emoji}</span>
+              <strong style={{ fontSize: '0.92rem', color: '#0F172A' }}>
+                Indicateurs Clés Métier — {profile.name}
+              </strong>
+            </div>
+            <span style={{ fontSize: '0.74rem', color: '#64748B', background: '#F1F5F9', padding: '3px 8px', borderRadius: '10px', fontWeight: 600 }}>
+              Formules et métriques adaptées à votre activité
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+            {profile.dashboardKpis.map((kpi, idx) => (
+              <div
+                key={idx}
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '12px',
+                  padding: '12px 14px',
+                }}
+              >
+                <div style={{ fontSize: '0.76rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  {kpi.label}
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#0F172A', fontWeight: 600, marginTop: '4px' }}>
+                  {kpi.desc}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
 
       {/* Chart & Stock Alert Section */}

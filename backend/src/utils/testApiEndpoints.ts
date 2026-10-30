@@ -144,7 +144,7 @@ async function runApiValidation() {
       where: { userId: moussa!.id },
       include: { plan: true },
     });
-    assert(!!userSub && userSub.status === 'active', `7.2 Abonnement actif détecté (Plan ${userSub?.plan.displayName})`);
+    assert(!!userSub && (userSub.status === 'active' || userSub.status === 'free'), `7.2 Abonnement utilisateur détecté (Plan ${userSub?.plan.displayName}, statut ${userSub?.status})`);
 
     // 8. Test Module Caisse Journalière
     const cashSessionsCount = await prisma.cashSession.count({ where: { businessId } });

@@ -61,6 +61,10 @@ model Business {
   address     String?
   phone       String?
   currency    String   @default("XAF")
+  profileId   String   @default("epicerie_alimentation")
+  activeModules String @default("[]")
+  salesChannels String @default("[\"boutique\"]")
+  businessConfig String?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -82,6 +86,10 @@ model Business {
   acquisitionChannels AcquisitionChannel[]
   acquisitionCampaigns AcquisitionCampaign[]
   commercialLotCampaigns CommercialLotCampaign[]
+  recipes           Recipe[]
+  mealPreparations  MealPreparation[]
+  serviceOrders     ServiceOrder[]
+  mobileMoneyOperations MobileMoneyOperation[]
 }
 
 
@@ -210,6 +218,7 @@ model Customer {
   sales        Sale[]
   debts        CustomerDebt[]
   payments     CustomerPayment[]
+  serviceOrders ServiceOrder[]
 }
 
 model CustomerDebt {
@@ -264,6 +273,7 @@ model Product {
   business          Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
   saleItems         SaleItem[]
   inventoryMovements InventoryMovement[]
+  recipeIngredients RecipeIngredient[]
 }
 
 model InventoryMovement {
@@ -683,6 +693,151 @@ model LotStockMovement {
   lotItem  LotItem               @relation(fields: [lotItemId], references: [id], onDelete: Cascade)
 
   @@index([campaignId, lotItemId])
+}
+
+// ===================== MODULE RESTAURATION & PRÉPARATION =====================
+
+model Recipe {
+  id                      String            @id @default(uuid())
+  businessId              String
+  name                    String
+  description             String?
+  category                String?           @default("plat") // entree, plat, dessert, boisson, accompagnement
+  portionsYield           Int               @default(1)
+  sellingPricePerPortion  Float             @default(0)
+  estimatedCostPerPortion Float             @default(0)
+  isActive                Boolean           @default(true)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  business                Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ingredients             RecipeIngredient[]
+  preparations            MealPreparation[]
+
+  @@index([businessId])
+}
+
+model RecipeIngredient {
+  id             String   @id @default(uuid())
+  recipeId       String
+  productId      String?
+  name           String
+  quantity       Float    @default(1)
+  unit           String   @default("kg") // kg, g, l, cl, piece, botte
+  unitCost       Float    @default(0)
+
+  recipe         Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([recipeId])
+}
+
+model MealPreparation {
+  id                    String    @id @default(uuid())
+  businessId            String
+  recipeId              String?
+  dishName              String
+  portionsPrepared      Int       @default(0)
+  portionsSold          Int       @default(0)
+  portionsRemaining     Int       @default(0)
+  portionsLost          Int       @default(0)
+  portionsOffered       Int       @default(0)
+  unitSellingPrice      Float     @default(0)
+  totalRevenue          Float     @default(0)
+  ingredientsCost       Float     @default(0)
+  otherProductionCosts  Float     @default(0)
+  preparationDate       DateTime  @default(now())
+  status                String    @default("active") // active, closed
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  business              Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  recipe                Recipe?   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, preparationDate])
+}
+
+// ===================== MODULE PRESTATIONS, COMMANDES & TRAVAUX =====================
+
+model ServiceOrder {
+  id                    String               @id @default(uuid())
+  businessId            String
+  customerId            String?
+  orderNumber           String
+  title                 String
+  serviceType           String               // couture, reparation, garage, agence, prestation, etc.
+  agreedAmount          Float                @default(0)
+  advancePaid           Float                @default(0)
+  balanceDue            Float                @default(0)
+  materialsCost         Float                @default(0)
+  laborCost             Float                @default(0)
+  otherCosts            Float                @default(0)
+  status                String               @default("devis") // devis, confirme, en_cours, pret, termine, livre, annule
+  estimatedDeliveryDate DateTime?
+  completionDate        DateTime?
+  specsJson             String?              // JSON: { measurements: {}, diagnosis: {}, device: "", vehicle: "" }
+  notes                 String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  business              Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer              Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  costs                 ServiceOrderCost[]
+  payments              ServiceOrderPayment[]
+
+  @@index([businessId, status])
+}
+
+model ServiceOrderCost {
+  id          String       @id @default(uuid())
+  orderId     String
+  category    String       @default("materiel") // materiel, piece, main_d_oeuvre, sous_traitance, transport, autre
+  description String
+  amount      Float        @default(0)
+  createdAt   DateTime     @default(now())
+
+  order       ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model ServiceOrderPayment {
+  id            String       @id @default(uuid())
+  orderId       String
+  amount        Float
+  paymentMethod String       @default("cash") // cash, mobile_money, bank_transfer, cheque
+  notes         String?
+  paidAt        DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+
+  order         ServiceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// ===================== MODULE MOBILE MONEY & COMMISSIONS =====================
+
+model MobileMoneyOperation {
+  id               String   @id @default(uuid())
+  businessId       String
+  operator         String   // orange_money, mtn_momo, wave, moov, autre
+  type             String   // depot, retrait, transfert, credit_telephonique, autre
+  clientAmount     Float    @default(0) // Montant client en transit (NE PAS COMPTER DANS LE CA)
+  commissionEarned Float    @default(0) // COMMISSION RÉELLE ACQUISE (SEUL CA RÉEL DE L'AGENT)
+  feeCharged       Float    @default(0) // Frais client facturés
+  customerPhone    String?
+  customerName     String?
+  reference        String?
+  status           String   @default("completed") // completed, pending, cancelled
+  operationDate    DateTime @default(now())
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, operationDate])
 }
 
 

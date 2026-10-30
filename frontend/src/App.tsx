@@ -29,6 +29,9 @@ const GrowthPage = lazy(() => import('./pages/GrowthPage').then(m => ({ default:
 const TreasuryPage = lazy(() => import('./pages/TreasuryPage').then(m => ({ default: m.TreasuryPage })));
 const DeliveriesPage = lazy(() => import('./pages/DeliveriesPage').then(m => ({ default: m.DeliveriesPage })));
 const LotsPage = lazy(() => import('./pages/LotsPage').then(m => ({ default: m.LotsPage })));
+const FoodPrepPage = lazy(() => import('./pages/FoodPrepPage').then(m => ({ default: m.FoodPrepPage })));
+const ServiceOrdersPage = lazy(() => import('./pages/ServiceOrdersPage').then(m => ({ default: m.ServiceOrdersPage })));
+const MobileMoneyPage = lazy(() => import('./pages/MobileMoneyPage').then(m => ({ default: m.MobileMoneyPage })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 
 function PageLoadingFallback() {
@@ -254,6 +257,30 @@ export function App() {
             element={
               <ProtectedRoute>
                 <LotsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/food-prep"
+            element={
+              <ProtectedRoute>
+                <FoodPrepPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/service-orders"
+            element={
+              <ProtectedRoute>
+                <ServiceOrdersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mobile-money"
+            element={
+              <ProtectedRoute>
+                <MobileMoneyPage />
               </ProtectedRoute>
             }
           />

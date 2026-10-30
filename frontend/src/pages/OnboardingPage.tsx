@@ -40,6 +40,11 @@ import {
   SubscriptionPlanId,
   TrackingModeId
 } from '../config/modulesConfig';
+import {
+  BUSINESS_PROFILES,
+  getProfilesGroupedByFamily,
+  BusinessProfileId,
+} from '../config/businessProfiles';
 
 const ONBOARDING_DRAFT_KEY = 'commercia_onboarding_draft';
 
@@ -61,6 +66,8 @@ export const OnboardingPage: React.FC = () => {
 
   // Sector (Main + Secondary activities)
   const [sector, setSector] = useState<string>(savedDraft?.sector || 'commerce');
+  const [profileId, setProfileId] = useState<string>(savedDraft?.profileId || 'epicerie_alimentation');
+  const [profileSearch, setProfileSearch] = useState<string>('');
   const [secondarySectors, setSecondarySectors] = useState<string[]>(savedDraft?.secondarySectors || []);
 
   // Custom Sector Details (When "Autre Activité" is clicked)
@@ -156,8 +163,11 @@ export const OnboardingPage: React.FC = () => {
           ? `autre_${customSectorTitle.trim().toLowerCase().replace(/[^a-z0-9]/gi, '_').slice(0, 30)}`
           : sector;
 
+      const selectedProfile = BUSINESS_PROFILES[profileId as BusinessProfileId] || BUSINESS_PROFILES.epicerie_alimentation;
+
       const res: any = await api.post('/auth/business', {
         name: businessName,
+        profileId: profileId || 'epicerie_alimentation',
         sector: finalSector || 'commerce',
         secondarySectors,
         city: city.trim() || undefined,
@@ -165,8 +175,9 @@ export const OnboardingPage: React.FC = () => {
         customSector: customSectorTitle.trim() || undefined,
         businessDescription: customProducts.trim() || undefined,
         salesChannels: [customSalesChannel],
+        activeModules: selectedProfile.recommendedModules || ['stock_inventaire', 'ventes_caisse'],
         hasStock: customHasStock,
-        trackingMode: trackingMode || 'avec_stock',
+        trackingMode: trackingMode || selectedProfile.defaultTrackingMode || 'avec_stock',
         dailySalesEstimate: dailySalesEstimate || REVENUE_ESTIMATES[1].label,
         plan: selectedPlan,
       });
@@ -636,86 +647,96 @@ export const OnboardingPage: React.FC = () => {
             )}
 
             {/* ======================================================== */}
-            {/* ÉTAPE 2: SECTEUR PRINCIPAL & ACTIVITÉS SECONDAIRES      */}
+            {/* ÉTAPE 2: SÉLECTION DU PROFIL MÉTIER (20 ACTIVITÉS)        */}
             {/* ======================================================== */}
             {step === 2 && !isCustomSectorPage && (
               <div style={{ animation: 'fadeIn 0.25s ease' }}>
-                <div style={{ marginBottom: '18px' }}>
+                <div style={{ marginBottom: '16px' }}>
                   <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>
-                    Quel est votre secteur d'activité principal ?
+                    Quelle est votre activité principale parmi nos 20 métiers ?
                   </h2>
                   <p style={{ color: '#64748B', fontSize: '0.9rem', lineHeight: 1.4 }}>
-                    Sélectionnez votre cœur de métier. COMMERCIA l'utilisera pour préconfigurer vos catégories de charges, vos unités de stock et vos suggestions.
+                    COMMERCIA adapte immédiatement vos formulaires, vos alertes, votre vocabulaire et vos indicateurs financiers à votre métier réel.
                   </p>
                 </div>
 
-                {/* Main Sectors Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '20px' }}>
-                  {SECTORS.map((s) => {
-                    const isSelected = sector === s.id;
-                    const isAutre = s.id === 'autre';
+                {/* Search Filter for Profiles */}
+                <div style={{ marginBottom: '16px' }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Rechercher votre métier (ex: friperie, restaurant, couture, quincaillerie, mobile money...)"
+                    value={profileSearch}
+                    onChange={(e) => setProfileSearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #CBD5E1',
+                      fontSize: '0.92rem',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                {/* 20 Profiles Grouped by 6 Families */}
+                <div style={{ maxHeight: '380px', overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '18px', marginBottom: '18px' }}>
+                  {getProfilesGroupedByFamily().map((family) => {
+                    const filteredProfiles = family.profiles.filter(p =>
+                      p.name.toLowerCase().includes(profileSearch.toLowerCase()) ||
+                      p.description.toLowerCase().includes(profileSearch.toLowerCase()) ||
+                      p.tagline.toLowerCase().includes(profileSearch.toLowerCase())
+                    );
+
+                    if (filteredProfiles.length === 0) return null;
 
                     return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          setSector(s.id);
-                          // Remove from secondary sectors if selected as main
-                          setSecondarySectors(secondarySectors.filter((id) => id !== s.id));
-                          setError('');
-                          if (isAutre) {
-                            setIsCustomSectorPage(true);
-                          }
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: '12px',
-                          padding: '12px 14px',
-                          borderRadius: '14px',
-                          border: isSelected ? '2px solid #0062FF' : '1px solid #E2E8F0',
-                          background: isSelected ? '#EFF6FF' : '#FFFFFF',
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          boxShadow: isSelected ? '0 4px 14px rgba(0, 98, 255, 0.1)' : '0 1px 2px rgba(0,0,0,0.02)',
-                        }}
-                      >
-                        <span style={{ fontSize: '1.35rem', flexShrink: 0 }}>{s.icon}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              fontSize: '0.88rem',
-                              color: isSelected ? '#0062FF' : '#1E293B',
-                              marginBottom: '2px',
-                            }}
-                          >
-                            {s.label}
-                          </div>
-                          <div style={{ fontSize: '0.74rem', color: '#64748B', lineHeight: 1.3 }}>
-                            {s.desc}
-                          </div>
+                      <div key={family.familyKey}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{family.emoji}</span>
+                          <span>{family.name}</span>
                         </div>
-                        {isAutre ? (
-                          <span
-                            style={{
-                              fontSize: '0.68rem',
-                              color: '#0062FF',
-                              background: '#DBEAFE',
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              fontWeight: 800,
-                              flexShrink: 0,
-                            }}
-                          >
-                            Personnaliser ✍️
-                          </span>
-                        ) : isSelected ? (
-                          <Check size={16} color="#0062FF" strokeWidth={3} style={{ flexShrink: 0 }} />
-                        ) : null}
-                      </button>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                          {filteredProfiles.map((p) => {
+                            const isSelected = profileId === p.id;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  setProfileId(p.id);
+                                  setSector(p.family);
+                                  setTrackingMode(p.defaultTrackingMode);
+                                  setError('');
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'flex-start',
+                                  gap: '10px',
+                                  padding: '10px 12px',
+                                  borderRadius: '12px',
+                                  border: isSelected ? '2px solid #0062FF' : '1px solid #E2E8F0',
+                                  background: isSelected ? '#EFF6FF' : '#FFFFFF',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  boxShadow: isSelected ? '0 4px 12px rgba(0, 98, 255, 0.12)' : 'none',
+                                }}
+                              >
+                                <span style={{ fontSize: '1.4rem', flexShrink: 0 }}>{p.emoji}</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 700, fontSize: '0.86rem', color: isSelected ? '#0062FF' : '#0F172A', marginBottom: '2px' }}>
+                                    {p.name}
+                                  </div>
+                                  <div style={{ fontSize: '0.72rem', color: '#64748B', lineHeight: 1.25 }}>
+                                    {p.tagline}
+                                  </div>
+                                </div>
+                                {isSelected && <Check size={16} color="#0062FF" strokeWidth={3} style={{ flexShrink: 0, marginTop: '2px' }} />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

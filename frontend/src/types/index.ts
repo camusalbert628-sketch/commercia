@@ -25,8 +25,12 @@ export interface BusinessSummary {
   id: string;
   name: string;
   sector: string;
+  profileId?: string;
   role: string;
   trackingMode?: string;
+  activeModules?: string[];
+  salesChannels?: string[];
+  currency?: string;
   settings?: {
     enableStock?: boolean;
     enableCredits?: boolean;
@@ -39,7 +43,10 @@ export interface Business {
   id: string;
   name: string;
   sector: string;
+  profileId?: string;
   trackingMode: string;
+  activeModules?: string[];
+  salesChannels?: string[];
   dailySalesEstimate?: string;
   address?: string;
   phone?: string;

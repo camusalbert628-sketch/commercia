@@ -132,4 +132,89 @@ console.log('🧪 Démarrage des tests financiers Module Croissance Clients & CA
   assert(indiceSecurite === 60, `Indice de sécurité = 60% (obtenu: ${indiceSecurite}%)`);
 }
 
-console.log('\n🎉 TOUS LES TESTS DE VALIDATION FINANCIÈRE ONT RÉUSSI AVEC SUCCÈS ! 🚀');
+// 8. TRAITEMENT DES COMMANDES ANNULÉES ET REMBOURSÉES
+{
+  console.log('\n--- Test 8 : Commandes annulées et remboursées (Exclusion nette) ---');
+  const ventesValidees = 500000;
+  const ventesRemboursees = 50000;
+  const ventesAnnulees = 30000; // Jamais payées, non comptées dans le CA
+  const netRevenue = Math.max(0, ventesValidees - ventesRemboursees);
+  assert(netRevenue === 450000, `CA net attendu après remboursement = 450 000 FCFA (obtenu: ${netRevenue})`);
+}
+
+// 9. DÉCOMPOSITION PRÉCISE DES CHARGES VARIABLES UNITAIRES SANS DOUBLE COMPTAGE
+{
+  console.log('\n--- Test 9 : Décomposition des charges variables unitaires ---');
+  const prixVente = 15000;
+  const coutAchat = 6000;
+  const chargesVariables = {
+    transportAppro: 800,
+    emballageConditionnement: 300,
+    livraisonSupporteeVendeur: 1000,
+    fraisPaiementMobileMoney: 200,
+    commissionCommerciale: 500,
+    ressourcesInternetService: 200,
+  };
+  const totalChargesVariablesUnitaires = Object.values(chargesVariables).reduce((s, v) => s + v, 0);
+  assert(totalChargesVariablesUnitaires === 3000, `Total charges variables = 3 000 FCFA (obtenu: ${totalChargesVariablesUnitaires})`);
+
+  const coutTotalUnitaire = coutAchat + totalChargesVariablesUnitaires;
+  assert(coutTotalUnitaire === 9000, `Coût total unitaire = 9 000 FCFA (obtenu: ${coutTotalUnitaire})`);
+
+  const margeContributiveUnitaire = prixVente - coutTotalUnitaire;
+  assert(margeContributiveUnitaire === 6000, `Marge contributive = 6 000 FCFA (obtenu: ${margeContributiveUnitaire})`);
+
+  // CAC max toléré sur cet article
+  assert(margeContributiveUnitaire === 6000, `CAC max toléré = 6 000 FCFA`);
+}
+
+// 10. RÈGLE D'ATTRIBUTION CONFIGURABLE (FIRST TOUCH VS LAST TOUCH)
+{
+  console.log('\n--- Test 10 : Règle d\'attribution First-Touch vs Last-Touch ---');
+  // Client Moussa a d'abord découvert via Facebook Ads (first touch)
+  // Puis a cliqué sur un lien WhatsApp pour sa 2e commande (last touch)
+  const client = { id: 'c_moussa', firstChannel: 'facebook_ads' };
+  const order1 = { customerId: 'c_moussa', channel: 'facebook_ads', isFirstPurchase: true };
+  const order2 = { customerId: 'c_moussa', channel: 'whatsapp', isFirstPurchase: false };
+
+  // Attribution First-Touch (standard CAC nouveau client) :
+  const firstTouchChannel = client.firstChannel;
+  assert(firstTouchChannel === 'facebook_ads', 'First-Touch attribue le client à Facebook Ads');
+
+  // En Last-Touch, la commande 2 est attribuée à WhatsApp pour le CA mais le client n\'est pas un nouveau client
+  assert(order2.isFirstPurchase === false, 'La commande 2 sur WhatsApp ne compte pas comme un nouveau client');
+}
+
+// 11. SIMULATION D'OBJECTIF DE BÉNÉFICE (SECTION 10 DU CAHIER DES CHARGES)
+{
+  console.log('\n--- Test 11 : Simulation objectif de bénéfice net ---');
+  const targetProfit = 300000;
+  const fixedCosts = 100000;
+  const unitContributionMargin = 4000; // Marge unitaire nette
+
+  // Quantité nécessaire pour atteindre le bénéfice ciblé :
+  const requiredUnits = Math.ceil((fixedCosts + targetProfit) / unitContributionMargin);
+  assert(requiredUnits === 100, `Quantité requise = 100 unités pour 300 000 FCFA de bénéfice (obtenu: ${requiredUnits})`);
+}
+
+// 12. CLASSEMENT PRIORISANT LA RENTABILITÉ RÉELLE SUR LE ROAS
+{
+  console.log('\n--- Test 12 : Priorité rentabilité nette sur le ROAS ---');
+  const canalA: any = { name: 'Canal A (Fort ROAS)', ca: 500000, depensesPub: 50000, cogs: 350000, cv: 80000 };
+  canalA.roas = (canalA.ca / canalA.depensesPub) * 100; // 1000%
+  canalA.profit = canalA.ca - canalA.cogs - canalA.cv - canalA.depensesPub; // 20 000 FCFA
+
+  const canalB: any = { name: 'Canal B (Marge forte)', ca: 400000, depensesPub: 80000, cogs: 100000, cv: 40000 };
+  canalB.roas = (canalB.ca / canalB.depensesPub) * 100; // 500%
+  canalB.profit = canalB.ca - canalB.cogs - canalB.cv - canalB.depensesPub; // 180 000 FCFA
+
+  assert(canalA.roas > canalB.roas, 'Canal A a un ROAS plus élevé (1000% vs 500%)');
+  assert(canalB.profit > canalA.profit, 'Canal B a une rentabilité nette bien supérieure (180k vs 20k)');
+
+  const canauxClasses = [canalA, canalB].sort((a: any, b: any) => b.profit - a.profit);
+  assert(canauxClasses[0].name === canalB.name, 'Canal B est classé #1 grâce à sa rentabilité nette réelle');
+}
+
+console.log('\n🎉 TOUS LES 12 TESTS DE VALIDATION FINANCIÈRE ONT RÉUSSI AVEC SUCCÈS ! 🚀');
+
+

@@ -25,8 +25,12 @@ import {
   ShieldCheck,
   Store,
   Boxes,
+  UtensilsCrossed,
+  Scissors,
+  Smartphone,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { getBusinessProfile } from '../../config/businessProfiles';
 
 interface SidebarProps {
   debtCount?: number;
@@ -37,6 +41,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   const { user, activeBusinessId, logout } = useAuthStore();
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
 
+  const profile = getBusinessProfile(activeBusiness?.profileId || 'epicerie_alimentaire');
+
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [callbackSent, setCallbackSent] = useState(false);
   const [callbackPhone, setCallbackPhone] = useState(user?.phone || '');
@@ -46,8 +52,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && subStatus === 'active'));
 
   const trackingMode = activeBusiness?.trackingMode || 'complet';
-  const hasStockModule = isPro || trackingMode === 'avec_stock' || trackingMode === 'complet';
-  const hasCreditModule = isPro || trackingMode === 'avec_credit' || trackingMode === 'complet';
+  const hasStockModule = isPro || trackingMode === 'avec_stock' || trackingMode === 'complet' || activeBusiness?.activeModules?.includes('stock_inventaire');
+  const hasCreditModule = isPro || trackingMode === 'avec_credit' || trackingMode === 'complet' || activeBusiness?.activeModules?.includes('credit_clients');
+  const hasLotsModule = isPro || activeBusiness?.activeModules?.includes('lots_ballots');
+  const hasFoodPrep = activeBusiness?.activeModules?.includes('food_preparation') || ['restauration_fastfood', 'boulangerie_patisserie'].includes(profile.id);
+  const hasServiceOrders = activeBusiness?.activeModules?.includes('service_orders') || ['couture_confection', 'reparation_informatique', 'garage_mecanique', 'services_digitaux'].includes(profile.id);
+  const hasMobileMoney = activeBusiness?.activeModules?.includes('mobile_money_ops') || profile.id === 'agence_mobile_money';
 
   const modeBadge = trackingMode === 'simple'
     ? { label: '⚡ Mode Simplifié', bg: 'rgba(2, 132, 199, 0.25)', color: '#38BDF8' }
@@ -153,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <ShoppingCart size={18} />
-          <span>{trackingMode === 'simple' ? 'Ventes Express' : 'Ventes comptoir'}</span>
+          <span>{profile.terminology.salesNav || (trackingMode === 'simple' ? 'Ventes Express' : 'Ventes comptoir')}</span>
         </NavLink>
 
         <NavLink
@@ -161,8 +171,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <TrendingDown size={18} />
-          <span>Dépenses</span>
+          <span>{profile.terminology.expenseNav || 'Dépenses'}</span>
         </NavLink>
+
+        {/* Module Métier Spécialisé : Préparation Restauration */}
+        {hasFoodPrep && (
+          <NavLink
+            to="/food-prep"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            style={{ background: 'rgba(234, 88, 12, 0.1)', color: '#FB923C' }}
+          >
+            <UtensilsCrossed size={18} />
+            <span>Recettes & Plats du jour</span>
+          </NavLink>
+        )}
+
+        {/* Module Métier Spécialisé : Prestations & Commandes */}
+        {hasServiceOrders && (
+          <NavLink
+            to="/service-orders"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#818CF8' }}
+          >
+            <Scissors size={18} />
+            <span>Commandes & Devis</span>
+          </NavLink>
+        )}
+
+        {/* Module Métier Spécialisé : Mobile Money */}
+        {hasMobileMoney && (
+          <NavLink
+            to="/mobile-money"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#34D399' }}
+          >
+            <Smartphone size={18} />
+            <span>Opérations Mobile Money</span>
+          </NavLink>
+        )}
+
+        {/* Module Métier Spécialisé : Lots & Ballots Friperie */}
+        {hasLotsModule && (
+          <NavLink
+            to="/lots"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <Boxes size={18} />
+            <span>{profile.id === 'friperie_vetements' ? 'Ballots & Lots' : 'Gestion des lots'}</span>
+          </NavLink>
+        )}
 
         {/* Stock & Alertes : visible dès que le mode inclut le stock OU que le compte est PRO */}
         {hasStockModule && (
@@ -171,7 +228,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
             <Package size={18} />
-            <span>Stock & Alertes</span>
+            <span>{profile.terminology.inventoryNav || 'Stock & Alertes'}</span>
             {lowStockCount > 0 && <span className="badge badge-warning">{lowStockCount}</span>}
           </NavLink>
         )}

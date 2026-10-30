@@ -5,21 +5,27 @@ import {
   AcquisitionCampaignData,
   ProductProfitabilityData,
   AnalysisPeriodKey,
+  AttributionModelKey,
+  GrowthSaleData,
+  CreateGrowthSalePayload,
+  TargetSimulationResult,
 } from '../types/growth';
 
 export const growthService = {
-  // 1. Récupérer l'analyse financière selon la période
+  // 1. Récupérer l'analyse financière selon la période et le modèle d'attribution
   async getAnalytics(
     period: AnalysisPeriodKey = 'current_month',
     startDate?: string,
     endDate?: string,
-    channelId?: string
+    channelId?: string,
+    attributionModel: AttributionModelKey = 'first_touch'
   ): Promise<GrowthAnalyticsResponse> {
     const params = new URLSearchParams();
     params.set('period', period);
     if (startDate) params.set('startDate', startDate);
     if (endDate) params.set('endDate', endDate);
     if (channelId) params.set('channelId', channelId);
+    if (attributionModel) params.set('attributionModel', attributionModel);
 
     return api.get<GrowthAnalyticsResponse>(`/growth/analytics?${params.toString()}`);
   },
@@ -92,12 +98,73 @@ export const growthService = {
     return api.delete<{ success: boolean; message: string }>(`/growth/campaigns/${id}`);
   },
 
-  // 4. Rentabilité Produits & Services
-  async getProductsProfitability(): Promise<ProductProfitabilityData[]> {
-    return api.get<ProductProfitabilityData[]>('/growth/products-profitability');
+  // 4. Rentabilité Produits & Services avec filtres de période
+  async getProductsProfitability(
+    period: AnalysisPeriodKey = 'current_month',
+    startDate?: string,
+    endDate?: string
+  ): Promise<ProductProfitabilityData[]> {
+    const params = new URLSearchParams();
+    params.set('period', period);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    return api.get<ProductProfitabilityData[]>(`/growth/products-profitability?${params.toString()}`);
   },
 
-  // 5. Copilote IA
+  async saveProduct(data: {
+    id?: string;
+    name: string;
+    reference?: string;
+    category?: string;
+    sellingPrice: number;
+    costPrice: number;
+    quantity: number;
+    variableBreakdown: any;
+  }): Promise<any> {
+    return api.post('/growth/products', data);
+  },
+
+  // 5. Ventes & Attribution (Section 5)
+  async getSales(
+    period: AnalysisPeriodKey = 'current_month',
+    startDate?: string,
+    endDate?: string,
+    channelId?: string,
+    status?: string
+  ): Promise<GrowthSaleData[]> {
+    const params = new URLSearchParams();
+    params.set('period', period);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    if (channelId) params.set('channelId', channelId);
+    if (status) params.set('status', status);
+
+    return api.get<GrowthSaleData[]>(`/growth/sales?${params.toString()}`);
+  },
+
+  async createSale(data: CreateGrowthSalePayload): Promise<GrowthSaleData> {
+    return api.post<GrowthSaleData>('/growth/sales', data);
+  },
+
+  // 6. Simulation d'objectif de bénéfice (Section 10)
+  async simulateTarget(
+    targetProfit: number,
+    fixedCostsOverride?: number,
+    targetPeriod: AnalysisPeriodKey = 'current_month'
+  ): Promise<TargetSimulationResult> {
+    return api.post<TargetSimulationResult>('/growth/target-simulation', {
+      targetProfit,
+      fixedCostsOverride,
+      targetPeriod,
+    });
+  },
+
+  // 7. Charger le scénario officiel Section 7
+  async loadReferenceScenario(): Promise<{ success: boolean; message: string }> {
+    return api.post<{ success: boolean; message: string }>('/growth/load-reference-scenario');
+  },
+
+  // 8. Copilote IA
   async getAiAnalysis(period?: string, startDate?: string, endDate?: string): Promise<{
     periodLabel: string;
     recommendations: string[];
@@ -106,8 +173,12 @@ export const growthService = {
     return api.post('/growth/ai-analysis', { period, startDate, endDate });
   },
 
-  // 6. Import CSV
+  // 9. Import CSV
   async importCampaignsCsv(rows: any[], dryRun: boolean = false): Promise<any> {
     return api.post('/growth/import/campaigns', { rows, dryRun });
+  },
+
+  async importSalesCsv(rows: any[], dryRun: boolean = false): Promise<any> {
+    return api.post('/growth/import/sales', { rows, dryRun });
   },
 };

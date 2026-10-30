@@ -198,6 +198,11 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
           id: bm.business.id,
           name: bm.business.name,
           sector: bm.business.sector,
+          profileId: bm.business.profileId || bm.business.sector || 'epicerie_alimentation',
+          trackingMode: bm.business.trackingMode,
+          currency: bm.business.currency || 'XAF',
+          activeModules: bm.business.activeModules ? JSON.parse(bm.business.activeModules) : [],
+          salesChannels: bm.business.salesChannels ? JSON.parse(bm.business.salesChannels) : ['boutique'],
           role: bm.role,
         })),
         subscription: {
@@ -330,6 +335,11 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
           id: bm.business.id,
           name: bm.business.name,
           sector: bm.business.sector,
+          profileId: bm.business.profileId || bm.business.sector || 'epicerie_alimentation',
+          trackingMode: bm.business.trackingMode,
+          currency: bm.business.currency || 'XAF',
+          activeModules: bm.business.activeModules ? JSON.parse(bm.business.activeModules) : [],
+          salesChannels: bm.business.salesChannels ? JSON.parse(bm.business.salesChannels) : ['boutique'],
           role: bm.role,
         })),
         subscription: {
@@ -424,6 +434,11 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response, next: Ne
         id: bm.business.id,
         name: bm.business.name,
         sector: bm.business.sector,
+        profileId: bm.business.profileId || bm.business.sector || 'epicerie_alimentation',
+        trackingMode: bm.business.trackingMode,
+        currency: bm.business.currency || 'XAF',
+        activeModules: bm.business.activeModules ? JSON.parse(bm.business.activeModules) : [],
+        salesChannels: bm.business.salesChannels ? JSON.parse(bm.business.salesChannels) : ['boutique'],
         role: bm.role,
       })),
       subscription: {
@@ -489,8 +504,11 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
     const businessSchema = z.object({
       name: z.string().min(1, 'Nom de l\'activité requis'),
       sector: z.string().min(1, 'Secteur requis'),
+      profileId: z.string().optional(),
       secondarySectors: z.array(z.string()).optional(),
       trackingMode: z.string().default('avec_stock'),
+      activeModules: z.array(z.string()).optional(),
+      salesChannels: z.array(z.string()).optional(),
       dailySalesEstimate: z.string().optional(),
       city: z.string().optional(),
       currency: z.string().optional(),
@@ -500,11 +518,26 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
     
     const data = businessSchema.parse(req.body);
 
+    const { getBusinessProfile } = require('../../config/businessProfiles');
+    const profileId = data.profileId || (data.sector ? data.sector : 'epicerie_alimentation');
+    const profile = getBusinessProfile(profileId);
+
+    const activeModules = data.activeModules && data.activeModules.length > 0
+      ? data.activeModules
+      : profile.recommendedModules;
+
+    const salesChannels = data.salesChannels && data.salesChannels.length > 0
+      ? data.salesChannels
+      : ['boutique'];
+
     const business = await req.prisma.business.create({
       data: {
         name: data.name,
         sector: data.sector,
-        trackingMode: data.trackingMode,
+        profileId: profile.id,
+        activeModules: JSON.stringify(activeModules),
+        salesChannels: JSON.stringify(salesChannels),
+        trackingMode: data.trackingMode || profile.defaultTrackingMode,
         dailySalesEstimate: data.dailySalesEstimate || null,
         address: data.city || null,
         currency: data.currency || 'XAF',
@@ -516,8 +549,8 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
         },
         settings: {
           create: {
-            enableStock: data.trackingMode === 'avec_stock' || data.trackingMode === 'complet',
-            enableCredits: data.trackingMode === 'complet' || data.trackingMode === 'avec_credit',
+            enableStock: (data.trackingMode || profile.defaultTrackingMode) === 'avec_stock' || (data.trackingMode || profile.defaultTrackingMode) === 'complet',
+            enableCredits: (data.trackingMode || profile.defaultTrackingMode) === 'complet' || (data.trackingMode || profile.defaultTrackingMode) === 'avec_credit',
           },
         },
       },
@@ -526,19 +559,19 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
       },
     });
 
-    // Create default expense categories
-    const defaultCategories = [
-      { name: 'Marchandise', icon: '🏬' },
-      { name: 'Transport', icon: '🚒' },
-      { name: 'Loyer', icon: '🏠' },
-      { name: 'Électricité', icon: '💡' },
-      { name: 'Téléphone / Internet', icon: '📱' },
-      { name: 'Salaires', icon: '👥' },
-      { name: 'Livraison', icon: '📦' },
-      { name: 'Autre', icon: '📋' },
-    ];
+    // Create tailored expense categories from profile
+    const categoriesToCreate = profile.defaultExpenseCategories && profile.defaultExpenseCategories.length > 0
+      ? profile.defaultExpenseCategories
+      : [
+          { name: 'Marchandise', icon: '🏬' },
+          { name: 'Transport', icon: '🚚' },
+          { name: 'Loyer', icon: '🏠' },
+          { name: 'Électricité', icon: '💡' },
+          { name: 'Salaires', icon: '👥' },
+          { name: 'Autre', icon: '📋' },
+        ];
 
-    for (const cat of defaultCategories) {
+    for (const cat of categoriesToCreate) {
       await req.prisma.expenseCategory.create({
         data: {
           businessId: business.id,
@@ -554,8 +587,13 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
         id: business.id,
         name: business.name,
         sector: business.sector,
+        profileId: business.profileId,
         trackingMode: business.trackingMode,
+        activeModules,
+        salesChannels,
+        currency: business.currency,
         settings: business.settings,
+        profileConfig: profile,
       },
     });
   } catch (error) {

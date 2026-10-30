@@ -97,7 +97,16 @@ export function calculateFinancialMetrics(params: {
     const saleTotal = Number(s.totalAmount) || 0;
     revenue += saleTotal;
 
-    if (s.paymentMethod === 'credit') {
+    // Gestion rigoureuse des encaissements vs créances :
+    // Si paidAmount est spécifié (acompte, paiement partiel, vente à crédit avec apport),
+    // l'encaissement réel immédiat est le montant effectivement payé (plafonné au total).
+    // Le solde non encaissé constitue la créance client générée.
+    if (s.paidAmount !== undefined && s.paidAmount !== null) {
+      const paid = Math.max(0, Math.min(Number(s.paidAmount), saleTotal));
+      const unpaid = Math.max(0, saleTotal - paid);
+      immediateCashCollected += paid;
+      creditSales += unpaid;
+    } else if (s.paymentMethod === 'credit') {
       creditSales += saleTotal;
     } else {
       immediateCashCollected += saleTotal;

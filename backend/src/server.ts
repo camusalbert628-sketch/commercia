@@ -23,6 +23,10 @@ import { subscriptionRouter } from './modules/subscriptions/subscription.routes'
 import { paymentsRouter } from './modules/payments/payments.routes';
 import { growthRouter } from './modules/growth/growth.routes';
 import { lotsRouter } from './modules/lots/lots.routes';
+import { businessRouter } from './modules/business/business.routes';
+import { foodPrepRouter } from './modules/foodPrep/foodPrep.routes';
+import { serviceOrdersRouter } from './modules/serviceOrders/serviceOrders.routes';
+import { mobileMoneyRouter } from './modules/mobileMoney/mobileMoney.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 
@@ -74,6 +78,10 @@ app.use('/api/admin', adminRouter);
 app.use('/api/cash', cashRouter);
 app.use('/api/growth', growthRouter);
 app.use('/api/lots', lotsRouter);
+app.use('/api/business', businessRouter);
+app.use('/api/food-prep', foodPrepRouter);
+app.use('/api/service-orders', serviceOrdersRouter);
+app.use('/api/mobile-money', mobileMoneyRouter);
 
 
 // Health check

@@ -31,6 +31,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
       notes: z.string().optional(),
       totalAmount: z.number().optional(),
       paidAmount: z.number().optional(),
+      saleDate: z.string().optional(),
     });
     
     const data = saleSchema.parse(req.body);
@@ -97,7 +98,10 @@ router.post('/', async (req: AuthRequest, res, next) => {
     const grossTotal = enrichedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     const computedTotal = Math.max(0, grossTotal - (data.discountAmount || 0));
     const totalAmount = computedTotal;
-    const paidAmount = data.paymentMethod === 'credit' ? 0 : computedTotal;
+    const paidAmount = data.paidAmount !== undefined
+      ? Math.max(0, Math.min(data.paidAmount, computedTotal))
+      : (data.paymentMethod === 'credit' ? 0 : computedTotal);
+    const unpaidAmount = Math.max(0, totalAmount - paidAmount);
 
     // Attribuer le premier canal au client s'il est nouveau
     if (data.customerId && data.channelId) {
@@ -126,6 +130,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         paymentMethod: data.paymentMethod,
         status: data.status,
         notes: data.notes || null,
+        saleDate: data.saleDate ? new Date(data.saleDate) : new Date(),
         items: {
           create: enrichedItems.map(item => ({
             name: item.name,
@@ -241,20 +246,20 @@ router.post('/', async (req: AuthRequest, res, next) => {
       }
     }
 
-    // If credit sale, create customer debt
-    if (data.paymentMethod === 'credit' && data.customerId) {
+    // If credit sale or partial payment with debt remaining, create customer debt
+    if (unpaidAmount > 0 && data.customerId) {
       await req.prisma.customerDebt.create({
         data: {
           customerId: data.customerId,
-          amount: totalAmount,
-          description: `Vente à crédit - ${data.items.map(i => i.name).join(', ')}`,
+          amount: unpaidAmount,
+          description: `Vente ${data.paymentMethod === 'credit' ? 'à crédit' : 'avec solde dû'} - ${data.items.map(i => i.name).join(', ')}`,
         },
       });
       await req.prisma.customer.update({
         where: { id: data.customerId },
         data: {
           totalBought: { increment: totalAmount },
-          totalOwed: { increment: totalAmount },
+          totalOwed: { increment: unpaidAmount },
         },
       });
     } else if (data.customerId) {
@@ -332,7 +337,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
     const [sales, total] = await Promise.all([
       req.prisma.sale.findMany({
         where,
-        include: { items: true, customer: true },
+        include: { items: true, customer: true, channel: true, campaign: true },
         orderBy: { saleDate: 'desc' },
         skip: (parseInt(page) - 1) * parseInt(limit),
         take: parseInt(limit),
