@@ -170,58 +170,50 @@ router.get('/weekly-report', async (req: AuthRequest, res, next) => {
   }
 });
 
-// POST /api/analytics/ai/chat — Copilote financier IA
+import { handleCopilotChat } from '../ai/copilotService';
+
+// POST /api/analytics/ai/chat — Copilote financier IA (Propulsé par véritable LLM)
 router.post('/ai/chat', async (req: AuthRequest, res, next) => {
   try {
     const businessId = await getTenantBusinessId(req);
     const schema = z.object({
       message: z.string().min(1, 'Message requis'),
       conversationId: z.string().optional(),
+      history: z
+        .array(
+          z.object({
+            role: z.string(),
+            content: z.string(),
+          })
+        )
+        .optional(),
+      userConfig: z
+        .object({
+          provider: z.enum(['gemini', 'openai', 'groq', 'custom']).optional(),
+          model: z.string().optional(),
+          apiKey: z.string().optional(),
+        })
+        .optional(),
     });
     const data = schema.parse(req.body);
 
-    // Business context for the copilot
-    const [salesSum, expensesSum, debtors] = await Promise.all([
-      req.prisma.sale.aggregate({
-        where: { businessId },
-        _sum: { totalAmount: true },
-      }),
-      req.prisma.expense.aggregate({
-        where: { businessId },
-        _sum: { amount: true },
-      }),
-      req.prisma.customer.findMany({
-        where: { businessId, totalOwed: { gt: 0 } },
-        select: { name: true, totalOwed: true },
-        take: 5,
-      }),
-    ]);
+    const customApiKey = (req.headers['x-ai-api-key'] ||
+      req.headers['x-gemini-api-key'] ||
+      req.headers['x-openai-api-key'] ||
+      req.headers['x-groq-api-key']) as string | undefined;
 
-    const totalSales = salesSum._sum.totalAmount || 0;
-    const totalExpenses = expensesSum._sum.amount || 0;
-    const netProfit = totalSales - totalExpenses;
+    const result = await handleCopilotChat({
+      prisma: req.prisma,
+      userId: req.userId!,
+      businessId,
+      message: data.message,
+      conversationId: data.conversationId,
+      history: (data.history || []) as any,
+      userConfig: data.userConfig,
+      customApiKey,
+    });
 
-    const lower = data.message.toLowerCase();
-    let reply = '';
-
-    if (lower.includes('bénéfice') || lower.includes('profit') || lower.includes('gain')) {
-      reply = `Votre bénéfice net cumulé est actuellement de **${netProfit.toLocaleString('fr-FR')} FCFA** (Recettes : ${totalSales.toLocaleString('fr-FR')} FCFA, Dépenses : ${totalExpenses.toLocaleString('fr-FR')} FCFA).`;
-    } else if (lower.includes('dette') || lower.includes('crédit') || lower.includes('qui me doit')) {
-      if (debtors.length > 0) {
-        const list = debtors.map((d: any) => `• **${d.name}** : ${d.totalOwed.toLocaleString('fr-FR')} FCFA`).join('\n');
-        reply = `Voici vos principaux clients avec une dette en cours :\n${list}\n\n💡 Conseil : Envoyez un rappel cordial par WhatsApp pour accélérer vos encaissements.`;
-      } else {
-        reply = `Félicitations ! Aucun client n'a de crédit en cours pour le moment. Votre trésorerie est protégée.`;
-      }
-    } else if (lower.includes('dépense') || lower.includes('charge')) {
-      reply = `Le total de vos dépenses s'élève à **${totalExpenses.toLocaleString('fr-FR')} FCFA**. Veillez à ce que vos charges opérationnelles ne dépassent pas 30% de vos ventes.`;
-    } else if (lower.includes('conseil') || lower.includes('améliorer') || lower.includes('stratégie')) {
-      reply = `Voici 3 conseils personnalisés pour votre activité :\n1. **Encaissez vite** : Privilégiez le cash ou Mobile Money et limitez les crédits non garantis.\n2. **Suivez vos stocks** : Réapprovisionnez vos 3 produits les plus demandés avant la rupture.\n3. **Clôture quotidienne** : Vérifiez chaque soir votre bénéfice journalier pour éviter les fuites de caisse.`;
-    } else {
-      reply = `Bonjour ! Je suis votre Copilote COMMERCIA. Votre solde estimé est de **${netProfit.toLocaleString('fr-FR')} FCFA**. Comment puis-je vous aider aujourd'hui ? (Exemples : "Quel est mon bénéfice ?", "Qui me doit de l'argent ?", "Conseils pour augmenter mes ventes")`;
-    }
-
-    res.json({ reply });
+    res.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) return next(new AppError(error.errors[0].message, 400));
     next(error);

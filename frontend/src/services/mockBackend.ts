@@ -1447,50 +1447,19 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     }
   }
 
-  // 10. AI COPILOT & INSIGHTS (Offline / Static fallback)
+  // 10. AI COPILOT & INSIGHTS (Always powered by true LLM generative brain)
   if (endpoint.startsWith('/ai/chat') || endpoint.startsWith('/analytics/ai/chat')) {
-    const rawSales = localStorage.getItem('commercia_sales') || '[]';
-    const rawExpenses = localStorage.getItem('commercia_expenses') || '[]';
-    const rawCustomers = localStorage.getItem('commercia_customers') || '[]';
-    const sales = JSON.parse(rawSales);
-    const expenses = JSON.parse(rawExpenses);
-    const customers = JSON.parse(rawCustomers);
+    const message = body?.message || '';
+    const history = body?.history || [];
+    const activeBizId = localStorage.getItem('activeBusinessId') || 'default';
 
-    const metrics = calculateFinancialMetrics({ sales, expenses });
-    const debtors = customers.filter((c: any) => (c.totalOwed || 0) > 0);
-    const totalDebt = debtors.reduce((sum: number, c: any) => sum + (c.totalOwed || 0), 0);
-
-    const message = (body?.message || '').toLowerCase();
-    let reply = '';
-
-    if (message.includes('bénéfice') || message.includes('profit') || message.includes('gagné')) {
-      reply = `📊 **Situation financière (Mode Hors-Ligne) :**\n\n` +
-        `• Ventes enregistrées : **${metrics.revenue.toLocaleString('fr-FR')} FCFA**\n` +
-        `• Dépenses : **${(metrics.operatingExpenses + metrics.inventoryExpenses).toLocaleString('fr-FR')} FCFA**\n` +
-        `• Bénéfice estimé : **${metrics.estimatedNetProfit.toLocaleString('fr-FR')} FCFA** (Taux de marge : ${metrics.grossMarginPercent}%)\n\n` +
-        `💡 ${metrics.whyExplanation}`;
-    } else if (message.includes('dette') || message.includes('crédit') || message.includes('qui me doit')) {
-      if (debtors.length > 0) {
-        const list = debtors.map((d: any) => `• **${d.name}** : ${(d.totalOwed || 0).toLocaleString('fr-FR')} FCFA`).join('\n');
-        reply = `👥 **Créances clients en cours :**\n\nAu total, **${totalDebt.toLocaleString('fr-FR')} FCFA** attendent d'être encaissés :\n\n${list}\n\n` +
-          `💡 Conseil : Relancez vos débiteurs pour sécuriser votre trésorerie.`;
-      } else {
-        reply = `🎉 **Aucune dette en attente !** Tous vos clients sont à jour.`;
-      }
-    } else if (message.includes('dépense') || message.includes('charge')) {
-      reply = `💸 **Total des dépenses :** **${(metrics.operatingExpenses + metrics.inventoryExpenses).toLocaleString('fr-FR')} FCFA**.\n\n` +
-        `• Charges de fonctionnement : ${metrics.operatingExpenses.toLocaleString('fr-FR')} FCFA\n` +
-        `• Ravitaillement marchandise : ${metrics.inventoryExpenses.toLocaleString('fr-FR')} FCFA`;
-    } else {
-      reply = `Bonjour ! Je suis votre Copilote COMMERCIA 🤖.\n\n` +
-        `Activité enregistrée :\n` +
-        `• Chiffre d'affaires : **${metrics.revenue.toLocaleString('fr-FR')} FCFA**\n` +
-        `• Bénéfice estimé : **${metrics.estimatedNetProfit.toLocaleString('fr-FR')} FCFA**\n` +
-        `• Créances clients : **${totalDebt.toLocaleString('fr-FR')} FCFA**\n\n` +
-        `Comment puis-je vous aider ? (Exemples : "Quel est mon bénéfice ?", "Qui me doit de l'argent ?", "Analyse des dépenses")`;
-    }
-
-    return { reply };
+    const { generateCopilotLLMResponse } = await import('./llmService');
+    const result = await generateCopilotLLMResponse(message, history, activeBizId);
+    return {
+      reply: result.reply,
+      memorizedFact: result.memorizedFact,
+      providerUsed: result.providerUsed,
+    };
   }
 
   if (endpoint.startsWith('/ai/insights')) {
