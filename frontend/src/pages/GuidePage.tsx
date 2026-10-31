@@ -829,7 +829,6 @@ export const GuidePage: React.FC = () => {
             <span
               style={{
                 color: '#FF7A00',
-                textShadow: '0 0 24px rgba(255, 122, 0, 0.45)',
               }}
             >
               COMMERCIA
