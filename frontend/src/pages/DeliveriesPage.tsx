@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../services/api';
 
 export interface DeliveryItem {
   id: string;
@@ -155,10 +156,27 @@ export const DeliveriesPage: React.FC = () => {
     setNotes('');
   };
 
-  const updateStatus = (id: string, newStatus: DeliveryItem['status']) => {
+  const updateStatus = async (id: string, newStatus: DeliveryItem['status']) => {
+    const targetItem = deliveries.find(d => d.id === id);
     setDeliveries(prev =>
       prev.map(d => (d.id === id ? { ...d, status: newStatus } : d))
     );
+
+    // Si la livraison est marquée comme livrée avec succès et comportait un montant COD à encaisser
+    if (newStatus === 'delivered' && targetItem && targetItem.amountToCollect > 0 && targetItem.status !== 'delivered') {
+      try {
+        await api.post('/cash/movement', {
+          type: 'in',
+          amount: Number(targetItem.amountToCollect),
+          method: 'cash',
+          category: 'manual_deposit',
+          description: `Encaissement livraison #${targetItem.orderNumber} (${targetItem.customerName})`,
+        });
+      } catch (e) {
+        // La caisse physique peut être fermée ou hors-ligne, ne bloque pas la livraison
+        console.info('Caisse fermée lors du règlement de livraison:', e);
+      }
+    }
   };
 
   // WhatsApp share generator for courier

@@ -1913,6 +1913,365 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     };
   }
 
+  // 25. CAISSE JOURNALIÈRE
+  if (endpoint.startsWith('/cash')) {
+    const CASH_KEY = 'commercia_mock_cash_session';
+    const HIST_KEY = 'commercia_mock_cash_history';
+
+    if (endpoint === '/cash/current' && method === 'GET') {
+      try {
+        const raw = localStorage.getItem(CASH_KEY);
+        if (raw) {
+          const session = JSON.parse(raw);
+          return { isOpen: session.status === 'open', session };
+        }
+      } catch (_) {}
+      return { isOpen: false, session: null };
+    }
+
+    if (endpoint.startsWith('/cash/sessions') && method === 'GET') {
+      try {
+        const raw = localStorage.getItem(HIST_KEY);
+        if (raw) return { sessions: JSON.parse(raw) };
+      } catch (_) {}
+      return { sessions: [] };
+    }
+
+    if (endpoint === '/cash/open' && method === 'POST') {
+      const initAmount = Number(body?.initialCash) || 0;
+      const newSession = {
+        id: 'cash-sess-' + Date.now(),
+        businessId: localStorage.getItem('activeBusinessId') || 'default',
+        openedById: currentUser?.id || 'demo-user',
+        status: 'open',
+        initialCash: initAmount,
+        theoreticalCash: initAmount,
+        totalCashIn: 0,
+        totalCashOut: 0,
+        totalMomoIn: 0,
+        notes: body?.notes || '',
+        openedAt: new Date().toISOString(),
+        movements: [],
+      };
+      localStorage.setItem(CASH_KEY, JSON.stringify(newSession));
+      return { message: 'Caisse ouverte avec succès 🎉', session: newSession };
+    }
+
+    if (endpoint === '/cash/movement' && method === 'POST') {
+      let session: any = null;
+      try {
+        session = JSON.parse(localStorage.getItem(CASH_KEY) || 'null');
+      } catch (_) {}
+      if (!session || session.status !== 'open') {
+        throw new Error('Veuillez ouvrir la caisse du jour avant d\'enregistrer une opération.');
+      }
+      const amt = Number(body?.amount) || 0;
+      const type = body?.type === 'in' ? 'in' : 'out';
+      const move = {
+        id: 'cash-mov-' + Date.now(),
+        sessionId: session.id,
+        type,
+        amount: amt,
+        method: body?.method || 'cash',
+        category: body?.category || 'manual_deposit',
+        description: body?.description || 'Opération manuelle',
+        createdAt: new Date().toISOString(),
+      };
+      session.movements = session.movements || [];
+      session.movements.unshift(move);
+
+      if (move.method === 'cash') {
+        if (type === 'in') {
+          session.totalCashIn += amt;
+          session.theoreticalCash += amt;
+        } else {
+          session.totalCashOut += amt;
+          session.theoreticalCash = Math.max(0, session.theoreticalCash - amt);
+        }
+      } else {
+        session.totalMomoIn += amt;
+      }
+      localStorage.setItem(CASH_KEY, JSON.stringify(session));
+      return { message: 'Opération de caisse enregistrée ✅', movement: move, session };
+    }
+
+    if (endpoint === '/cash/close' && method === 'POST') {
+      let session: any = null;
+      try {
+        session = JSON.parse(localStorage.getItem(CASH_KEY) || 'null');
+      } catch (_) {}
+      if (!session) {
+        throw new Error('Aucune session de caisse active.');
+      }
+      const actual = Number(body?.actualCash) || 0;
+      const discrepancy = actual - session.theoreticalCash;
+      session.status = 'closed';
+      session.actualCash = actual;
+      session.cashDiscrepancy = discrepancy;
+      session.discrepancyReason = body?.discrepancyReason || '';
+      session.closedAt = new Date().toISOString();
+
+      // Push to history
+      let history: any[] = [];
+      try {
+        history = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+      } catch (_) {}
+      history.unshift(session);
+      localStorage.setItem(HIST_KEY, JSON.stringify(history.slice(0, 30)));
+      localStorage.removeItem(CASH_KEY);
+
+      return { message: 'Caisse clôturée avec succès 🔒', session };
+    }
+  }
+
+  // 26. GESTION DES LOTS COMMERCIAUX & DÉBALLAGES
+  if (endpoint.startsWith('/lots')) {
+    const LOTS_KEY = 'commercia_mock_lots_campaigns';
+
+    const getCampaignsDb = () => {
+      try {
+        const raw = localStorage.getItem(LOTS_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (_) {}
+      // Pre-seeded high fidelity campaign
+      const defaultCampaigns = [
+        {
+          id: 'camp-ballot-londres-1',
+          businessId: localStorage.getItem('activeBusinessId') || 'default',
+          name: 'Ballot Chemises & Polos Londres #4',
+          goodsType: 'Friperie Crème / Vêtements d\'importation',
+          supplierName: 'Export UK Traders',
+          originCountry: 'Royaume-Uni',
+          purchaseDate: new Date().toISOString(),
+          purchasePriceOriginal: 180000,
+          purchasePriceXaf: 180000,
+          transportCost: 15000,
+          customsCost: 5000,
+          transactionFees: 0,
+          totalLandedCost: 200000,
+          status: 'active',
+          costAllocationMethod: 'value_weighted',
+          notes: 'Ballot de 150 pièces triées en 3 catégories',
+          createdAt: new Date().toISOString(),
+          items: [
+            { id: 'it-1', name: 'Chemises Homme Marque (1er Choix VIP)', variant: 'Taille L/XL', quantityReceived: 40, quantitySold: 15, quantityRemaining: 25, unitCost: 1800, estimatedSellingPrice: 5000 },
+            { id: 'it-2', name: 'Polos Coton Standard (2e Choix)', variant: 'Toutes tailles', quantityReceived: 60, quantitySold: 20, quantityRemaining: 40, unitCost: 1400, estimatedSellingPrice: 2500 },
+            { id: 'it-3', name: 'T-shirts Basiques (3e Choix Tout-venant)', variant: 'Mixte', quantityReceived: 50, quantitySold: 10, quantityRemaining: 40, unitCost: 880, estimatedSellingPrice: 1000 },
+          ],
+          sales: [
+            { id: 'ls-1', lotItemId: 'it-1', quantity: 15, unitPrice: 5000, totalAmount: 75000, netAmount: 75000, channel: 'comptoir', saleDate: new Date().toISOString() },
+            { id: 'ls-2', lotItemId: 'it-2', quantity: 20, unitPrice: 2500, totalAmount: 50000, netAmount: 50000, channel: 'whatsapp', saleDate: new Date().toISOString() },
+            { id: 'ls-3', lotItemId: 'it-3', quantity: 10, unitPrice: 1000, totalAmount: 10000, netAmount: 10000, channel: 'comptoir', saleDate: new Date().toISOString() },
+          ],
+          expenses: [],
+        },
+      ];
+      localStorage.setItem(LOTS_KEY, JSON.stringify(defaultCampaigns));
+      return defaultCampaigns;
+    };
+
+    if (endpoint === '/lots/info' && method === 'GET') {
+      return {
+        moduleName: 'Gestion des lots commerciaux',
+        version: '1.0.0-pro',
+        isPro: true,
+        benefits: [
+          { title: 'Rentabilité unitaire au centime', description: 'Décomposez n\'importe quel ballot ou container avec son Landed Cost.' },
+          { title: 'Suivi du point mort en temps réel', description: 'Sachez exactement quand votre mise est remboursée à 100%.' },
+        ],
+      };
+    }
+
+    if (endpoint === '/lots/overview' && method === 'GET') {
+      const list = getCampaignsDb();
+      let totalLandedCost = 0;
+      let totalRevenue = 0;
+      let totalRemainingToBreakeven = 0;
+      let totalRealizedProfit = 0;
+
+      const campaignCards = list.map((c: any) => {
+        const rev = (c.sales || []).reduce((s: number, it: any) => s + (it.netAmount || it.totalAmount || 0), 0);
+        const cost = c.totalLandedCost || 200000;
+        const recoveryRate = cost > 0 ? Math.min(100, Math.round((rev / cost) * 1000) / 10) : 0;
+        const remainingToBreakeven = Math.max(0, cost - rev);
+        const realizedProfit = Math.max(0, rev - cost);
+        const totalSold = (c.items || []).reduce((s: number, it: any) => s + (it.quantitySold || 0), 0);
+        const totalRemaining = (c.items || []).reduce((s: number, it: any) => s + (it.quantityRemaining || 0), 0);
+        const totalReceived = (c.items || []).reduce((s: number, it: any) => s + (it.quantityReceived || 0), 0);
+        const avgPrice = totalSold > 0 ? Math.round(rev / totalSold) : (c.items?.[0]?.estimatedSellingPrice || 3500);
+        const unitsToBreakeven = avgPrice > 0 ? Math.ceil(remainingToBreakeven / avgPrice) : 0;
+
+        totalLandedCost += cost;
+        totalRevenue += rev;
+        totalRemainingToBreakeven += remainingToBreakeven;
+        totalRealizedProfit += realizedProfit;
+
+        return {
+          id: c.id,
+          name: c.name,
+          goodsType: c.goodsType,
+          status: c.status,
+          totalLandedCost: cost,
+          totalRevenue: rev,
+          recoveryRate,
+          remainingToBreakeven,
+          unitsToBreakeven,
+          realizedProfit,
+          totalQuantityReceived: totalReceived,
+          totalQuantitySold: totalSold,
+          totalQuantityRemaining: totalRemaining,
+          itemsCount: (c.items || []).length,
+        };
+      });
+
+      const globalRate = totalLandedCost > 0 ? Math.min(100, Math.round((totalRevenue / totalLandedCost) * 1000) / 10) : 0;
+
+      return {
+        summary: {
+          totalCampaigns: list.length,
+          activeCampaigns: list.filter((c: any) => c.status === 'active').length,
+          totalCapitalInvested: totalLandedCost,
+          totalCapitalRecovered: totalRevenue,
+          globalRecoveryRate: globalRate,
+          remainingToBreakevenTotal: totalRemainingToBreakeven,
+          netRealizedProfitTotal: totalRealizedProfit,
+        },
+        campaigns: campaignCards,
+      };
+    }
+
+    // Detail single campaign
+    if (endpoint.startsWith('/lots/campaigns/') && method === 'GET') {
+      const campId = endpoint.split('/')[3];
+      const list = getCampaignsDb();
+      const campaign = list.find((c: any) => c.id === campId) || list[0];
+      if (!campaign) throw new Error('Campagne introuvable');
+
+      const rev = (campaign.sales || []).reduce((s: number, it: any) => s + (it.netAmount || it.totalAmount || 0), 0);
+      const cost = campaign.totalLandedCost || 200000;
+      const recoveryRate = cost > 0 ? Math.min(100, Math.round((rev / cost) * 1000) / 10) : 0;
+      const remainingToBreakeven = Math.max(0, cost - rev);
+      const totalSold = (campaign.items || []).reduce((s: number, it: any) => s + (it.quantitySold || 0), 0);
+      const totalRemaining = (campaign.items || []).reduce((s: number, it: any) => s + (it.quantityRemaining || 0), 0);
+      const totalReceived = (campaign.items || []).reduce((s: number, it: any) => s + (it.quantityReceived || 0), 0);
+      const avgPrice = totalSold > 0 ? Math.round(rev / totalSold) : (campaign.items?.[0]?.estimatedSellingPrice || 3500);
+      const unitsToBreakeven = avgPrice > 0 ? Math.ceil(remainingToBreakeven / avgPrice) : 0;
+      const realizedProfit = Math.max(0, rev - cost);
+
+      return {
+        campaign,
+        financials: {
+          totalLandedCost: cost,
+          totalRevenue: rev,
+          recoveryRate,
+          remainingToBreakeven,
+          unitsToBreakeven,
+          realizedProfit,
+          avgSellingPrice: avgPrice,
+          totalQuantityReceived: totalReceived,
+          totalQuantitySold: totalSold,
+          totalQuantityRemaining: totalRemaining,
+        },
+        breakEvenStatus: {
+          isBreakevenReached: rev >= cost,
+          unitsSold: totalSold,
+          unitsToBreakeven,
+          remainingAmountToBreakeven: remainingToBreakeven,
+        },
+      };
+    }
+
+    // DELETE single campaign
+    if (endpoint.startsWith('/lots/campaigns/') && method === 'DELETE') {
+      const campId = endpoint.split('/')[3];
+      let list = getCampaignsDb();
+      list = list.filter((c: any) => c.id !== campId);
+      localStorage.setItem(LOTS_KEY, JSON.stringify(list));
+      return { success: true, message: 'Campagne supprimée avec succès définitivement.' };
+    }
+
+    // POST create campaign
+    if (endpoint === '/lots/campaigns' && method === 'POST') {
+      const list = getCampaignsDb();
+      const totalLandedCost = (body?.purchasePriceXaf || 0) + (body?.transportCost || 0) + (body?.customsCost || 0) + (body?.transactionFees || 0);
+      const newCamp = {
+        id: 'camp-' + Date.now(),
+        businessId: localStorage.getItem('activeBusinessId') || 'default',
+        name: body?.name || 'Nouveau Lot',
+        goodsType: body?.goodsType || 'Marchandise générale',
+        supplierName: body?.supplierName || 'Fournisseur direct',
+        originCountry: body?.originCountry || 'Import / Local',
+        purchasePriceXaf: body?.purchasePriceXaf || 0,
+        transportCost: body?.transportCost || 0,
+        customsCost: body?.customsCost || 0,
+        totalLandedCost,
+        status: body?.status || 'active',
+        createdAt: new Date().toISOString(),
+        items: [],
+        sales: [],
+        expenses: [],
+      };
+      list.unshift(newCamp);
+      localStorage.setItem(LOTS_KEY, JSON.stringify(list));
+      return { success: true, campaign: newCamp };
+    }
+
+    // POST add batch items
+    if (endpoint.includes('/items/batch') && method === 'POST') {
+      const campId = endpoint.split('/')[3];
+      const list = getCampaignsDb();
+      const camp = list.find((c: any) => c.id === campId);
+      if (camp && Array.isArray(body?.items)) {
+        camp.items = camp.items || [];
+        for (const item of body.items) {
+          camp.items.push({
+            id: 'it-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+            name: item.name,
+            variant: item.variant || '',
+            quantityReceived: Number(item.quantityReceived) || 1,
+            quantitySold: 0,
+            quantityRemaining: Number(item.quantityReceived) || 1,
+            unitCost: Number(item.unitCost) || Math.round(camp.totalLandedCost / Math.max(1, camp.items.length + 1)),
+            estimatedSellingPrice: Number(item.estimatedSellingPrice) || 0,
+          });
+        }
+        localStorage.setItem(LOTS_KEY, JSON.stringify(list));
+        return { success: true, count: body.items.length, items: camp.items };
+      }
+    }
+
+    // POST record sale in lot
+    if (endpoint.includes('/sales') && method === 'POST') {
+      const campId = endpoint.split('/')[3];
+      const list = getCampaignsDb();
+      const camp = list.find((c: any) => c.id === campId);
+      if (camp) {
+        camp.sales = camp.sales || [];
+        const item = camp.items?.find((it: any) => it.id === body?.lotItemId);
+        const qty = Number(body?.quantity) || 1;
+        const unitPrice = Number(body?.unitPrice) || item?.estimatedSellingPrice || 0;
+        const total = qty * unitPrice;
+        if (item) {
+          item.quantitySold = (item.quantitySold || 0) + qty;
+          item.quantityRemaining = Math.max(0, (item.quantityRemaining || 0) - qty);
+        }
+        const newSale = {
+          id: 'ls-' + Date.now(),
+          lotItemId: body?.lotItemId,
+          quantity: qty,
+          unitPrice,
+          totalAmount: total,
+          netAmount: total - (body?.variableCosts || 0),
+          channel: body?.channel || 'comptoir',
+          saleDate: new Date().toISOString(),
+        };
+        camp.sales.unshift(newSale);
+        localStorage.setItem(LOTS_KEY, JSON.stringify(list));
+        return { success: true, sale: newSale };
+      }
+    }
+  }
+
   // Default fallback
   return { status: 'ok', mock: true };
 }
