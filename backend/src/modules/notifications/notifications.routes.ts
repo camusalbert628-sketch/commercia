@@ -1,13 +1,23 @@
 import { Router } from 'express';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
+import { syncBusinessAlerts } from '../../utils/notificationHelper';
 
 const router = Router();
 router.use(authenticate);
 
-// GET /api/notifications — Liste des notifications
+// GET /api/notifications — Liste des notifications avec synchronisation dynamique des alertes
 router.get('/', async (req: AuthRequest, res, next) => {
   try {
+    try {
+      const businessId = await getTenantBusinessId(req);
+      if (businessId && req.userId) {
+        await syncBusinessAlerts(req.prisma, req.userId, businessId);
+      }
+    } catch (_) {
+      // Si aucune entreprise active n'est encore configurée, ignorer la synchro d'alertes
+    }
+
     const notifications = await req.prisma.notification.findMany({
       where: { userId: req.userId },
       orderBy: { createdAt: 'desc' },

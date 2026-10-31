@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 import { getUserSubscriptionDetails } from '../../utils/subscriptionUtils';
+import { createNotification } from '../../utils/notificationHelper';
 
 const router = Router();
 router.use(authenticate);
@@ -204,6 +205,28 @@ router.post('/', async (req: AuthRequest, res, next) => {
 
       return created;
     });
+
+    // Déclenchement automatique de notifications en cas de stock faible (Effet domino)
+    for (const item of data.items) {
+      if (item.productId) {
+        try {
+          const prod = await req.prisma.product.findUnique({ where: { id: item.productId } });
+          if (prod && prod.quantity <= (prod.lowStockAlert ?? 5)) {
+            await createNotification(req.prisma, {
+              userId: req.userId!,
+              businessId,
+              type: 'stock_low',
+              title: `Alerte Stock : ${prod.name}`,
+              message: prod.quantity <= 0
+                ? `Le produit « ${prod.name} » est ÉPUISÉ suite à la vente récente !`
+                : `Stock faible pour « ${prod.name} » : plus que ${prod.quantity} pièce(s) restante(s).`,
+              icon: prod.quantity <= 0 ? '🚨' : '📦',
+              actionUrl: '/products',
+            });
+          }
+        } catch (_) {}
+      }
+    }
 
     // Synchronisation avec les lots (hors transaction critique)
     for (const item of data.items) {
@@ -421,6 +444,15 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 router.delete('/:id', async (req: AuthRequest, res, next) => {
   try {
     const businessId = await getTenantBusinessId(req);
+
+    // Seuls les propriétaires ou gérants peuvent supprimer une vente
+    const member = await req.prisma.businessMember.findFirst({
+      where: { businessId, userId: req.userId, isActive: true },
+    });
+    if (member?.role === 'employee') {
+      throw new AppError('Accès refusé. Les caissiers ne sont pas autorisés à supprimer ou annuler une vente enregistrée.', 403);
+    }
+
     const sale = await req.prisma.sale.findFirst({
       where: { id: req.params.id, businessId },
       include: { items: true },

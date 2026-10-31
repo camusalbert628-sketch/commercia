@@ -23,6 +23,7 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 export interface DeliveryItem {
   id: string;
@@ -252,6 +253,24 @@ _Transmis via COMMERCIA SaaS Gestion Commerciale_`;
           <span>+ Nouvelle Livraison</span>
         </button>
       </div>
+
+      <PageGuideBanner
+        pageId="deliveries"
+        title="Livraisons, Coursiers & Paiement à la Livraison (COD)"
+        subtitle="Suivez chaque colis expédié, générez l'ordre de mission WhatsApp du coursier et réconciliez les fonds encaissés"
+        autoDomino={[
+          "Génération en 1 clic du message d'expédition WhatsApp formaté pour le livreur (adresse, repère, montant exact à encaisser).",
+          "Calcul automatique du total des fonds 'dans la nature' (Cash On Delivery en attente de retour du coursier).",
+          "Dès que vous cochez une livraison comme 'Livrée', les fonds encaissés sont automatiquement versés dans le Journal de Caisse."
+        ]}
+        manualActions={[
+          "Enregistrer la fiche de livraison : Nom du client, quartier, repère visuel (ex: face pharmacie), articles et numéro du livreur.",
+          "Transmettre l'ordre de mission au livreur via le bouton vert WhatsApp.",
+          "À la fin de sa tournée, récupérer les espèces auprès du coursier et marquer la livraison comme 'Livrée'."
+        ]}
+        concreteExample="Une cliente d'Instagram commande une robe à 15 000 FCFA + 1 500 FCFA de livraison à Cocody. Vous assignez le coursier Moussa et lui envoyez sa fiche par WhatsApp. Moussa livre la commande, encaisse 16 500 FCFA et vous remet l'argent le soir. Vous cliquez sur 'Marquer Livré' : les 16 500 FCFA entrent automatiquement dans votre caisse journalière !"
+        guideSectionId="deliveries"
+      />
 
       {/* KPI METRICS BAR */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>

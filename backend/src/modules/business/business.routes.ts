@@ -5,6 +5,7 @@ import { AppError } from '../../middleware/errorHandler';
 import { getBusinessProfile } from '../../config/businessProfiles';
 import { getUserSubscriptionDetails } from '../../utils/subscriptionUtils';
 import { filterModulesByPlan, canPlanAccessModule } from '../../config/capabilities';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -321,5 +322,358 @@ router.get('/trade-dashboard', authenticate, async (req: AuthRequest, res: Respo
   }
 });
 
+// ===================== GESTION D'ÉQUIPE & DES CAISSIERS =====================
+
+// GET /api/business/members (Liste des membres & caissiers de l'entreprise active)
+router.get('/members', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const businessId = await getTenantBusinessId(req);
+
+    const callerMembership = await req.prisma.businessMember.findFirst({
+      where: { businessId, userId: req.userId, isActive: true },
+    });
+    if (!callerMembership) throw new AppError('Accès refusé.', 403);
+
+    const members = await req.prisma.businessMember.findMany({
+      where: { businessId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    res.json({
+      members: members.map((m: any) => ({
+        id: m.id,
+        userId: m.userId,
+        role: m.role, // 'owner' | 'manager' | 'employee'
+        isActive: m.isActive,
+        joinedAt: m.joinedAt,
+        user: m.user,
+      })),
+      currentUserRole: callerMembership.role,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/business/members (Ajouter un caissier ou collaborateur)
+const addMemberSchema = z.object({
+  email: z.string().email('Email invalide'),
+  firstName: z.string().min(1, 'Prénom requis'),
+  lastName: z.string().optional().default(''),
+  phone: z.string().optional(),
+  role: z.enum(['manager', 'employee']).default('employee'),
+  password: z.string().min(4, 'Mot de passe ou code PIN de 4 caractères minimum requis').optional().default('123456'),
+});
+
+router.post('/members', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const businessId = await getTenantBusinessId(req);
+
+    // Vérifier les droits du demandeur (owner ou manager)
+    const callerMembership = await req.prisma.businessMember.findFirst({
+      where: {
+        businessId,
+        userId: req.userId,
+        isActive: true,
+        role: { in: ['owner', 'manager'] },
+      },
+    });
+    if (!callerMembership) {
+      throw new AppError('Seuls les propriétaires ou gérants peuvent ajouter des collaborateurs.', 403);
+    }
+
+    const data = addMemberSchema.parse(req.body);
+    const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId!);
+    const activeMembersCount = await req.prisma.businessMember.count({
+      where: { businessId, isActive: true },
+    });
+
+    // Contrôle strict des quotas selon l'abonnement
+    if (!subDetails.isAdmin && !subDetails.isPro && subDetails.planName === 'free') {
+      throw new AppError('L\'ajout de caissiers et la gestion d\'équipe requièrent un forfait PRO ou BUSINESS.', 403);
+    }
+    if (!subDetails.isAdmin && subDetails.planName === 'pro' && activeMembersCount >= 3) {
+      throw new AppError('Le forfait PRO est limité à 3 collaborateurs. Passez au forfait BUSINESS pour des caissiers illimités.', 403);
+    }
+
+    // Vérifier si un compte utilisateur existe déjà avec cet email
+    let targetUser = await req.prisma.user.findUnique({
+      where: { email: data.email.toLowerCase().trim() },
+    });
+
+    if (targetUser) {
+      // Vérifier s'il est déjà membre de cette entreprise
+      const existingMembership = await req.prisma.businessMember.findFirst({
+        where: { businessId, userId: targetUser.id },
+      });
+      if (existingMembership) {
+        if (existingMembership.isActive) {
+          throw new AppError('Cet utilisateur fait déjà partie de l’équipe de cette boutique.', 409);
+        } else {
+          // Réactiver l'accès
+          const updated = await req.prisma.businessMember.update({
+            where: { id: existingMembership.id },
+            data: { isActive: true, role: data.role },
+            include: { user: true },
+          });
+          res.json({ message: 'Accès du collaborateur réactivé avec succès !', member: updated });
+          return;
+        }
+      }
+    } else {
+      // Créer un compte utilisateur pour le caissier
+      const passwordHash = await bcrypt.hash(data.password, 10);
+      targetUser = await req.prisma.user.create({
+        data: {
+          email: data.email.toLowerCase().trim(),
+          passwordHash,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone || null,
+          avatarUrl: null,
+          locale: 'fr',
+          currency: 'XAF',
+        },
+      });
+    }
+
+    const newMember = await req.prisma.businessMember.create({
+      data: {
+        userId: targetUser.id,
+        businessId,
+        role: data.role,
+        isActive: true,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId!,
+        businessId,
+        action: 'create',
+        entity: 'business_member',
+        entityId: newMember.id,
+      },
+    });
+
+    res.status(201).json({
+      message: `Caissier/Collaborateur ${targetUser.firstName} ajouté avec succès !`,
+      member: newMember,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/business/members/:id (Mettre à jour le rôle ou le statut d'un collaborateur)
+const updateMemberSchema = z.object({
+  role: z.enum(['owner', 'manager', 'employee']).optional(),
+  isActive: z.boolean().optional(),
+});
+
+router.put('/members/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const businessId = await getTenantBusinessId(req);
+
+    // Seul le propriétaire peut modifier les rôles
+    const callerMembership = await req.prisma.businessMember.findFirst({
+      where: { businessId, userId: req.userId, isActive: true, role: 'owner' },
+    });
+    if (!callerMembership) {
+      throw new AppError('Seul le propriétaire de l\'activité peut modifier les rôles ou statuts de l\'équipe.', 403);
+    }
+
+    const memberToUpdate = await req.prisma.businessMember.findFirst({
+      where: { id: req.params.id, businessId },
+    });
+    if (!memberToUpdate) throw new AppError('Collaborateur introuvable.', 404);
+
+    if (memberToUpdate.userId === req.userId && req.body.isActive === false) {
+      throw new AppError('Vous ne pouvez pas désactiver votre propre accès propriétaire.', 400);
+    }
+
+    const data = updateMemberSchema.parse(req.body);
+    const updated = await req.prisma.businessMember.update({
+      where: { id: memberToUpdate.id },
+      data,
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    res.json({ message: 'Rôle et statut mis à jour !', member: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/business/members/:id (Retirer un collaborateur de la boutique)
+router.delete('/members/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const businessId = await getTenantBusinessId(req);
+
+    const callerMembership = await req.prisma.businessMember.findFirst({
+      where: { businessId, userId: req.userId, isActive: true, role: 'owner' },
+    });
+    if (!callerMembership) {
+      throw new AppError('Seul le propriétaire peut retirer un collaborateur de la boutique.', 403);
+    }
+
+    const memberToDelete = await req.prisma.businessMember.findFirst({
+      where: { id: req.params.id, businessId },
+    });
+    if (!memberToDelete) throw new AppError('Collaborateur introuvable.', 404);
+
+    if (memberToDelete.userId === req.userId) {
+      throw new AppError('Vous ne pouvez pas supprimer votre propre compte de propriétaire.', 400);
+    }
+
+    await req.prisma.businessMember.delete({ where: { id: memberToDelete.id } });
+
+    res.json({ message: 'Collaborateur retiré avec succès de la boutique.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ===================== GESTION MULTI-BOUTIQUES / SUCCURSALES =====================
+
+// POST /api/business/branches (Créer une nouvelle boutique / succursale)
+const createBranchSchema = z.object({
+  name: z.string().min(1, 'Nom de la boutique requis'),
+  sector: z.string().default('commerce'),
+  profileId: z.string().default('epicerie_alimentation'),
+  city: z.string().optional(),
+  currency: z.string().default('XAF'),
+  trackingMode: z.string().default('avec_stock'),
+});
+
+router.post('/branches', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId!);
+    const ownedBusinessesCount = await req.prisma.businessMember.count({
+      where: { userId: req.userId, role: 'owner', isActive: true },
+    });
+
+    // Contrôle strict des quotas multi-boutiques
+    if (!subDetails.isAdmin && !subDetails.isPro && subDetails.planName === 'free') {
+      throw new AppError('La création de plusieurs boutiques requiert un forfait PRO (jusqu’à 2 boutiques) ou BUSINESS (boutiques illimitées).', 403);
+    }
+    if (!subDetails.isAdmin && subDetails.planName === 'pro' && ownedBusinessesCount >= 2) {
+      throw new AppError('Le forfait PRO est limité à 2 boutiques. Passez au forfait BUSINESS pour gérer un nombre illimité de points de vente.', 403);
+    }
+
+    const data = createBranchSchema.parse(req.body);
+    const { getBusinessProfile } = require('../../config/businessProfiles');
+    const profile = getBusinessProfile(data.profileId);
+
+    const newBusiness = await req.prisma.business.create({
+      data: {
+        name: data.name,
+        sector: data.sector,
+        profileId: profile.id,
+        activeModules: JSON.stringify(profile.recommendedModules),
+        salesChannels: JSON.stringify(['boutique']),
+        trackingMode: data.trackingMode || profile.defaultTrackingMode,
+        address: data.city || null,
+        currency: data.currency || 'XAF',
+        members: {
+          create: {
+            userId: req.userId!,
+            role: 'owner',
+          },
+        },
+        settings: {
+          create: {
+            enableStock: (data.trackingMode || profile.defaultTrackingMode) === 'avec_stock' || (data.trackingMode || profile.defaultTrackingMode) === 'complet',
+            enableCredits: (data.trackingMode || profile.defaultTrackingMode) === 'complet',
+          },
+        },
+      },
+      include: {
+        settings: true,
+      },
+    });
+
+    // Catégories de dépenses initiales adaptées au profil
+    const categoriesToCreate = profile.defaultExpenseCategories && profile.defaultExpenseCategories.length > 0
+      ? profile.defaultExpenseCategories
+      : [
+          { name: 'Marchandise', icon: '🏬' },
+          { name: 'Transport', icon: '🚚' },
+          { name: 'Loyer', icon: '🏠' },
+          { name: 'Électricité', icon: '💡' },
+          { name: 'Salaires', icon: '👥' },
+          { name: 'Autre', icon: '📋' },
+        ];
+
+    for (const cat of categoriesToCreate) {
+      await req.prisma.expenseCategory.create({
+        data: {
+          businessId: newBusiness.id,
+          name: cat.name,
+          icon: cat.icon,
+        },
+      });
+    }
+
+    // Récupérer toutes les boutiques mises à jour de l'utilisateur
+    const userBusinesses = await req.prisma.businessMember.findMany({
+      where: { userId: req.userId, isActive: true },
+      include: { business: true },
+    });
+
+    res.status(201).json({
+      message: `Nouvelle boutique « ${newBusiness.name} » créée avec succès ! 🎉`,
+      business: newBusiness,
+      allBusinesses: userBusinesses.map((bm: any) => ({
+        id: bm.business.id,
+        name: bm.business.name,
+        sector: bm.business.sector,
+        profileId: bm.business.profileId,
+        trackingMode: bm.business.trackingMode,
+        currency: bm.business.currency,
+        role: bm.role,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export { router as businessRouter };
+
 

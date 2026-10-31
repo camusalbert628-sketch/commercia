@@ -20,6 +20,7 @@ import {
 import { BarChart3, TrendingUp, TrendingDown, Award, Sparkles, Printer, Compass, Target, PieChart as PieIcon } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 const PIE_COLORS = ['#0062FF', '#FF6B00', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#06B6D4', '#64748B'];
 
@@ -117,6 +118,23 @@ export const AnalyticsPage: React.FC = () => {
           <span>Imprimer le rapport</span>
         </button>
       </div>
+
+      <PageGuideBanner
+        pageId="analytics"
+        title="Analytique, Rentabilité & Diagnostic 360°"
+        subtitle="Visualisez la répartition de vos charges, le diagnostic de santé de votre entreprise et l'évolution de vos bénéfices."
+        autoDomino={[
+          "Tous les graphiques de rentabilité et le diagnostic radar 360° se recalculent en continu après chaque vente et dépense.",
+          "Les articles les plus rentables (top produits) sont automatiquement classés par marge réelle et non par simple chiffre d'affaires.",
+          "Le Copilote IA génère une recommandation stratégique hebdomadaire sur-mesure pour votre secteur d'activité.",
+        ]}
+        manualActions={[
+          "Analyser le diagramme circulaire des dépenses pour identifier le poste de coût qui pèse le plus lourd.",
+          "Imprimer ou exporter le rapport périodique pour vos déclarations ou vos rendez-vous bancaires.",
+          "Ajuster vos prix de vente sur les articles dont la marge est trop faible.",
+        ]}
+        concreteExample="Le radar indique un score de recouvrement faible (45%) mais une excellente rentabilité (85%). Cela signifie que vous vendez avec de bonnes marges mais que vos clients tardent trop à payer leurs crédits : vous devez lancer une campagne de relance immédiate."
+      />
 
       {/* AI Automated Recommendation */}
       {report?.recommendation && (

@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Bell, Plus, Minus, Store } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useModals } from '../../context/ModalContext';
 import { api } from '../../services/api';
 import { NotificationItem } from '../../types';
+import { TeamModal } from '../modals/TeamModal';
+import { BranchModal } from '../modals/BranchModal';
 
 interface NavbarProps {
   onOpenSaleModal?: () => void;
@@ -11,12 +14,28 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseModal }) => {
-  const { user, activeBusinessId } = useAuthStore();
+  const navigate = useNavigate();
+  const { user, activeBusinessId, setActiveBusinessId } = useAuthStore();
   const { openChatbot } = useModals();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showBusinessDropdown, setShowBusinessDropdown] = useState(false);
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [showBranchModal, setShowBranchModal] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowBusinessDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -30,6 +49,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
   }, []);
 
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0] || null;
+
+  const handleSelectBusiness = (businessId: string) => {
+    setActiveBusinessId(businessId);
+    setShowBusinessDropdown(false);
+    window.location.reload();
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -59,43 +84,207 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
 
   return (
     <header className="topbar">
-      <div className="topbar-business">
-        <div className="business-avatar" style={{ background: '#EFF6FF', color: '#0062FF', border: '1px solid #DBEAFE' }}>
-          <Store size={20} />
-        </div>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="business-name">{activeBusiness?.name || 'Mon Activité'}</span>
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '2px 8px',
-                borderRadius: '999px',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                background: isOnline ? '#ECFDF5' : '#FEF3C7',
-                color: isOnline ? '#059669' : '#D97706',
-                border: isOnline ? '1px solid #A7F3D0' : '1px solid #FDE68A',
-              }}
-            >
+      {/* Sélecteur de Boutique & Multi-Points de Vente */}
+      <div className="topbar-business" style={{ position: 'relative' }} ref={dropdownRef}>
+        <div
+          onClick={() => setShowBusinessDropdown(!showBusinessDropdown)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            cursor: 'pointer',
+            padding: '6px 10px',
+            borderRadius: '12px',
+            transition: 'background 0.15s ease',
+            background: showBusinessDropdown ? '#F1F5F9' : 'transparent',
+          }}
+          title="Cliquez pour basculer de boutique ou en ajouter une"
+        >
+          <div className="business-avatar" style={{ background: '#EFF6FF', color: '#0062FF', border: '1px solid #DBEAFE' }}>
+            <Store size={20} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="business-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {activeBusiness?.name || 'Mon Activité'}
+                <ChevronDown size={14} color="#64748B" />
+              </span>
               <span
                 style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  background: isOnline ? '#10B981' : '#F59E0B',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  background: isOnline ? '#ECFDF5' : '#FEF3C7',
+                  color: isOnline ? '#059669' : '#D97706',
+                  border: isOnline ? '1px solid #A7F3D0' : '1px solid #FDE68A',
                 }}
-              />
-              {isOnline ? 'En ligne' : 'Hors-ligne'}
-            </span>
-          </div>
-          <div className="business-sector">
-            {activeBusiness?.sector ? `Secteur : ${activeBusiness.sector}` : 'Micro-entreprise'}
+              >
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: isOnline ? '#10B981' : '#F59E0B',
+                  }}
+                />
+                {isOnline ? 'En ligne' : 'Hors-ligne'}
+              </span>
+            </div>
+            <div className="business-sector" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>{activeBusiness?.sector ? `Secteur : ${activeBusiness.sector}` : 'Micro-entreprise'}</span>
+              {activeBusiness?.role && (
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    background: activeBusiness.role === 'owner' ? '#FEF3C7' : '#E0F2FE',
+                    color: activeBusiness.role === 'owner' ? '#B45309' : '#0369A1',
+                  }}
+                >
+                  {activeBusiness.role === 'owner' ? '👑 Propriétaire' : activeBusiness.role === 'manager' ? '👔 Gérant' : '🛒 Caissier'}
+                </span>
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Menu Déroulant Multi-Boutiques */}
+        {showBusinessDropdown && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              marginTop: '8px',
+              width: '320px',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.15)',
+              border: '1px solid #E2E8F0',
+              zIndex: 1000,
+              padding: '12px',
+              animation: 'fadeIn 0.15s ease-out',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px 10px', borderBottom: '1px solid #F1F5F9' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Mes Boutiques & Succursales
+              </span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0062FF' }}>
+                {user?.businesses?.length || 1} boutique(s)
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+              {(user?.businesses || []).map((b: any) => {
+                const isSelected = (activeBusiness?.id === b.id);
+                return (
+                  <div
+                    key={b.id}
+                    onClick={() => handleSelectBusiness(b.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      background: isSelected ? '#EFF6FF' : 'transparent',
+                      border: isSelected ? '1px solid #BFDBFE' : '1px solid transparent',
+                      transition: 'background 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: isSelected ? '#0062FF' : '#F1F5F9',
+                          color: isSelected ? '#FFFFFF' : '#64748B',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Building2 size={16} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.86rem', fontWeight: isSelected ? 800 : 600, color: '#0F172A' }}>
+                          {b.name}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                          {b.sector} • {b.currency || 'FCFA'}
+                        </div>
+                      </div>
+                    </div>
+                    {isSelected && <Check size={16} color="#0062FF" strokeWidth={3} />}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid #F1F5F9', paddingTop: '10px', marginTop: '8px' }}>
+              <button
+                onClick={() => {
+                  setShowBusinessDropdown(false);
+                  setShowBranchModal(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  background: '#EFF6FF',
+                  border: '1px dashed #60A5FA',
+                  color: '#0062FF',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  justifyContent: 'center',
+                }}
+              >
+                <Plus size={16} />
+                <span>+ Ajouter une boutique / succursale</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowBusinessDropdown(false);
+                  setShowTeamModal(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  background: '#F8FAFC',
+                  border: '1px solid #E2E8F0',
+                  color: '#334155',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  justifyContent: 'center',
+                }}
+              >
+                <Users size={16} color="#0062FF" />
+                <span>Gérer l'équipe & caissiers</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
 
       <div className="topbar-actions">
         {/* Bouton Copilote IA en haut dans la barre de navigation */}
@@ -125,6 +314,50 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
           />
           <span>Copilote IA</span>
           <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+        </button>
+
+        {/* Bouton Guide & Mode d'emploi */}
+        <button
+          onClick={() => navigate('/guide')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 12px',
+            borderRadius: '10px',
+            background: '#F1F5F9',
+            color: '#1E293B',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            border: '1px solid #CBD5E1',
+            cursor: 'pointer',
+          }}
+          title="Consulter le Guide Complet & Mode d'emploi de COMMERCIA"
+        >
+          <BookOpen size={16} color="#0062FF" />
+          <span>Guide</span>
+        </button>
+
+        {/* Bouton Équipe & Caissiers */}
+        <button
+          onClick={() => setShowTeamModal(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 12px',
+            borderRadius: '10px',
+            background: '#F1F5F9',
+            color: '#1E293B',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            border: '1px solid #CBD5E1',
+            cursor: 'pointer',
+          }}
+          title="Gérer les caissiers et l'équipe de la boutique"
+        >
+          <Users size={16} color="#0062FF" />
+          <span>Équipe</span>
         </button>
 
         {onOpenSaleModal && (
@@ -277,6 +510,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
           )}
         </div>
       </div>
+
+      {/* Modals Équipe et Multi-Boutiques */}
+      <TeamModal isOpen={showTeamModal} onClose={() => setShowTeamModal(false)} />
+      <BranchModal isOpen={showBranchModal} onClose={() => setShowBranchModal(false)} />
     </header>
   );
 };

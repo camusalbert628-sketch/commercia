@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, AlertTriangle, Search, ArrowUp, X, Crown, Globe, Truck, Calculator } from 'lucide-react';
 import { api } from '../services/api';
 import { Product } from '../types';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -132,6 +133,25 @@ export const ProductsPage: React.FC = () => {
           <span>+ Ajouter un Article</span>
         </button>
       </div>
+
+      <PageGuideBanner
+        pageId="products"
+        title="Gestion du Stock, Articles & Alertes Ruptures"
+        subtitle="Contrôlez vos quantités en rayon, calculez la marge brute unitaire et évitez de perdre des ventes par rupture"
+        autoDomino={[
+          "Chaque vente enregistrée déduit automatiquement la quantité disponible en stock.",
+          "Déclenchement automatique de l'alerte rouge 'Rupture imminente' dès que le stock passe sous votre seuil minimal.",
+          "Calcul automatique de la valeur financière totale du stock au prix de revient d'achat et au potentiel de vente.",
+          "Calcul automatique du coût de revient (Prix d'achat fournisseur + Frais logistiques/transport)."
+        ]}
+        manualActions={[
+          "Créer la fiche de l'article avec son prix d'achat, ses frais d'acheminement et son prix de vente.",
+          "Fixer le seuil d'alerte de stock bas (ex: alerter dès qu'il reste moins de 5 unités).",
+          "Ajuster manuellement le stock en cas d'avarie, vol, perte ou nouvel arrivage fournisseur."
+        ]}
+        concreteExample="Vous achetez 50 paires de chaussures à 8 000 FCFA avec 1 000 FCFA de transport unitaire (Coût de revient = 9 000 FCFA). Vous les vendez à 15 000 FCFA (Marge = 6 000 FCFA/paire). Après 46 ventes, il ne reste que 4 paires : COMMERCIA passe l'article en alerte rupture rouge pour que vous réapprovisionniez avant que vos clients ne trouvent le magasin vide !"
+        guideSectionId="products"
+      />
 
       {/* Filter and Search */}
       <div className="card" style={{ padding: '16px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>

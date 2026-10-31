@@ -29,6 +29,7 @@ import {
   Scissors,
   Smartphone,
   SlidersHorizontal,
+  BookOpen,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { getBusinessProfile } from '../../config/businessProfiles';
@@ -219,6 +220,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
         >
           <LayoutDashboard size={18} />
           <span>Tableau de bord</span>
+        </NavLink>
+
+        <NavLink
+          to="/guide"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          style={{ background: 'linear-gradient(135deg, rgba(0, 98, 255, 0.12) 0%, rgba(255, 107, 0, 0.10) 100%)', border: '1px solid rgba(255, 255, 255, 0.15)' }}
+        >
+          <BookOpen size={18} color="#FF7A00" />
+          <span style={{ fontWeight: 800, color: '#FFFFFF' }}>Guide & Mode d'Emploi</span>
+          <span style={{ fontSize: '0.58rem', background: '#FF7A00', color: '#FFFFFF', padding: '1px 5px', borderRadius: '4px', fontWeight: 900 }}>AIDE</span>
         </NavLink>
 
         <NavLink

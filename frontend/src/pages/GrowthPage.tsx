@@ -38,6 +38,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { growthService } from '../services/growthService';
 import { hasPremiumAccess } from '../services/premiumService';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 import {
   AcquisitionChannelData,
   AcquisitionCampaignData,
@@ -739,6 +740,25 @@ export const GrowthPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <PageGuideBanner
+        pageId="growth"
+        title="Croissance, Coût d'Acquisition (CAC) & Rentabilité Canaux"
+        subtitle="Mesurez la rentabilité exacte de vos publicités (Facebook, TikTok, Influenceurs) et vos charges variables"
+        autoDomino={[
+          "Calcul automatique du CAC Réel (Dépenses publicitaires ÷ Nombre de nouveaux clients payants acquis).",
+          "Calcul automatique du Retour sur Dépense Publicitaire (ROAS) et de la marge nette générée par canal.",
+          "Attribution automatique des commandes et du chiffre d'affaires au bon canal marketing.",
+          "Détection automatique des canaux non rentables (CAC supérieur à la marge nette moyenne)."
+        ]}
+        manualActions={[
+          "Saisir le budget réel dépensé sur chaque canal (ex: 30 000 FCFA sponsorisés sur Facebook Ads).",
+          "Renseigner les charges variables spécifiques par article vendu (emballage cadeau, commission livreur, scotch).",
+          "Sélectionner la période d'analyse (Mois en cours, Mois dernier, Année complète)."
+        ]}
+        concreteExample="Vous lancez une campagne Facebook Ads de 30 000 FCFA. Grâce à cette pub, 70 nouveaux clients commandent pour un total de 350 000 FCFA. COMMERCIA calcule instantanément : CAC = 429 FCFA par client. Sachant que votre marge nette moyenne est de 2 000 FCFA par client, ce canal est ultra-rentable (+110 000 FCFA de profit net) !"
+        guideSectionId="growth"
+      />
 
       {/* CONFIRMATION BANNER IF SECTION 7 REFERENCE SCENARIO IS ACTIVE */}
       {referenceMessage && (

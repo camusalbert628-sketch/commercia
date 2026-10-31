@@ -27,6 +27,11 @@ router.get('/', async (req: AuthRequest, res, next) => {
       products = products.filter((p: any) => p.quantity <= p.lowStockAlert);
     }
 
+    const callerMember = await req.prisma.businessMember.findFirst({
+      where: { businessId, userId: req.userId, isActive: true },
+    });
+    const isEmployee = callerMember?.role === 'employee';
+
     const formatted = products.map((p: any) => {
       let extra: any = {};
       if (p.description && p.description.startsWith('{') && p.description.endsWith('}')) {
@@ -36,8 +41,9 @@ router.get('/', async (req: AuthRequest, res, next) => {
       }
       return {
         ...p,
-        purchasePrice: extra.purchasePrice ?? p.costPrice,
-        logisticsFees: extra.logisticsFees ?? 0,
+        costPrice: isEmployee ? 0 : p.costPrice,
+        purchasePrice: isEmployee ? 0 : (extra.purchasePrice ?? p.costPrice),
+        logisticsFees: isEmployee ? 0 : (extra.logisticsFees ?? 0),
         isOnlineShop: Boolean(extra.isOnlineShop),
       };
     });

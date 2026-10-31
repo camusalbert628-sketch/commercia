@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 export const MobileMoneyPage: React.FC = () => {
   const { user, activeBusinessId } = useAuthStore();
@@ -104,7 +105,7 @@ export const MobileMoneyPage: React.FC = () => {
   });
 
   return (
-    <div className="page-container" style={{ padding: '24px 16px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="page-wrapper" style={{ width: '100%', maxWidth: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -144,6 +145,23 @@ export const MobileMoneyPage: React.FC = () => {
           Nouvelle opération MoMo
         </button>
       </div>
+
+      <PageGuideBanner
+        pageId="mobile_money"
+        title="Points Wave & Agences Mobile Money"
+        subtitle="Gérez vos flux de dépôts, retraits et commissions sans confondre l'argent des clients avec votre chiffre d'affaires."
+        autoDomino={[
+          "Chaque retrait client déduit le cash physique du tiroir et augmente le solde de monnaie électronique (U-money/Wave).",
+          "Chaque dépôt client encaisse du cash physique dans votre tiroir et déduit votre compte électronique.",
+          "Les commissions gagnées s'ajoutent automatiquement à votre bénéfice net d'agence sans gonfler artificiellement vos ventes.",
+        ]}
+        manualActions={[
+          "Vérifier le SMS ou la notification sur le téléphone POS de l'opérateur AVANT de remettre les billets au client.",
+          "Pointer chaque soir le solde physique dans le tiroir et le solde dans l'application Wave/Orange pour détecter les écarts.",
+          "Ne jamais utiliser l'argent des dépôts clients pour régler des charges personnelles.",
+        ]}
+        concreteExample="Un client vient retirer 50 000 F via Wave. Vous lui donnez 50 000 F en billets physiques. Votre compte Wave reçoit 50 000 F + 500 F de commission opérateur. COMMERCIA crédite vos 500 F de bénéfice net d'agence en toute transparence."
+      />
 
       {/* Notice comptable essentielle (Section 13) */}
       <div style={{ padding: '14px 18px', borderRadius: '12px', background: '#F8FAFC', border: '1px solid #E2E8F0', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>

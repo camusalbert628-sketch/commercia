@@ -39,6 +39,18 @@ const sellPortionsSchema = z.object({
   notes: z.string().optional(),
 });
 
+const sellComboSchema = z.object({
+  comboName: z.string().default('Combo Street-Food'),
+  items: z.array(z.object({
+    prepId: z.string().min(1, 'Identifiant préparation requis'),
+    portions: z.number().min(1, 'Au moins 1 portion requise'),
+  })).min(1, 'Au moins un plat requis dans le combo'),
+  paymentMethod: z.enum(['cash', 'mobile_money', 'bank_transfer', 'credit']).default('cash'),
+  customerId: z.string().optional(),
+  customTotalAmount: z.number().min(0).optional(),
+  notes: z.string().optional(),
+});
+
 const lossesSchema = z.object({
   portionsLost: z.number().min(0).default(0),
   portionsOffered: z.number().min(0).default(0),
@@ -323,6 +335,134 @@ router.put('/preparations/:id/sell', authenticate, async (req: AuthRequest, res:
       message: `${data.portionsToSell} portion(s) vendue(s) avec succès ! (${saleTotal.toLocaleString('fr-FR')} FCFA)`,
       preparation: result.updatedPrep,
       sale: result.sale,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/food-prep/sell-combo (Vente d'un combo street-food multi-plats : beignets + haricots + bouillie)
+router.post('/sell-combo', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const businessId = await getTenantBusinessId(req);
+    if (!businessId) throw new AppError('Identifiant d’entreprise requis.', 400);
+
+    const data = sellComboSchema.parse(req.body);
+
+    if (data.customerId) {
+      const cust = await req.prisma.customer.findFirst({ where: { id: data.customerId, businessId } });
+      if (!cust) throw new AppError('Client introuvable pour cette entreprise.', 404);
+    }
+    if (data.paymentMethod === 'credit' && !data.customerId) {
+      throw new AppError('Une vente à crédit nécessite un client afin d’enregistrer la créance.', 400);
+    }
+
+    const result = await req.prisma.$transaction(async (tx: any) => {
+      let computedTotal = 0;
+      const saleItemsData: any[] = [];
+      const updatedPreps: any[] = [];
+
+      for (const item of data.items) {
+        const prep = await tx.mealPreparation.findFirst({
+          where: { id: item.prepId, businessId },
+        });
+        if (!prep) throw new AppError(`Plat introuvable (ID: ${item.prepId})`, 404);
+
+        if (prep.portionsRemaining < item.portions) {
+          throw new AppError(
+            `Stock insuffisant pour ${prep.dishName} : seulement ${prep.portionsRemaining} portion(s) restante(s).`,
+            409
+          );
+        }
+
+        const lineTotal = prep.unitSellingPrice * item.portions;
+        computedTotal += lineTotal;
+        const unitCost = prep.portionsPrepared > 0 ? (prep.ingredientsCost / prep.portionsPrepared) : 0;
+
+        await tx.mealPreparation.update({
+          where: { id: item.prepId },
+          data: {
+            portionsSold: { increment: item.portions },
+            portionsRemaining: { decrement: item.portions },
+            totalRevenue: { increment: lineTotal },
+          },
+        });
+
+        saleItemsData.push({
+          name: `${prep.dishName} (${item.portions} portion${item.portions > 1 ? 's' : ''})`,
+          quantity: item.portions,
+          unitPrice: prep.unitSellingPrice,
+          costPrice: unitCost,
+          totalPrice: lineTotal,
+        });
+
+        const fresh = await tx.mealPreparation.findUnique({ where: { id: item.prepId } });
+        if (fresh && fresh.portionsRemaining <= 0) {
+          await tx.mealPreparation.update({
+            where: { id: item.prepId },
+            data: { status: 'closed' },
+          });
+        }
+        updatedPreps.push(fresh);
+      }
+
+      const finalTotal = data.customTotalAmount !== undefined ? data.customTotalAmount : computedTotal;
+
+      // Création de la vente consolidée
+      const sale = await tx.sale.create({
+        data: {
+          businessId,
+          customerId: data.customerId || null,
+          totalAmount: finalTotal,
+          paidAmount: data.paymentMethod === 'credit' ? 0 : finalTotal,
+          paymentMethod: data.paymentMethod,
+          status: 'completed',
+          notes: `${data.comboName} : ${saleItemsData.map((i: any) => i.name).join(' + ')} ${data.notes ? `(${data.notes})` : ''}`,
+          items: {
+            create: saleItemsData,
+          },
+        },
+      });
+
+      // Si crédit, enregistrer la créance client
+      if (data.paymentMethod === 'credit' && data.customerId) {
+        await tx.customer.update({
+          where: { id: data.customerId },
+          data: {
+            totalBought: { increment: finalTotal },
+            totalOwed: { increment: finalTotal },
+          },
+        });
+      }
+
+      // Enregistrement caisse journalière
+      if (data.paymentMethod !== 'credit' && finalTotal > 0) {
+        const activeSession = await tx.cashSession.findFirst({
+          where: { businessId, status: 'open' },
+        });
+        if (activeSession) {
+          await tx.cashMovement.create({
+            data: {
+              sessionId: activeSession.id,
+              businessId,
+              type: 'in',
+              amount: finalTotal,
+              method: data.paymentMethod,
+              category: 'sale',
+              referenceId: sale.id,
+              description: `${data.comboName} : ${saleItemsData.map((i: any) => i.name).join(' + ')}`,
+            },
+          });
+        }
+      }
+
+      return { sale, updatedPreps, totalAmount: finalTotal };
+    });
+
+    res.status(201).json({
+      message: `${data.comboName} validé avec succès ! (${result.totalAmount.toLocaleString('fr-FR')} FCFA)`,
+      sale: result.sale,
+      preparations: result.updatedPreps,
     });
   } catch (error) {
     next(error);

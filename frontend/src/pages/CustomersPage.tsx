@@ -3,6 +3,7 @@ import { Users, Plus, Phone, AlertCircle, CheckCircle, MessageSquare, DollarSign
 import { api } from '../services/api';
 import { Customer } from '../types';
 import { useAuthStore } from '../store/authStore';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 export const CustomersPage: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -110,6 +111,25 @@ export const CustomersPage: React.FC = () => {
           <span>+ Nouveau Client</span>
         </button>
       </div>
+
+      <PageGuideBanner
+        pageId="customers"
+        title="Clients & Carnet de Dettes (Crédits)"
+        subtitle="Enregistrez vos clients fidèles, suivez chaque franc à recouvrer et relancez avec diplomatie sur WhatsApp"
+        autoDomino={[
+          "Mise à jour automatique de la dette du client dès qu'une vente est validée en mode 'Crédit'.",
+          "Calcul automatique du solde restant dû lors d'un remboursement partiel (ex: avance de 10 000 FCFA sur 25 000 FCFA).",
+          "Les encaissements de dettes payés en espèces entrent automatiquement dans la Caisse Journalière.",
+          "Génération automatique d'un message de relance poli et personnalisé prêt à envoyer sur WhatsApp."
+        ]}
+        manualActions={[
+          "Créer la fiche du client avec son nom et numéro de téléphone WhatsApp.",
+          "Fixer un plafond de crédit maximal pour éviter les impayés dangereux.",
+          "Cliquer sur 'Encaisser un paiement' dès que le client vient régler une partie ou la totalité de sa dette."
+        ]}
+        concreteExample="Mme Traoré achète pour 20 000 FCFA de marchandises et demande à payer à la fin du mois. Vous sélectionnez son nom et cochez 'Vente à Crédit'. Sa fiche affiche Dette = 20 000 FCFA. Le 30 du mois, vous cliquez sur 'Relance WhatsApp' qui lui envoie un rappel courtois. Quand elle vous remet 10 000 FCFA, vous enregistrez le paiement : sa dette passe à 10 000 FCFA et votre caisse reçoit 10 000 FCFA."
+        guideSectionId="customers"
+      />
 
       {/* Filter Toggle */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>

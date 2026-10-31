@@ -17,6 +17,7 @@ import {
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { getBusinessProfile } from '../config/businessProfiles';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 export const ServiceOrdersPage: React.FC = () => {
   const { user, activeBusinessId } = useAuthStore();
@@ -146,7 +147,7 @@ export const ServiceOrdersPage: React.FC = () => {
   const totalBalances = orders.reduce((sum, o) => sum + (o.status !== 'annule' && o.status !== 'livre' ? o.balanceDue : 0), 0);
 
   return (
-    <div className="page-container" style={{ padding: '24px 16px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="page-wrapper" style={{ width: '100%', maxWidth: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -188,6 +189,23 @@ export const ServiceOrdersPage: React.FC = () => {
            'Nouvelle commande / Devis'}
         </button>
       </div>
+
+      <PageGuideBanner
+        pageId="service_orders"
+        title="Commandes, Ateliers & Fiches de Dépôt"
+        subtitle="Suivez vos confections sur-mesure, réparations et prestations avec gestion des acomptes et bons de retrait WhatsApp."
+        autoDomino={[
+          "Chaque acompte versé à la commande crédite instantanément la Caisse Journalière ouverte.",
+          "Le solde restant dû est rattaché au compte du client pour éviter les impayés lors du retrait.",
+          "Lors de la livraison finale, l'encaissement du solde solde définitivement la commande et alimente le chiffre d'affaires réalisé.",
+        ]}
+        manualActions={[
+          "Enregistrer la commande dès la réception de l'appareil ou du tissu avec description précise des travaux.",
+          "Exiger un acompte initial obligatoire (ex: 30% à 50%) pour couvrir les fournitures.",
+          "Passer le statut à « Prêt » puis envoyer la notification WhatsApp au client pour qu'il vienne récupérer son article.",
+        ]}
+        concreteExample="Un client dépose un complet en basin à coudre pour 35 000 F. Il verse 15 000 F d'acompte. Votre caisse prend +15 000 F et le solde dû reste à 20 000 F. Quand l'habit est prêt, vous cliquez sur WhatsApp pour le prévenir, il paie les 20 000 F et retire son colis."
+      />
 
       {error && (
         <div style={{ padding: '12px 16px', borderRadius: '8px', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#B91C1C', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -6,6 +6,7 @@ import { Sale } from '../types';
 import { useModals } from '../context/ModalContext';
 import { ReceiptModal } from '../components/modals/ReceiptModal';
 import { useAuthStore } from '../store/authStore';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 interface SalesPageProps {
   onOpenSaleModal?: () => void;
@@ -190,6 +191,26 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
           </button>
         </div>
       </div>
+
+      <PageGuideBanner
+        pageId="sales"
+        title="Point de Vente & Enregistrement des Ventes"
+        subtitle="Enregistrez une vente en moins de 10 secondes et déclenchez l'effet domino automatique"
+        autoDomino={[
+          "Décrémentation immédiate du stock de l'article ou de l'item du lot vendu.",
+          "Si paiement Espèces : le solde théorique de la Caisse Journalière augmente instantanément.",
+          "Si paiement Crédit : la dette est automatiquement ajoutée au carnet du client.",
+          "Si paiement Mobile Money : la commission d'agent est calculée automatiquement.",
+          "Génération automatique d'un reçu numérique partageable directement sur WhatsApp ou imprimable."
+        ]}
+        manualActions={[
+          "Sélectionner les articles ou le lot concerné dans la liste déroulante.",
+          "Choisir le mode de paiement réel donné par le client (Espèces, Wave, Orange Money, ou Crédit).",
+          "Sélectionner ou créer le client si la vente est à crédit ou pour son suivi fidélité."
+        ]}
+        concreteExample="Un client achète 2 polos à 6 000 FCFA chacun et paie par Wave. Vous sélectionnez 'Polo', quantité 2, mode 'Mobile Money (Wave)'. En un clic : 2 polos sont décomptés du stock, votre compte Wave est crédité de 12 000 FCFA, et un reçu propre avec lien WhatsApp est prêt à envoyer au client."
+        guideSectionId="sales"
+      />
 
       {/* Filters */}
       <div className="card" style={{ padding: '16px', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>

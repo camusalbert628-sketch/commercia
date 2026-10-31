@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { AuthRequest, authenticate, getTenantBusinessId } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
+import { createNotification } from '../../utils/notificationHelper';
 
 const router = Router();
 router.use(authenticate);
@@ -219,6 +220,19 @@ router.post('/close', async (req: AuthRequest, res, next) => {
         }),
       },
     });
+
+    // Notification automatique si écart constaté (Effet domino anti-fraude)
+    if (Math.abs(cashDiscrepancy) > 100) {
+      await createNotification(req.prisma, {
+        userId: req.userId!,
+        businessId,
+        type: 'cash_discrepancy',
+        title: `Alerte Écart de Caisse : ${cashDiscrepancy > 0 ? '+' : ''}${cashDiscrepancy.toLocaleString('fr-FR')} FCFA`,
+        message: `Une anomalie (${cashDiscrepancy > 0 ? 'excédent' : 'manquant'} de ${Math.abs(cashDiscrepancy).toLocaleString('fr-FR')} FCFA) a été scellée lors de la clôture de caisse. Motif : « ${data.discrepancyReason || 'Non spécifié'} ».`,
+        icon: '⚠️',
+        actionUrl: '/cash',
+      });
+    }
 
     res.json({
       message: 'Caisse clôturée avec succès ! 🎉',

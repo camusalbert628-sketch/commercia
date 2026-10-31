@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { Expense } from '../types';
 import { useModals } from '../context/ModalContext';
 import { useAuthStore } from '../store/authStore';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 interface ExpensesPageProps {
   onOpenExpenseModal?: () => void;
@@ -56,7 +57,23 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
   const totalFiltered = filtered.reduce((sum, e) => sum + e.amount, 0);
 
   return (
-    <div className="page-wrapper">
+    <div className="page-wrapper" style={{ width: '100%', maxWidth: '100%' }}>
+      <PageGuideBanner
+        pageId="expenses"
+        title="Dépenses & Charges d'Exploitation"
+        subtitle="Enregistrez chaque sortie d'argent pour calculer votre vrai bénéfice net et éviter la faillite silencieuse."
+        autoDomino={[
+          "Chaque dépense déduit immédiatement le bénéfice net de la journée sur le tableau de bord.",
+          "Si payée en espèces au comptoir, la sortie d'argent est déduite en direct du solde théorique de la Caisse Journalière.",
+          "Le Copilote IA intègre ces charges réelles dans le calcul d'autonomie financière à J+30.",
+        ]}
+        manualActions={[
+          "Enregistrer la dépense au moment où vous donnez les billets (ne pas attendre la fin de semaine).",
+          "Sélectionner la bonne catégorie (Loyer, Marchandise, Transport, Salaires) pour repérer les fuites.",
+          "Conserver le reçu ou la facture papier comme justificatif.",
+        ]}
+        concreteExample="Vous payez 15 000 F de carburant pour le coursier et 5 000 F pour l'électricité. Dès la validation, la caisse physique affiche -20 000 F et le bénéfice net du jour est immédiatement recalculé sans erreur."
+      />
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0' }}>Gestion des Dépenses</h1>

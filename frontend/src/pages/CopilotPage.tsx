@@ -29,6 +29,7 @@ import {
   generateCopilotLLMResponse,
 } from '../services/llmService';
 import { renderNaturalFormattedText } from '../utils/textFormatter';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -291,6 +292,25 @@ export const CopilotPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <PageGuideBanner
+        pageId="copilot"
+        title="Copilote Financier & Assistant IA Intelligent"
+        subtitle="Posez n'importe quelle question sur vos chiffres, demandez des stratégies de vente ou confiez-lui des consignes à mémoriser"
+        autoDomino={[
+          "L'IA extrait automatiquement vos ventes du jour, le solde de caisse et les ruptures de stock pour répondre avec vos vrais chiffres.",
+          "Mémorisation automatique des règles clés : si vous lui dites 'Rappelle-toi que...', il stocke la consigne dans sa mémoire permanente.",
+          "Génération de stratégies personnalisées selon votre secteur (Friperie, Restauration, Épicerie, Prêt-à-porter).",
+          "Calcul immédiat des marges, points morts et suggestions d'actions rentables sans formule complexe."
+        ]}
+        manualActions={[
+          "Poser vos questions en langage naturel (ex: 'Combien ai-je gagné aujourd'hui ?', 'Quels produits vont bientôt manquer ?').",
+          "Consulter et purger au besoin les souvenirs stockés dans la 'Banque de mémoire'.",
+          "Sélectionner le moteur LLM souhaité (Gemini, GPT ou Claude)."
+        ]}
+        concreteExample="Demandez-lui : « Fais-moi le point de la journée et dis-moi si je peux payer le loyer de 50 000 FCFA demain ». Le Copilote analyse immédiatement vos ventes du jour, le solde présent dans votre caisse et vos comptes Wave, et vous répond de façon chiffrée, claire et bienveillante."
+        guideSectionId="copilot"
+      />
 
       {/* Model Active Banner */}
       <div

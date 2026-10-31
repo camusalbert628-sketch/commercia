@@ -25,6 +25,7 @@ import {
 import { TreasuryMovement, TreasuryAccount } from '../types/premium';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 export const TreasuryPage: React.FC = () => {
   const { user, activeBusinessId } = useAuthStore();
@@ -239,6 +240,25 @@ export const TreasuryPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <PageGuideBanner
+        pageId="treasury"
+        title="Trésorerie Multi-Comptes & Prévisions"
+        subtitle="Séparez vos comptes de liquidité (Caisse, Wave, Orange Money, Banque), surveillez votre autonomie en jours et évitez la faillite"
+        autoDomino={[
+          "Mise à jour automatique de la trésorerie totale disponible à travers tous vos comptes d'argent.",
+          "Calcul automatique de l'autonomie en jours (Trésorerie disponible ÷ Dépense quotidienne moyenne).",
+          "Prévision de solde à J+30 basée sur le rythme d'encaissement et les échéances prévues.",
+          "Application de la Règle des 3 Poches : Capital (60-70%), Charges fixes (15-20%), Prélèvement Patron (10-15%)."
+        ]}
+        manualActions={[
+          "Créer vos différents comptes (ex: Caisse principale, Wave Pro, Orange Money, Compte Bancaire).",
+          "Enregistrer les virements internes (ex: transférer 100 000 FCFA de Wave vers la Banque pour payer le loyer).",
+          "Enregistrer vos prélèvements personnels en tant que 'Retrait propriétaire' pour ne jamais fausser le bénéfice de l'entreprise."
+        ]}
+        concreteExample="Vous avez 200 000 FCFA sur Wave et 50 000 FCFA en caisse. Vos dépenses fixes quotidiennes sont de 10 000 FCFA. COMMERCIA vous alerte : vous avez 25 jours d'autonomie financière. Si vous devez retirer 30 000 FCFA pour vos dépenses personnelles, notez-le en 'Retrait propriétaire' (Poche 3) afin de préserver votre capital d'achat (Poche 1)."
+        guideSectionId="treasury"
+      />
 
       {/* PLAN NOTIFICATION BANNER */}
       {access === 'none' && (

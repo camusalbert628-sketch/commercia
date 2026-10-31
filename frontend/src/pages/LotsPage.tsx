@@ -44,6 +44,7 @@ import { useAuthStore } from '../store/authStore';
 import { lotsService } from '../services/lotsService';
 import { generateCopilotLLMResponse, getLLMConfig } from '../services/llmService';
 import { renderProfessionalStrategyCards, renderNaturalFormattedText } from '../utils/textFormatter';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 import {
   LotsOverviewResponse,
   CampaignSummaryItem,
@@ -1019,6 +1020,26 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
           )}
         </div>
       </div>
+
+      <PageGuideBanner
+        pageId="lots"
+        title="Lots Commerciaux, Ballots de Friperie & Gros"
+        subtitle="Calculez le coût de revient complet (Landed Cost), le point mort et suivez la bascule vers le bénéfice net pur"
+        autoDomino={[
+          "Calcul automatique du coût de revient unitaire (Achat ballot + Transport + Déchargement + Blanchisserie).",
+          "Calcul en direct du Point Mort (Break-Even) : combien de pièces vendre avant de récupérer votre capital investi.",
+          "Bascule automatique dans la 'Zone de Bénéfice Net' dès que le capital investi est remboursé.",
+          "Recommandations de canaux (WhatsApp, Live TikTok, Boutique) adaptées à chaque catégorie de vêtements."
+        ]}
+        manualActions={[
+          "Créer la campagne du lot avec son coût d'achat et les frais réels d'acheminement.",
+          "Décomposer le ballot ouvert en sous-articles (ex: 20 Chemises 1er Choix, 30 T-shirts 2e Choix, 10 chiffons).",
+          "Définir le prix de vente estimé par pièce.",
+          "Enregistrer les ventes directement rattachées au lot."
+        ]}
+        concreteExample="Ballot acheté à 100 000 FCFA + 20 000 FCFA transport = 120 000 FCFA investis. Vous ouvrez le ballot : 40 robes de qualité. Dès que vous avez vendu 24 robes à 5 000 FCFA (soit 120 000 FCFA encaissés), votre capital est sécurisé. Les 16 robes restantes vendues sont du bénéfice net pur (80 000 FCFA) !"
+        guideSectionId="lots"
+      />
 
       {/* VIEW 1: CONSOLIDATED OVERVIEW & CAMPAIGNS LIST */}
       {currentView === 'list' && overview && (

@@ -85,6 +85,7 @@ export async function gatherLiveStoreData(prisma: any, businessId: string, userI
     lowStockProducts,
     topProducts,
     activeLotCampaigns,
+    todayMealPreparations,
   ] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -136,6 +137,11 @@ export async function gatherLiveStoreData(prisma: any, businessId: string, userI
         sales: { include: { items: true } },
         expenses: true,
       },
+    }),
+    prisma.mealPreparation.findMany({
+      where: { businessId, preparationDate: { gte: startOfToday } },
+      include: { recipe: true },
+      orderBy: { preparationDate: 'desc' },
     }),
   ]);
 
@@ -204,6 +210,31 @@ export async function gatherLiveStoreData(prisma: any, businessId: string, userI
         unitCost: it.unitCost,
         price: it.estimatedSellingPrice,
       })),
+    };
+  });
+
+  // Traitement de la restauration & street-food du jour (FoodPrep, beignets, haricots, marmites)
+  const processedMeals = (todayMealPreparations || []).map((m: any) => {
+    const unitIngredientCost = m.portionsPrepared > 0 ? (m.ingredientsCost / m.portionsPrepared) : 0;
+    const ingredientsConsumed = Math.round((m.portionsSold + m.portionsLost + m.portionsOffered) * unitIngredientCost);
+    const estimatedMargin = m.totalRevenue - ingredientsConsumed;
+    const marginPercent = m.totalRevenue > 0 ? Math.round((estimatedMargin / m.totalRevenue) * 100) : 0;
+
+    return {
+      id: m.id,
+      dishName: m.dishName,
+      prepared: m.portionsPrepared,
+      sold: m.portionsSold,
+      remaining: m.portionsRemaining,
+      lost: m.portionsLost,
+      offered: m.portionsOffered,
+      unitPrice: m.unitSellingPrice,
+      totalRevenue: m.totalRevenue,
+      ingredientsCost: m.ingredientsCost,
+      ingredientsConsumed,
+      estimatedMargin,
+      marginPercent,
+      status: m.status,
     };
   });
 
@@ -298,6 +329,7 @@ export async function gatherLiveStoreData(prisma: any, businessId: string, userI
       totalQty: p._sum?.quantity || 0,
     })),
     commercialLots: processedLots,
+    todayMeals: processedMeals,
     savedMemories,
   };
 }
@@ -377,6 +409,18 @@ ${itemLines}`;
       }).join('\n\n')
     : 'Aucune campagne de lots commerciaux actuellement en cours.';
 
+  const mealsSummary = (data.todayMeals || []).length > 0
+    ? data.todayMeals.map((m: any) => {
+        return `[Plat/Marmite : "${m.dishName}"]
+  - Quantités : Préparées=${m.prepared}, Vendues=${m.sold}, Restantes=${m.remaining}, Offertes/Bonus/Dons=${m.offered}, Pertes/Avaries=${m.lost}
+  - Prix de vente unitaire : ${m.unitPrice.toLocaleString('fr-FR')} ${currency}
+  - Recettes encaissées : ${m.totalRevenue.toLocaleString('fr-FR')} ${currency}
+  - Coût des ingrédients engagés : ${m.ingredientsCost.toLocaleString('fr-FR')} ${currency} (Consommés : ${m.ingredientsConsumed.toLocaleString('fr-FR')} ${currency})
+  - Marge brute réelle : ${m.estimatedMargin.toLocaleString('fr-FR')} ${currency} (${m.marginPercent}%)
+  - Statut : ${m.status === 'active' ? '🟢 EN COURS DE SERVICE' : '🔴 CLÔTURÉ'}`;
+      }).join('\n\n')
+    : 'Aucune préparation de restauration enregistrée ce jour.';
+
   const memoriesList = (data.savedMemories || []).length > 0
     ? data.savedMemories.map((m: string) => `• ${m}`).join('\n')
     : 'Aucun souvenir personnalisé enregistré pour le moment.';
@@ -427,12 +471,17 @@ ${topProductsSummary}
 ${lotsSummary}
 
 ============================================================
-6. MÉMOIRE CONTINUE & FAITS APPRIS SUR CE COMMERCE :
+6. MODULE RESTAURATION, CUISINE & STREET-FOOD (FOODPREP) :
+============================================================
+${mealsSummary}
+
+============================================================
+7. MÉMOIRE CONTINUE & FAITS APPRIS SUR CE COMMERCE :
 ============================================================
 ${memoriesList}
 
 ============================================================
-7. CONNAISSANCE TOTALE DE L'APPLICATION COMMERCIA :
+8. CONNAISSANCE TOTALE DE L'APPLICATION COMMERCIA :
 ============================================================
 Tu maîtrises chaque recoin de l'application COMMERCIA et sais guider le commerçant étape par étape :
 - **Tableau de Bord** : Vue d'ensemble en temps réel, KPIs financiers, courbe de rentabilité, alertes automatiques.

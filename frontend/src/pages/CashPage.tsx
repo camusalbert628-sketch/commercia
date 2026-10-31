@@ -17,6 +17,7 @@ import {
 import { api } from '../services/api';
 import { CashSession } from '../types';
 import { useAuthStore } from '../store/authStore';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 export const CashPage: React.FC = () => {
   const [session, setSession] = useState<CashSession | null>(null);
@@ -223,6 +224,25 @@ export const CashPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      <PageGuideBanner
+        pageId="cash"
+        title="Journal de Caisse & Contrôle des Espèces"
+        subtitle="Sécurité anti-vol, réconciliation quotidienne et vérification du tiroir-caisse sans erreur de calcul"
+        autoDomino={[
+          "Chaque vente comptoir payée en 'Espèces' est automatiquement créditée au solde théorique de caisse.",
+          "Chaque livraison COD (Cash On Delivery) encaissée par coursier et validée 'Livré' alimente directement la caisse.",
+          "Calcul automatique de l'écart de caisse (Excédent ou Manquant) lors de la clôture du soir.",
+          "Génération automatique du procès-verbal imprimable avec historique infalsifiable de la journée."
+        ]}
+        manualActions={[
+          "Ouverture matinale obligatoire : compter et saisir le fond de caisse initial (ex: 20 000 FCFA pour faire la monnaie).",
+          "Décaissements urgents : enregistrer manuellement chaque sortie (ex: 5 000 FCFA taxi fournisseur) avec motif.",
+          "Clôture du soir : compter physiquement les billets et pièces dans le tiroir et saisir le montant réel."
+        ]}
+        concreteExample="Matin : vous démarrez avec 20 000 FCFA de monnaie. Dans la journée : 5 clients paient 15 000 FCFA en espèces (Théorique = 35 000 FCFA). Vous payez 3 000 FCFA pour un coursier (Théorique = 32 000 FCFA). Le soir, vous comptez 32 000 FCFA dans le tiroir -> Écart 0 FCFA, validation parfaite !"
+        guideSectionId="cash"
+      />
 
       {/* Main Content Area */}
       {isOpen && session ? (

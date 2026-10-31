@@ -38,6 +38,7 @@ import { useModals } from '../context/ModalContext';
 import { useAuthStore } from '../store/authStore';
 import { DashboardSkeleton } from '../components/common/SkeletonLoader';
 import { getBusinessProfile } from '../config/businessProfiles';
+import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 const TRACKING_MODES_CONFIG = [
   {
@@ -732,6 +733,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </Link>
         </div>
       </div>
+
+      <PageGuideBanner
+        pageId="dashboard"
+        title="Tableau de Bord & Pilotage Central"
+        subtitle="Vue panoramique en temps réel : Chiffre d'affaires, Marge nette réelle, Alertes stock et Trésorerie globale"
+        autoDomino={[
+          "Mise à jour en temps réel de votre Chiffre d'Affaires dès qu'une vente est enregistrée.",
+          "Déduction immédiate du Coût d'Achat des Marchandises (COGS) pour calculer votre Bénéfice Net Réel.",
+          "Agrégation automatique des créances clients et du solde actuel de la Caisse Journalière.",
+          "Calcul automatique des ratios de santé financière selon la règle des 3 Poches."
+        ]}
+        manualActions={[
+          "Enregistrer vos dépenses réelles quotidiennes (loyer, transport, repas d'équipe, crédit téléphone).",
+          "Choisir votre mode de gestion (Simplifié, Avec Stock, ou Lots Commerciaux / Friperie).",
+          "Consulter les alertes de rupture de stock pour planifier vos réapprovisionnements fournisseurs."
+        ]}
+        concreteExample="Si vous vendez 10 robes à 5 000 FCFA (achetées à 2 500 FCFA) et payez 5 000 FCFA de taxi coursier : le tableau de bord affiche immédiatement CA = 50 000 FCFA, Coût d'achat = 25 000 FCFA, Dépense = 5 000 FCFA, Bénéfice Net = +20 000 FCFA. Aucun calcul manuel !"
+        guideSectionId="dashboard"
+      />
 
       {/* Interactive Tracking Mode Selector Bar */}
       <div

@@ -33,6 +33,7 @@ const FoodPrepPage = lazy(() => import('./pages/FoodPrepPage').then(m => ({ defa
 const ServiceOrdersPage = lazy(() => import('./pages/ServiceOrdersPage').then(m => ({ default: m.ServiceOrdersPage })));
 const MobileMoneyPage = lazy(() => import('./pages/MobileMoneyPage').then(m => ({ default: m.MobileMoneyPage })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
+const GuidePage = lazy(() => import('./pages/GuidePage').then(m => ({ default: m.GuidePage })));
 
 function PageLoadingFallback() {
   return (
@@ -305,6 +306,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/guide"
+            element={
+              <ProtectedRoute>
+                <GuidePage />
               </ProtectedRoute>
             }
           />

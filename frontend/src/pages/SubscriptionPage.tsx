@@ -271,7 +271,7 @@ export const SubscriptionPage: React.FC = () => {
   };
 
   return (
-    <div className="page-wrapper" style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
+    <div className="page-wrapper" style={{ width: '100%', maxWidth: '100%' }}>
       {/* 0. NOTIFICATION MESSAGE TEST */}
       {testNotice && (
         <div
