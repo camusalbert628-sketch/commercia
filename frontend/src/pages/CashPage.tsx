@@ -13,11 +13,33 @@ import {
   Printer,
   X,
   Clock,
+  Coins,
+  Sparkles,
+  Calculator,
+  ShieldCheck,
+  CheckCircle2,
+  Info,
+  Calendar,
+  User,
+  RotateCcw,
+  Check,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { CashSession } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+
+const CASH_DENOMINATIONS = [
+  { value: 10000, label: '10 000 F', type: 'bill', color: '#1E3A8A', bg: '#EFF6FF', badge: 'Billet 10 000 FCFA' },
+  { value: 5000, label: '5 000 F', type: 'bill', color: '#047857', bg: '#ECFDF5', badge: 'Billet 5 000 FCFA' },
+  { value: 2000, label: '2 000 F', type: 'bill', color: '#B45309', bg: '#FEF3C7', badge: 'Billet 2 000 FCFA' },
+  { value: 1000, label: '1 000 F', type: 'bill', color: '#B91C1C', bg: '#FEF2F2', badge: 'Billet 1 000 FCFA' },
+  { value: 500, label: '500 F', type: 'bill', color: '#6D28D9', bg: '#F5F3FF', badge: 'Billet / Pièce 500 F' },
+  { value: 200, label: '200 F', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 200 FCFA' },
+  { value: 100, label: '100 F', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 100 FCFA' },
+  { value: 50, label: '50 F', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 50 FCFA' },
+  { value: 25, label: '25 F', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 25 FCFA' },
+];
 
 export const CashPage: React.FC = () => {
   const [session, setSession] = useState<CashSession | null>(null);
@@ -34,6 +56,18 @@ export const CashPage: React.FC = () => {
   // Forms
   const [initialCash, setInitialCash] = useState<number | ''>('');
   const [openNotes, setOpenNotes] = useState('');
+  const [openMode, setOpenMode] = useState<'quick' | 'billetage'>('quick');
+  const [openBreakdown, setOpenBreakdown] = useState<Record<number, number>>({
+    10000: 0,
+    5000: 0,
+    2000: 0,
+    1000: 0,
+    500: 0,
+    200: 0,
+    100: 0,
+    50: 0,
+    25: 0,
+  });
 
   // Move form
   const [moveType, setMoveType] = useState<'in' | 'out'>('out');
@@ -46,9 +80,78 @@ export const CashPage: React.FC = () => {
   const [actualMomo, setActualMomo] = useState<number | ''>('');
   const [closeReason, setCloseReason] = useState('');
   const [closeNotes, setCloseNotes] = useState('');
+  const [closeMode, setCloseMode] = useState<'quick' | 'billetage'>('quick');
+  const [closeBreakdown, setCloseBreakdown] = useState<Record<number, number>>({
+    10000: 0,
+    5000: 0,
+    2000: 0,
+    1000: 0,
+    500: 0,
+    200: 0,
+    100: 0,
+    50: 0,
+    25: 0,
+  });
 
-  const { user } = useAuthStore();
-  const businessName = user?.businesses?.[0]?.name || 'Mon Activité';
+  const { user, activeBusinessId } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const businessName = activeBusiness?.name || user?.businesses?.[0]?.name || 'Mon Activité';
+  const currency = activeBusiness?.currency || 'FCFA';
+  const userName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Caissier';
+  const userRole = activeBusiness?.role === 'owner' ? 'Propriétaire' : activeBusiness?.role === 'manager' ? 'Gérant' : 'Caissier';
+
+  // Fonctions de calcul du Billetage
+  const updateOpenBreakdown = (val: number, delta: number) => {
+    setOpenBreakdown(prev => {
+      const nextCount = Math.max(0, (prev[val] || 0) + delta);
+      const updated = { ...prev, [val]: nextCount };
+      const total = Object.entries(updated).reduce((sum, [v, c]) => sum + (Number(v) * c), 0);
+      setInitialCash(total);
+      return updated;
+    });
+  };
+
+  const setOpenBreakdownCount = (val: number, count: number) => {
+    setOpenBreakdown(prev => {
+      const nextCount = Math.max(0, count);
+      const updated = { ...prev, [val]: nextCount };
+      const total = Object.entries(updated).reduce((sum, [v, c]) => sum + (Number(v) * c), 0);
+      setInitialCash(total);
+      return updated;
+    });
+  };
+
+  const resetOpenBreakdown = () => {
+    const empty: Record<number, number> = { 10000: 0, 5000: 0, 2000: 0, 1000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 25: 0 };
+    setOpenBreakdown(empty);
+    setInitialCash(0);
+  };
+
+  const updateCloseBreakdown = (val: number, delta: number) => {
+    setCloseBreakdown(prev => {
+      const nextCount = Math.max(0, (prev[val] || 0) + delta);
+      const updated = { ...prev, [val]: nextCount };
+      const total = Object.entries(updated).reduce((sum, [v, c]) => sum + (Number(v) * c), 0);
+      setActualCash(total);
+      return updated;
+    });
+  };
+
+  const setCloseBreakdownCount = (val: number, count: number) => {
+    setCloseBreakdown(prev => {
+      const nextCount = Math.max(0, count);
+      const updated = { ...prev, [val]: nextCount };
+      const total = Object.entries(updated).reduce((sum, [v, c]) => sum + (Number(v) * c), 0);
+      setActualCash(total);
+      return updated;
+    });
+  };
+
+  const resetCloseBreakdown = () => {
+    const empty: Record<number, number> = { 10000: 0, 5000: 0, 2000: 0, 1000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 25: 0 };
+    setCloseBreakdown(empty);
+    setActualCash(0);
+  };
 
   const fetchCashState = async () => {
     try {
@@ -415,41 +518,220 @@ export const CashPage: React.FC = () => {
           </div>
         </>
       ) : (
-        /* When Cash is Closed */
+        /* When Cash is Closed — Tableau de Bord Pré-Ouverture */
         <div
-          className="card"
           style={{
-            padding: '40px 24px',
-            textAlign: 'center',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)',
-            border: '2px dashed #CBD5E1',
-            borderRadius: '16px',
+            background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+            borderRadius: '20px',
+            border: '1.5px solid #334155',
+            padding: '32px 28px',
             marginBottom: '32px',
+            color: '#FFFFFF',
+            boxShadow: '0 12px 36px rgba(15, 23, 42, 0.25)',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
+          {/* Subtle decorative background circles */}
           <div
             style={{
-              width: '64px',
-              height: '64px',
+              position: 'absolute',
+              top: '-40px',
+              right: '-40px',
+              width: '180px',
+              height: '180px',
               borderRadius: '50%',
-              background: '#FEF3C7',
-              color: '#D97706',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px auto',
+              background: 'radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%)',
+              pointerEvents: 'none',
+            }}
+          />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', position: 'relative', zIndex: 2 }}>
+            <div style={{ maxWidth: '640px' }}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  color: '#FCA5A5',
+                  marginBottom: '14px',
+                }}
+              >
+                <Lock size={13} />
+                <span>SESSION ACTUELLEMENT FERMÉE • PRÊTE POUR L'OUVERTURE</span>
+              </div>
+
+              <h2 style={{ fontSize: '1.65rem', fontWeight: 900, margin: '0 0 10px 0', color: '#FFFFFF', lineHeight: 1.25 }}>
+                Démarrez votre journée avec une <span style={{ color: '#34D399' }}>Caisse à Zéro Faute</span>
+              </h2>
+
+              <p style={{ color: '#94A3B8', fontSize: '0.94rem', lineHeight: 1.6, margin: '0 0 20px 0' }}>
+                Saisissez votre fond de monnaie de départ (au franc près ou avec notre outil de <strong style={{ color: '#FFFFFF' }}>Billetage Express</strong>). Chaque vente en espèces ou sortie d'argent sera automatiquement réconciliée jusqu'à la clôture de ce soir.
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  className="btn btn-primary btn-lg"
+                  onClick={() => setShowOpenModal(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                    border: 'none',
+                    padding: '12px 24px',
+                    fontSize: '1rem',
+                    fontWeight: 800,
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Unlock size={20} />
+                  <span>Ouvrir la Caisse du Jour (Prise de Poste)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenMode('billetage');
+                    setShowOpenModal(true);
+                  }}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    color: '#FFFFFF',
+                    padding: '12px 18px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Coins size={16} color="#FBBF24" />
+                  <span>Compter mes billets & pièces</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Carte de rappel de la dernière clôture */}
+            {pastSessions.length > 0 && pastSessions[0] && (
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  minWidth: '260px',
+                  maxWidth: '300px',
+                  backdropFilter: 'blur(10px)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#94A3B8', fontSize: '0.74rem', textTransform: 'uppercase', fontWeight: 800 }}>
+                  <History size={14} color="#34D399" />
+                  <span>Dernière Clôture Enregistrée</span>
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#CBD5E1', marginBottom: '4px' }}>
+                  {pastSessions[0].closedAt
+                    ? new Date(pastSessions[0].closedAt).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
+                    : 'Session récente'}
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#FFFFFF', marginBottom: '6px' }}>
+                  {(pastSessions[0].actualCash ?? pastSessions[0].theoreticalCash).toLocaleString('fr-FR')} {currency}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {Math.abs(pastSessions[0].cashDiscrepancy || 0) <= 50 ? (
+                    <span style={{ fontSize: '0.72rem', background: '#065F46', color: '#A7F3D0', padding: '2px 8px', borderRadius: '6px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <CheckCircle2 size={12} /> Zéro écart (Conforme)
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '0.72rem', background: '#991B1B', color: '#FECACA', padding: '2px 8px', borderRadius: '6px', fontWeight: 800 }}>
+                      Écart : {(pastSessions[0].cashDiscrepancy || 0) > 0 ? '+' : ''}{(pastSessions[0].cashDiscrepancy || 0).toLocaleString('fr-FR')} {currency}
+                    </span>
+                  )}
+                </div>
+                {pastSessions[0].initialCash > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInitialCash(pastSessions[0].initialCash);
+                      setShowOpenModal(true);
+                    }}
+                    style={{
+                      marginTop: '10px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#38BDF8',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      padding: 0,
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Reprendre le même fond ({pastSessions[0].initialCash.toLocaleString('fr-FR')} {currency}) ➔
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 3 Règles d'or de gestion du tiroir-caisse */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '12px',
+              marginTop: '26px',
+              paddingTop: '20px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.12)',
             }}
           >
-            <Lock size={32} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.2)', color: '#34D399', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Coins size={16} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#FFFFFF' }}>1. Petite monnaie prête</div>
+                <div style={{ fontSize: '0.76rem', color: '#94A3B8', lineHeight: 1.4, marginTop: '2px' }}>
+                  Ayez toujours des pièces de 500, 200 et 100 F pour ne jamais faire attendre un client.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(56, 189, 248, 0.2)', color: '#38BDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <ShieldCheck size={16} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#FFFFFF' }}>2. Zéro mélange de fonds</div>
+                <div style={{ fontSize: '0.76rem', color: '#94A3B8', lineHeight: 1.4, marginTop: '2px' }}>
+                  L'argent du tiroir n'est pas votre poche perso : tout prélèvement doit être enregistré.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.2)', color: '#FBBF24', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Calculator size={16} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#FFFFFF' }}>3. Clôture le soir scellée</div>
+                <div style={{ fontSize: '0.76rem', color: '#94A3B8', lineHeight: 1.4, marginTop: '2px' }}>
+                  Compter chaque soir empêche 100% des erreurs invisibles et fuites de liquidités.
+                </div>
+              </div>
+            </div>
           </div>
-          <h2 style={{ fontSize: '1.4rem', margin: '0 0 8px 0' }}>La caisse est actuellement fermée</h2>
-          <p style={{ color: '#64748B', maxWidth: '480px', margin: '0 auto 24px auto', fontSize: '0.95rem' }}>
-            Ouvrez la journée en saisissant le fond de caisse initial (la monnaie dans votre tiroir) pour tracer automatiquement les entrées, sorties et écarts du jour.
-          </p>
-          <button className="btn btn-primary btn-lg" onClick={() => setShowOpenModal(true)}>
-            <Unlock size={20} />
-            <span>Ouvrir la Caisse du Jour</span>
-          </button>
         </div>
       )}
 
@@ -548,68 +830,407 @@ export const CashPage: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL 1 : OUVRIR LA CAISSE */}
+      {/* MODAL 1 : OUVRIR LA CAISSE (SUPERCHARGED AVEC BILLETAGE EXPRESS) */}
       {showOpenModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '480px' }}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ background: '#ECFDF5', color: '#059669', padding: '8px', borderRadius: '10px' }}>
-                  <Unlock size={22} />
+        <div className="modal-overlay" style={{ animation: 'fadeIn 0.15s ease-out' }}>
+          <div
+            className="modal-content"
+            style={{
+              maxWidth: openMode === 'billetage' ? '640px' : '520px',
+              borderRadius: '20px',
+              padding: 0,
+              overflow: 'hidden',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {/* Modal Header Premium */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #064E3B 0%, #065F46 100%)',
+                padding: '22px 24px',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '12px',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.4rem',
+                    flexShrink: 0,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  }}
+                >
+                  <Unlock size={24} color="#A7F3D0" />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Ouverture de Caisse</h3>
-                  <p style={{ fontSize: '0.8rem', color: '#64748B', margin: 0 }}>
-                    Indiquez le fond de monnaie disponible au démarrage
+                  <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0, color: '#FFFFFF' }}>
+                    Ouverture de Caisse
+                  </h3>
+                  <p style={{ fontSize: '0.82rem', color: '#A7F3D0', margin: '3px 0 0' }}>
+                    Fonds de roulement & Monnaie de départ du service
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowOpenModal(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8' }}>
-                <X size={20} />
+              <button
+                onClick={() => setShowOpenModal(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.15)',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Badges de contexte (Caissier, Date, Boutique) */}
+            <div
+              style={{
+                padding: '10px 24px',
+                background: '#ECFDF5',
+                borderBottom: '1px solid #D1FAE5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '8px',
+                fontSize: '0.78rem',
+                color: '#065F46',
+                fontWeight: 700,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <User size={13} />
+                <span>{userName} ({userRole})</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Calendar size={13} />
+                <span>{new Date().toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Clock size={13} />
+                <span>Prise de poste : {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+
+            {/* Onglets de mode : Saisie Rapide vs Billetage */}
+            <div style={{ padding: '16px 24px 0', display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setOpenMode('quick')}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  border: openMode === 'quick' ? '2px solid #059669' : '1px solid #E2E8F0',
+                  background: openMode === 'quick' ? '#ECFDF5' : '#F8FAFC',
+                  color: openMode === 'quick' ? '#047857' : '#64748B',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>⚡ Saisie Rapide</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpenMode('billetage')}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  fontSize: '0.84rem',
+                  fontWeight: 800,
+                  border: openMode === 'billetage' ? '2px solid #059669' : '1px solid #E2E8F0',
+                  background: openMode === 'billetage' ? '#ECFDF5' : '#F8FAFC',
+                  color: openMode === 'billetage' ? '#047857' : '#64748B',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <Coins size={15} />
+                <span>🧮 Billetage Express (Coupures)</span>
               </button>
             </div>
 
             <form onSubmit={handleOpenCash}>
-              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}>
-                    Fond de caisse initial (FCFA) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="100"
-                    value={initialCash}
-                    onChange={e => setInitialCash(e.target.value === '' ? '' : Number(e.target.value))}
-                    required
-                    style={{ fontSize: '1.2rem', fontWeight: 700, padding: '12px' }}
-                    placeholder="Ex: 10000"
-                  />
-                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-                    {[0, 5000, 10000, 25000, 50000].map(amt => (
-                      <button
-                        type="button"
-                        key={amt}
-                        onClick={() => setInitialCash(amt)}
+              <div className="modal-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {openMode === 'quick' ? (
+                  /* MODE 1 : SAISIE RAPIDE & PRESETS */
+                  <div>
+                    <label style={{ display: 'block', fontWeight: 800, fontSize: '0.90rem', color: '#0F172A', marginBottom: '8px' }}>
+                      Fond de caisse initial ({currency}) *
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={initialCash}
+                        onChange={e => setInitialCash(e.target.value === '' ? '' : Number(e.target.value))}
+                        required
                         style={{
-                          background: initialCash === amt ? '#059669' : '#F1F5F9',
-                          color: initialCash === amt ? '#FFFFFF' : '#475569',
-                          border: 'none',
-                          borderRadius: '6px',
-                          padding: '4px 8px',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
+                          width: '100%',
+                          fontSize: '1.6rem',
+                          fontWeight: 900,
+                          padding: '14px 16px',
+                          borderRadius: '12px',
+                          border: '2px solid #059669',
+                          background: '#F0FDF4',
+                          color: '#065F46',
+                        }}
+                        placeholder="Ex: 10000"
+                        autoFocus
+                      />
+                      <span
+                        style={{
+                          position: 'absolute',
+                          right: '16px',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontSize: '1.1rem',
+                          fontWeight: 800,
+                          color: '#059669',
                         }}
                       >
-                        {amt.toLocaleString('fr-FR')} F
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        {currency}
+                      </span>
+                    </div>
 
+                    {/* Presets rapides avec descriptif */}
+                    <div style={{ marginTop: '12px' }}>
+                      <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                        Montants fréquents au démarrage :
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '6px' }}>
+                        {[
+                          { amt: 0, label: '0 F', desc: 'Sans monnaie' },
+                          { amt: 5000, label: '5 000 F', desc: 'Petite monnaie' },
+                          { amt: 10000, label: '10 000 F', desc: 'Standard' },
+                          { amt: 25000, label: '25 000 F', desc: 'Confort' },
+                          { amt: 50000, label: '50 000 F', desc: 'Gros volume' },
+                        ].map(item => (
+                          <button
+                            type="button"
+                            key={item.amt}
+                            onClick={() => setInitialCash(item.amt)}
+                            style={{
+                              background: initialCash === item.amt ? '#059669' : '#F8FAFC',
+                              color: initialCash === item.amt ? '#FFFFFF' : '#334155',
+                              border: initialCash === item.amt ? '2px solid #047857' : '1px solid #E2E8F0',
+                              borderRadius: '8px',
+                              padding: '8px 6px',
+                              textAlign: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ fontSize: '0.88rem', fontWeight: 800 }}>{item.label}</div>
+                            <div style={{ fontSize: '0.64rem', opacity: initialCash === item.amt ? 0.9 : 0.6, marginTop: '1px' }}>
+                              {item.desc}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Reprise de la dernière session si dispo */}
+                      {pastSessions.length > 0 && pastSessions[0]?.initialCash > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setInitialCash(pastSessions[0].initialCash)}
+                          style={{
+                            marginTop: '10px',
+                            background: '#EFF6FF',
+                            border: '1px solid #BFDBFE',
+                            borderRadius: '8px',
+                            padding: '6px 12px',
+                            color: '#1D4ED8',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            width: '100%',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <History size={13} />
+                          <span>Reprendre le même fond que la dernière session ({pastSessions[0].initialCash.toLocaleString('fr-FR')} {currency})</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* MODE 2 : BILLETAGE EXPRESS */
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0F172A' }}>
+                        Comptez vos coupures physiques dans le tiroir :
+                      </span>
+                      <button
+                        type="button"
+                        onClick={resetOpenBreakdown}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#EF4444',
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <RotateCcw size={12} /> Réinitialiser
+                      </button>
+                    </div>
+
+                    <div style={{ maxHeight: '250px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', paddingRight: '4px' }}>
+                      {CASH_DENOMINATIONS.map(den => {
+                        const count = openBreakdown[den.value] || 0;
+                        const subtotal = count * den.value;
+                        return (
+                          <div
+                            key={den.value}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: count > 0 ? den.bg : '#F8FAFC',
+                              border: count > 0 ? `1.5px solid ${den.color}` : '1px solid #E2E8F0',
+                              borderRadius: '8px',
+                              padding: '6px 12px',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '130px' }}>
+                              <span style={{ fontSize: '0.88rem', fontWeight: 800, color: den.color }}>
+                                {den.label}
+                              </span>
+                              <span style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                                ({den.type === 'bill' ? 'Billet' : 'Pièce'})
+                              </span>
+                            </div>
+
+                            {/* Controls - / + */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={() => updateOpenBreakdown(den.value, -1)}
+                                disabled={count === 0}
+                                style={{
+                                  width: '26px',
+                                  height: '26px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #CBD5E1',
+                                  background: count > 0 ? '#FFFFFF' : '#F1F5F9',
+                                  color: count > 0 ? '#0F172A' : '#94A3B8',
+                                  fontWeight: 800,
+                                  cursor: count > 0 ? 'pointer' : 'default',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min="0"
+                                value={count === 0 ? '' : count}
+                                onChange={e => setOpenBreakdownCount(den.value, Number(e.target.value) || 0)}
+                                placeholder="0"
+                                style={{
+                                  width: '44px',
+                                  textAlign: 'center',
+                                  padding: '4px',
+                                  fontSize: '0.86rem',
+                                  fontWeight: 800,
+                                  borderRadius: '6px',
+                                  border: '1px solid #CBD5E1',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => updateOpenBreakdown(den.value, 1)}
+                                style={{
+                                  width: '26px',
+                                  height: '26px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #059669',
+                                  background: '#059669',
+                                  color: '#FFFFFF',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            <div style={{ minWidth: '90px', textAlign: 'right', fontWeight: 800, fontSize: '0.86rem', color: count > 0 ? den.color : '#94A3B8' }}>
+                              {subtotal > 0 ? `${subtotal.toLocaleString('fr-FR')} F` : '—'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Total live du billetage */}
+                    <div
+                      style={{
+                        marginTop: '10px',
+                        background: '#064E3B',
+                        color: '#FFFFFF',
+                        borderRadius: '10px',
+                        padding: '10px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.84rem', fontWeight: 700 }}>Total Billetage Calculé :</span>
+                      <strong style={{ fontSize: '1.25rem', color: '#A7F3D0' }}>
+                        {Number(initialCash || 0).toLocaleString('fr-FR')} {currency}
+                      </strong>
+                    </div>
+                  </div>
+                )}
+
+                {/* Remarques / Caissier avec suggestions rapides */}
                 <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '0.86rem', color: '#334155', marginBottom: '6px' }}>
                     Remarques / Caissier (optionnel)
                   </label>
                   <input
@@ -617,16 +1238,90 @@ export const CashPage: React.FC = () => {
                     value={openNotes}
                     onChange={e => setOpenNotes(e.target.value)}
                     placeholder="Ex: Prise de poste matin - 08h00"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
                   />
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    {['Prise de poste matin - 08h00', 'Fond recompté', 'Relève après-midi'].map(note => (
+                      <button
+                        type="button"
+                        key={note}
+                        onClick={() => setOpenNotes(note)}
+                        style={{
+                          background: '#F1F5F9',
+                          border: 'none',
+                          borderRadius: '6px',
+                          padding: '3px 8px',
+                          fontSize: '0.70rem',
+                          color: '#475569',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        + {note}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Note didactique & règle d'or */}
+                <div
+                  style={{
+                    background: '#FEF3C7',
+                    border: '1px solid #FDE68A',
+                    borderRadius: '10px',
+                    padding: '10px 12px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                  }}
+                >
+                  <Info size={16} color="#B45309" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <p style={{ margin: 0, fontSize: '0.76rem', color: '#92400E', lineHeight: 1.45 }}>
+                    <strong>Règle d'or de caisse :</strong> Le fond de caisse initial est votre monnaie de départ. Il n'est pas compté dans votre chiffre d'affaires et sera scellé ce soir lors de la clôture définitive.
+                  </p>
                 </div>
               </div>
 
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowOpenModal(false)}>
+              <div
+                className="modal-footer"
+                style={{
+                  padding: '14px 24px',
+                  background: '#F8FAFC',
+                  borderTop: '1px solid #E2E8F0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowOpenModal(false)}
+                  style={{ padding: '9px 18px', fontWeight: 700 }}
+                >
                   Annuler
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Valider l'ouverture
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{
+                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                    border: 'none',
+                    padding: '10px 22px',
+                    fontWeight: 800,
+                    fontSize: '0.92rem',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Unlock size={16} />
+                  <span>
+                    Valider & Ouvrir ({Number(initialCash || 0).toLocaleString('fr-FR')} {currency})
+                  </span>
                 </button>
               </div>
             </form>
@@ -788,21 +1483,143 @@ export const CashPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Saisie montant compté */}
+                {/* Mode toggle Clôture : Saisie Globale vs Billetage */}
                 <div>
-                  <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', marginBottom: '6px' }}>
-                    Montant réellement compté dans le tiroir (FCFA) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="100"
-                    value={actualCash}
-                    onChange={e => setActualCash(e.target.value === '' ? '' : Number(e.target.value))}
-                    required
-                    style={{ fontSize: '1.25rem', fontWeight: 800, padding: '12px' }}
-                    placeholder="Comptez vos billets et pièces"
-                  />
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setCloseMode('quick')}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                        border: closeMode === 'quick' ? '2px solid #DC2626' : '1px solid #E2E8F0',
+                        background: closeMode === 'quick' ? '#FEF2F2' : '#F8FAFC',
+                        color: closeMode === 'quick' ? '#991B1B' : '#64748B',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⚡ Saisie Globale du Tiroir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCloseMode('billetage')}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 800,
+                        border: closeMode === 'billetage' ? '2px solid #DC2626' : '1px solid #E2E8F0',
+                        background: closeMode === 'billetage' ? '#FEF2F2' : '#F8FAFC',
+                        color: closeMode === 'billetage' ? '#991B1B' : '#64748B',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <Coins size={14} />
+                      <span>🧮 Billetage Express</span>
+                    </button>
+                  </div>
+
+                  {closeMode === 'quick' ? (
+                    <div>
+                      <label style={{ display: 'block', fontWeight: 800, fontSize: '0.9rem', marginBottom: '6px', color: '#0F172A' }}>
+                        Montant réellement compté dans le tiroir ({currency}) *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={actualCash}
+                        onChange={e => setActualCash(e.target.value === '' ? '' : Number(e.target.value))}
+                        required
+                        style={{ fontSize: '1.4rem', fontWeight: 800, padding: '12px', width: '100%', borderRadius: '10px', border: '2px solid #DC2626' }}
+                        placeholder="Ex: 85000"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A' }}>
+                          Comptez chaque billet et pièce dans le tiroir :
+                        </span>
+                        <button
+                          type="button"
+                          onClick={resetCloseBreakdown}
+                          style={{ background: 'transparent', border: 'none', color: '#EF4444', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <RotateCcw size={12} /> Réinitialiser
+                        </button>
+                      </div>
+
+                      <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', paddingRight: '4px' }}>
+                        {CASH_DENOMINATIONS.map(den => {
+                          const count = closeBreakdown[den.value] || 0;
+                          const subtotal = count * den.value;
+                          return (
+                            <div
+                              key={den.value}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: count > 0 ? den.bg : '#F8FAFC',
+                                border: count > 0 ? `1.5px solid ${den.color}` : '1px solid #E2E8F0',
+                                borderRadius: '8px',
+                                padding: '5px 10px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: '110px' }}>
+                                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: den.color }}>{den.label}</span>
+                                <span style={{ fontSize: '0.66rem', color: '#64748B' }}>({den.type === 'bill' ? 'Billet' : 'Pièce'})</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => updateCloseBreakdown(den.value, -1)}
+                                  disabled={count === 0}
+                                  style={{ width: '24px', height: '24px', borderRadius: '4px', border: '1px solid #CBD5E1', cursor: count > 0 ? 'pointer' : 'default', fontWeight: 800 }}
+                                >
+                                  -
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={count === 0 ? '' : count}
+                                  onChange={e => setCloseBreakdownCount(den.value, Number(e.target.value) || 0)}
+                                  placeholder="0"
+                                  style={{ width: '42px', textAlign: 'center', padding: '3px', fontSize: '0.82rem', fontWeight: 800, borderRadius: '4px', border: '1px solid #CBD5E1' }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => updateCloseBreakdown(den.value, 1)}
+                                  style={{ width: '24px', height: '24px', borderRadius: '4px', border: '1px solid #DC2626', background: '#DC2626', color: '#FFF', cursor: 'pointer', fontWeight: 800 }}
+                                >
+                                  +
+                                </button>
+                              </div>
+                              <div style={{ minWidth: '80px', textAlign: 'right', fontWeight: 800, fontSize: '0.82rem', color: count > 0 ? den.color : '#94A3B8' }}>
+                                {subtotal > 0 ? `${subtotal.toLocaleString('fr-FR')} F` : '—'}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div style={{ marginTop: '8px', background: '#7F1D1D', color: '#FFF', borderRadius: '8px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.80rem', fontWeight: 700 }}>Total Physique Recompté :</span>
+                        <strong style={{ fontSize: '1.15rem', color: '#FECACA' }}>
+                          {Number(actualCash || 0).toLocaleString('fr-FR')} {currency}
+                        </strong>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Live Discrepancy Alert */}
