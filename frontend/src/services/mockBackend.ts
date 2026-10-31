@@ -862,8 +862,44 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         const amt = Number(body?.amount || 0);
         cust.totalOwed = Math.max(0, (cust.totalOwed || 0) - amt);
         localStorage.setItem(custKey, JSON.stringify(custs));
+
+        // Domino sync: Record cash movement in open cash drawer
+        if ((!body?.method || body?.method === 'cash') && amt > 0) {
+          const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
+          const activeCashRaw = localStorage.getItem(activeCashKey);
+          if (activeCashRaw) {
+            try {
+              const cs = JSON.parse(activeCashRaw);
+              const move = {
+                id: 'cm-' + Date.now(),
+                sessionId: cs.id,
+                type: 'in',
+                amount: amt,
+                method: 'cash',
+                category: 'debt_recovery',
+                description: `Règlement crédit: ${cust.name}`,
+                referenceId: cust.id,
+                createdAt: new Date().toISOString(),
+              };
+              cs.movements = cs.movements || [];
+              cs.movements.unshift(move);
+              cs.totalCashIn = (cs.totalCashIn || 0) + amt;
+              cs.theoreticalCash = (cs.theoreticalCash || 0) + amt;
+              localStorage.setItem(activeCashKey, JSON.stringify(cs));
+            } catch (e) { /* ignore */ }
+          }
+        }
+
         return { message: 'Règlement de dette enregistré ! 🎉', customer: cust };
       }
+    }
+
+    if (method === 'DELETE') {
+      const parts = endpoint.split('?')[0].split('/');
+      const custId = parts[2];
+      custs = custs.filter((c: any) => c.id !== custId);
+      localStorage.setItem(custKey, JSON.stringify(custs));
+      return { message: 'Fiche client supprimée avec succès.' };
     }
 
     if (method === 'POST') {
@@ -904,6 +940,14 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         localStorage.setItem(prodKey, JSON.stringify(prods));
         return { message: 'Stock mis à jour avec succès.', product: prod };
       }
+    }
+
+    if (method === 'DELETE') {
+      const parts = endpoint.split('?')[0].split('/');
+      const prodId = parts[2];
+      const filtered = prods.filter((p: any) => p.id !== prodId);
+      localStorage.setItem(prodKey, JSON.stringify(filtered));
+      return { message: 'Article supprimé avec succès.' };
     }
 
     if (method === 'POST') {

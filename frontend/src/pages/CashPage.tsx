@@ -30,15 +30,15 @@ import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
 
 const CASH_DENOMINATIONS = [
-  { value: 10000, label: '10 000 F', type: 'bill', color: '#1E3A8A', bg: '#EFF6FF', badge: 'Billet 10 000 FCFA' },
-  { value: 5000, label: '5 000 F', type: 'bill', color: '#047857', bg: '#ECFDF5', badge: 'Billet 5 000 FCFA' },
-  { value: 2000, label: '2 000 F', type: 'bill', color: '#B45309', bg: '#FEF3C7', badge: 'Billet 2 000 FCFA' },
-  { value: 1000, label: '1 000 F', type: 'bill', color: '#B91C1C', bg: '#FEF2F2', badge: 'Billet 1 000 FCFA' },
-  { value: 500, label: '500 F', type: 'bill', color: '#6D28D9', bg: '#F5F3FF', badge: 'Billet / Pièce 500 F' },
-  { value: 200, label: '200 F', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 200 FCFA' },
-  { value: 100, label: '100 F', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 100 FCFA' },
-  { value: 50, label: '50 F', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 50 FCFA' },
-  { value: 25, label: '25 F', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 25 FCFA' },
+  { value: 10000, label: '10 000', type: 'bill', color: '#1E3A8A', bg: '#EFF6FF', badge: 'Billet 10 000' },
+  { value: 5000, label: '5 000', type: 'bill', color: '#047857', bg: '#ECFDF5', badge: 'Billet 5 000' },
+  { value: 2000, label: '2 000', type: 'bill', color: '#B45309', bg: '#FEF3C7', badge: 'Billet 2 000' },
+  { value: 1000, label: '1 000', type: 'bill', color: '#B91C1C', bg: '#FEF2F2', badge: 'Billet 1 000' },
+  { value: 500, label: '500', type: 'bill', color: '#6D28D9', bg: '#F5F3FF', badge: 'Billet / Pièce 500' },
+  { value: 200, label: '200', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 200' },
+  { value: 100, label: '100', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 100' },
+  { value: 50, label: '50', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 50' },
+  { value: 25, label: '25', type: 'coin', color: '#475569', bg: '#F8FAFC', badge: 'Pièce 25' },
 ];
 
 export const CashPage: React.FC = () => {

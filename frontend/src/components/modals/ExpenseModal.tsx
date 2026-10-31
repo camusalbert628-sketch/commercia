@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { X, TrendingDown } from 'lucide-react';
 import { api } from '../../services/api';
+import { useAuthStore } from '../../store/authStore';
+import { formatCurrency } from '../../utils/formatters';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -20,6 +22,9 @@ const DEFAULT_CATEGORIES = [
 ];
 
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onExpenseCreated }) => {
+  const { user, activeBusinessId } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const currency = activeBusiness?.currency || 'FCFA';
   const [amount, setAmount] = useState<number | ''>('');
   const [category, setCategory] = useState('marchandise');
   const [customCategoryName, setCustomCategoryName] = useState('');
@@ -123,7 +128,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
 
             <div>
               <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
-                Montant de la dépense (FCFA) *
+                Montant de la dépense ({currency}) *
               </label>
               <input
                 type="number"
@@ -253,7 +258,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
               Annuler
             </button>
             <button type="submit" className="btn" style={{ background: '#DC2626', color: 'white' }} disabled={loading || !amount}>
-              {loading ? 'Enregistrement...' : `Enregistrer la Dépense (-${Number(amount || 0).toLocaleString('fr-FR')} FCFA)`}
+              {loading ? 'Enregistrement...' : `Enregistrer la Dépense (-${formatCurrency(Number(amount || 0), currency)})`}
             </button>
           </div>
         </form>

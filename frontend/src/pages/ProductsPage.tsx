@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, AlertTriangle, Search, ArrowUp, X, Crown, Globe, Truck, Calculator } from 'lucide-react';
+import { Plus, AlertTriangle, Search, ArrowUp, X, Crown, Globe, Truck, Calculator, Download } from 'lucide-react';
 import { api } from '../services/api';
 import { Product } from '../types';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
 import { useAuthStore } from '../store/authStore';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, downloadCSVWithBOM } from '../utils/formatters';
 
 export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -131,6 +131,34 @@ export const ProductsPage: React.FC = () => {
   const totalStockValue = products.reduce((sum, p) => sum + p.costPrice * p.quantity, 0);
   const totalPotentialRevenue = products.reduce((sum, p) => sum + p.sellingPrice * p.quantity, 0);
 
+  const handleExportCSV = () => {
+    if (products.length === 0) {
+      alert('Aucun article à exporter.');
+      return;
+    }
+    const headers = [
+      'Nom de l\'article',
+      `Prix d'achat (${currency})`,
+      `Prix de vente (${currency})`,
+      `Marge unitaire (${currency})`,
+      'Stock disponible',
+      'Unité',
+      'Seuil alerte',
+      'Statut stock',
+    ];
+    const rows = products.map(p => [
+      p.name,
+      p.costPrice,
+      p.sellingPrice,
+      p.sellingPrice - p.costPrice,
+      p.quantity,
+      p.unit,
+      p.lowStockAlert,
+      p.quantity === 0 ? 'Épuisé' : p.quantity <= p.lowStockAlert ? 'Critique' : 'Normal',
+    ]);
+    downloadCSVWithBOM(`commercia_articles_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
   return (
     <div className="page-wrapper">
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
@@ -142,10 +170,21 @@ export const ProductsPage: React.FC = () => {
           </p>
         </div>
 
-        <button className="btn btn-primary btn-lg" onClick={() => setShowAddModal(true)}>
-          <Plus size={18} />
-          <span>+ Ajouter un Article</span>
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExportCSV}
+            title="Exporter le catalogue au format Excel (CSV)"
+          >
+            <Download size={16} />
+            <span>Exporter CSV</span>
+          </button>
+          <button className="btn btn-primary btn-lg" onClick={() => setShowAddModal(true)}>
+            <Plus size={18} />
+            <span>+ Ajouter un Article</span>
+          </button>
+        </div>
       </div>
 
       <PageGuideBanner
@@ -427,7 +466,7 @@ export const ProductsPage: React.FC = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                     <div>
                       <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>
-                        1. Prix d'achat (FCFA)
+                        1. Prix d'achat ({currency})
                       </label>
                       <input
                         type="number"
@@ -439,7 +478,7 @@ export const ProductsPage: React.FC = () => {
                     </div>
                     <div>
                       <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>
-                        2. Frais annexes / Fret (FCFA)
+                        2. Frais annexes / Fret ({currency})
                       </label>
                       <input
                         type="number"
@@ -467,7 +506,7 @@ export const ProductsPage: React.FC = () => {
                       = Prix de Revient Calculé :
                     </span>
                     <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0F172A' }}>
-                      {Number(costPrice || 0).toLocaleString('fr-FR')} FCFA
+                      {formatCurrency(Number(costPrice || 0), currency)}
                     </span>
                   </div>
                 </div>
@@ -476,7 +515,7 @@ export const ProductsPage: React.FC = () => {
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <div style={{ flex: 1 }}>
                     <label style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0062FF', display: 'block', marginBottom: '6px' }}>
-                      Prix de vente client (FCFA) *
+                      Prix de vente client ({currency}) *
                     </label>
                     <input
                       type="number"
@@ -506,8 +545,8 @@ export const ProductsPage: React.FC = () => {
                       }}
                     >
                       {sellingPrice !== '' && costPrice !== ''
-                        ? `+${(Number(sellingPrice) - Number(costPrice)).toLocaleString('fr-FR')} FCFA`
-                        : '0 FCFA'}
+                        ? `+${formatCurrency(Number(sellingPrice) - Number(costPrice), currency)}`
+                        : formatCurrency(0, currency)}
                     </div>
                   </div>
                 </div>

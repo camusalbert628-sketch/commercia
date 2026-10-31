@@ -106,6 +106,7 @@ export interface Customer {
   name: string;
   phone?: string;
   email?: string;
+  channel?: string;
   notes?: string;
   totalBought: number;
   totalOwed: number;

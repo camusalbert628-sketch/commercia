@@ -6,6 +6,7 @@ import { ReceiptModal } from './ReceiptModal';
 import { growthService } from '../../services/growthService';
 import { AcquisitionChannel } from '../../types/growth';
 import { useAuthStore } from '../../store/authStore';
+import { formatCurrency } from '../../utils/formatters';
 
 interface SaleModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ type CustomerQuality = 'comptoir' | 'en_ligne' | 'livraison' | 'fidele' | 'gross
 export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCreated }) => {
   const { user, activeBusinessId } = useAuthStore();
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const currency = activeBusiness?.currency || 'FCFA';
   const isPro = Boolean(user?.isAdmin || (user?.subscription?.isPro && user?.subscription?.status === 'active'));
   const trackingMode = activeBusiness?.trackingMode || 'complet';
   const hasCreditSupport = isPro || trackingMode === 'avec_credit' || trackingMode === 'complet';
@@ -267,6 +269,26 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
     }
   };
 
+  if (completedSale) {
+    return (
+      <ReceiptModal
+        isOpen={true}
+        sale={completedSale}
+        businessName={activeBusiness?.name || 'COMMERCIA'}
+        currency={currency}
+        onClose={() => {
+          setCompletedSale(null);
+          resetForm();
+          onClose();
+        }}
+        onNewSale={() => {
+          setCompletedSale(null);
+          resetForm();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '600px' }}>
@@ -364,7 +386,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                   <option value="">-- Choisir un produit en stock --</option>
                   {products.map(p => (
                     <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                      {p.name} — {p.sellingPrice.toLocaleString('fr-FR')} FCFA ({p.quantity} en stock)
+                      {p.name} — {formatCurrency(p.sellingPrice, currency)} ({p.quantity} en stock)
                     </option>
                   ))}
                 </select>
@@ -543,12 +565,12 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                       <div>
                         <div style={{ fontSize: '0.7rem', color: '#15803D', fontWeight: 700, textTransform: 'uppercase' }}>Monnaie à rendre :</div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#16A34A', fontFamily: 'Space Grotesk, sans-serif' }}>
-                          {(receivedAmount - totalAmount).toLocaleString('fr-FR')} FCFA
+                          {formatCurrency(receivedAmount - totalAmount, currency)}
                         </div>
                       </div>
                     ) : typeof receivedAmount === 'number' && receivedAmount > 0 && receivedAmount < totalAmount ? (
                       <div style={{ fontSize: '0.78rem', color: '#DC2626', fontWeight: 700 }}>
-                        ⚠️ Reste : {(totalAmount - receivedAmount).toLocaleString('fr-FR')} F
+                        ⚠️ Reste : {formatCurrency(totalAmount - receivedAmount, currency)}
                       </div>
                     ) : (
                       <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
@@ -630,7 +652,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                     <option value="">-- Client comptoir libre (Anonyme) --</option>
                     {customers.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Doit: ${c.totalOwed} FCFA` : ''}
+                        {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Doit: ${formatCurrency(c.totalOwed, currency)}` : ''}
                       </option>
                     ))}
                   </select>
@@ -753,7 +775,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                     <option value="">-- Choisir un client du carnet --</option>
                     {customers.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Crédit en cours: ${c.totalOwed} FCFA` : ''}
+                        {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Crédit en cours: ${formatCurrency(c.totalOwed, currency)}` : ''}
                       </option>
                     ))}
                   </select>
@@ -815,7 +837,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                 </div>
                 <div>
                   <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
-                    Charges variables commande (FCFA) :
+                    Charges variables commande ({currency}) :
                   </label>
                   <input
                     type="number"
@@ -843,7 +865,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
             >
               <span style={{ fontWeight: 600, color: '#64748B' }}>Total à encaisser :</span>
               <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0062FF', fontFamily: 'Space Grotesk, sans-serif' }}>
-                {totalAmount.toLocaleString('fr-FR')} FCFA
+                {formatCurrency(totalAmount, currency)}
               </span>
             </div>
           </div>
@@ -862,7 +884,7 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                 ? 'Enregistrement...'
                 : !isPro && todaySalesCount >= 15
                 ? 'Quota Gratuit Atteint (15/15)'
-                : `Valider la Vente (+${totalAmount.toLocaleString('fr-FR')} FCFA)`}
+                : `Valider la Vente (+${formatCurrency(totalAmount, currency)})`}
             </button>
           </div>
         </form>

@@ -26,12 +26,24 @@ export function formatNumber(amount: number | undefined | null): string {
 }
 
 /**
- * Downloads a CSV string with a UTF-8 BOM (\uFEFF)
+ * Downloads a CSV string or structured (headers, rows) with a UTF-8 BOM (\uFEFF)
  * Ensures Microsoft Excel on Windows renders all French accents (é, è, à, etc.) perfectly.
  */
-export function downloadCSVWithBOM(filename: string, csvContent: string): void {
+export function downloadCSVWithBOM(
+  filename: string,
+  contentOrHeaders: string | (string | number)[],
+  rows?: (string | number)[][]
+): void {
+  let content = '';
+  if (Array.isArray(contentOrHeaders)) {
+    const headerLine = contentOrHeaders.map(h => `"${String(h).replace(/"/g, '""')}"`).join(';');
+    const rowLines = (rows || []).map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';'));
+    content = [headerLine, ...rowLines].join('\r\n');
+  } else {
+    content = contentOrHeaders;
+  }
   const bom = '\uFEFF';
-  const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([bom + content], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);

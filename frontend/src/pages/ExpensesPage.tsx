@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingDown, Plus, Trash2, Tag, Calendar } from 'lucide-react';
+import { TrendingDown, Plus, Trash2, Tag, Calendar, Search, Download } from 'lucide-react';
 import { api } from '../services/api';
 import { Expense } from '../types';
 import { useModals } from '../context/ModalContext';
 import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { formatCurrency, downloadCSVWithBOM, formatLocalDateTime } from '../utils/formatters';
+
+const ITEMS_PER_PAGE = 15;
 
 interface ExpensesPageProps {
   onOpenExpenseModal?: () => void;
@@ -20,11 +23,13 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchExpenses = async () => {
     try {
       setLoading(true);
-      const res = await api.get<any>('/expenses?limit=50');
+      const res = await api.get<any>('/expenses?limit=500');
       const list = Array.isArray(res) ? res : (res?.expenses || []);
       setExpenses(list);
     } catch (e) {
@@ -37,6 +42,10 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
   useEffect(() => {
     fetchExpenses();
   }, [refreshKey]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedCategory]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Voulez-vous supprimer cette dépense ?')) return;
@@ -51,10 +60,38 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
   const categories = Array.from(new Set(expenses.map(e => e.category)));
 
   const filtered = expenses.filter(e => {
-    return selectedCategory === '' || e.category === selectedCategory;
+    const matchCat = selectedCategory === '' || e.category === selectedCategory;
+    const q = search.trim().toLowerCase();
+    const matchSearch = !q || (
+      (e.description && e.description.toLowerCase().includes(q)) ||
+      (e.category && e.category.toLowerCase().includes(q))
+    );
+    return matchCat && matchSearch;
   });
 
   const totalFiltered = filtered.reduce((sum, e) => sum + e.amount, 0);
+
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+  const paginatedExpenses = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  const handleExportCSV = () => {
+    if (filtered.length === 0) {
+      alert('Aucune dépense à exporter.');
+      return;
+    }
+    const headers = ['Date', 'Catégorie', 'Description / Motif', `Montant (${currency})`];
+    const rows = filtered.map(e => [
+      formatLocalDateTime(e.expenseDate),
+      e.category,
+      e.description || '',
+      e.amount,
+    ]);
+    downloadCSVWithBOM(`commercia_depenses_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
 
   return (
     <div className="page-wrapper" style={{ width: '100%', maxWidth: '100%' }}>
@@ -72,56 +109,83 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
           "Sélectionner la bonne catégorie (Loyer, Marchandise, Transport, Salaires) pour repérer les fuites.",
           "Conserver le reçu ou la facture papier comme justificatif.",
         ]}
-        concreteExample="Vous payez 15 000 F de carburant pour le coursier et 5 000 F pour l'électricité. Dès la validation, la caisse physique affiche -20 000 F et le bénéfice net du jour est immédiatement recalculé sans erreur."
+        concreteExample="Vous payez 15 000 de carburant pour le coursier et 5 000 pour l'électricité. Dès la validation, la caisse physique affiche -20 000 et le bénéfice net du jour est immédiatement recalculé sans erreur."
       />
+
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0' }}>Gestion des Dépenses</h1>
           <p style={{ color: '#64748B', fontSize: '0.92rem', margin: 0 }}>
-            {filtered.length} dépense(s) — Total : <strong style={{ color: '#DC2626' }}>-{totalFiltered.toLocaleString('fr-FR')} {currency}</strong>
+            {filtered.length} dépense(s) — Total : <strong style={{ color: '#DC2626' }}>-{formatCurrency(totalFiltered, currency)}</strong>
           </p>
         </div>
-        <button className="btn btn-primary btn-lg" style={{ background: '#DC2626' }} onClick={onOpenExpenseModal}>
-          <Plus size={18} />
-          <span>- Nouvelle Dépense</span>
-        </button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleExportCSV}
+            title="Exporter les dépenses au format Excel (CSV)"
+          >
+            <Download size={16} />
+            <span>Exporter CSV</span>
+          </button>
+          <button className="btn btn-primary btn-lg" style={{ background: '#DC2626' }} onClick={onOpenExpenseModal}>
+            <Plus size={18} />
+            <span>- Nouvelle Dépense</span>
+          </button>
+        </div>
       </div>
 
-      {/* Category Pills Filter */}
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '16px' }}>
-        <button
-          onClick={() => setSelectedCategory('')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '20px',
-            fontSize: '0.85rem',
-            fontWeight: 600,
-            background: selectedCategory === '' ? '#0F172A' : '#FFFFFF',
-            color: selectedCategory === '' ? '#FFFFFF' : '#475569',
-            border: '1px solid #E2E8F0',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Toutes ({expenses.length})
-        </button>
-        {categories.map(cat => (
+      {/* Search & Category Pills Filter */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: '360px' }}>
+          <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+          <input
+            type="text"
+            placeholder="Rechercher une dépense ou motif..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', paddingLeft: '36px', height: '40px', borderRadius: '10px' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', flex: '1 1 auto' }}>
           <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
+            onClick={() => setSelectedCategory('')}
             style={{
               padding: '8px 16px',
               borderRadius: '20px',
               fontSize: '0.85rem',
               fontWeight: 600,
-              background: selectedCategory === cat ? '#D97706' : '#FFFFFF',
-              color: selectedCategory === cat ? '#FFFFFF' : '#475569',
+              background: selectedCategory === '' ? '#0F172A' : '#FFFFFF',
+              color: selectedCategory === '' ? '#FFFFFF' : '#475569',
               border: '1px solid #E2E8F0',
               whiteSpace: 'nowrap',
+              cursor: 'pointer',
             }}
           >
-            {cat}
+            Toutes ({expenses.length})
           </button>
-        ))}
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                background: selectedCategory === cat ? '#D97706' : '#FFFFFF',
+                color: selectedCategory === cat ? '#FFFFFF' : '#475569',
+                border: '1px solid #E2E8F0',
+                whiteSpace: 'nowrap',
+                cursor: 'pointer',
+              }}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Expenses Table */}
@@ -138,7 +202,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
               </tr>
             </thead>
             <tbody>
-              {filtered.map(e => (
+              {paginatedExpenses.map(e => (
                 <tr key={e.id}>
                   <td style={{ fontSize: '0.85rem' }}>
                     <div style={{ fontWeight: 600 }}>{new Date(e.expenseDate).toLocaleDateString('fr-FR')}</div>
@@ -164,7 +228,7 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
                     {e.description || 'Sans description particulière'}
                   </td>
                   <td style={{ fontWeight: 800, fontSize: '1rem', color: '#DC2626' }}>
-                    -{e.amount.toLocaleString('fr-FR')} {currency}
+                    -{formatCurrency(e.amount, currency)}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <button
@@ -182,13 +246,42 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
               {filtered.length === 0 && !loading && (
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'center', padding: '40px', color: '#94A3B8' }}>
-                    Aucune dépense enregistrée dans cette catégorie.
+                    Aucune dépense enregistrée correspondant aux critères.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Footer */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+            <span style={{ fontSize: '0.84rem', color: '#64748B' }}>
+              Page <strong>{currentPage}</strong> sur <strong>{totalPages}</strong> ({filtered.length} dépenses)
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                style={{ padding: '6px 14px', fontSize: '0.84rem' }}
+              >
+                Précédent
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                style={{ padding: '6px 14px', fontSize: '0.84rem' }}
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
