@@ -39,6 +39,7 @@ import { useNavigate } from 'react-router-dom';
 import { growthService } from '../services/growthService';
 import { hasPremiumAccess } from '../services/premiumService';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { downloadCSVWithBOM } from '../utils/formatters';
 import {
   AcquisitionChannelData,
   AcquisitionCampaignData,
@@ -600,14 +601,8 @@ export const GrowthPage: React.FC = () => {
       c.isProfitable ? '"Rentable"' : '"Déficitaire"',
     ]);
 
-    const csvContentData = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContentData], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `commercia_croissance_cac_${period}_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const csvContentData = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+    downloadCSVWithBOM(`commercia_croissance_cac_${period}_${new Date().toISOString().slice(0, 10)}.csv`, csvContentData);
   };
 
   const handlePrintReport = () => {

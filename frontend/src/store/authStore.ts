@@ -17,7 +17,17 @@ interface AuthState {
 
 const getInitialUser = (): User | null => {
   try {
-    const raw = localStorage.getItem('commercia_user') || localStorage.getItem('rsbizz_user');
+    let raw = localStorage.getItem('commercia_user');
+    if (!raw) {
+      const legacy = localStorage.getItem('rsbizz_user');
+      if (legacy) {
+        raw = legacy;
+        try {
+          localStorage.setItem('commercia_user', legacy);
+          localStorage.removeItem('rsbizz_user');
+        } catch (_) {}
+      }
+    }
     if (!raw) return null;
     const parsed: User = JSON.parse(raw);
     const testSubRaw = localStorage.getItem('commercia_test_subscription');
@@ -46,7 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: getInitialUser(),
   isAuthenticated: !!localStorage.getItem('accessToken'),
   isLoading: false,
-  activeBusinessId: localStorage.getItem('activeBusinessId') || null,
+  activeBusinessId: localStorage.getItem('commercia_active_business_id') || localStorage.getItem('activeBusinessId') || null,
 
   setTrackingMode: (mode: string) => {
     const current = get().user;
@@ -91,6 +101,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const businessId = user.businesses && user.businesses.length > 0 ? user.businesses[0].id : null;
     if (businessId) {
       localStorage.setItem('activeBusinessId', businessId);
+      localStorage.setItem('commercia_active_business_id', businessId);
     }
     set({
       user,
@@ -104,6 +115,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('activeBusinessId');
+    localStorage.removeItem('commercia_active_business_id');
     localStorage.removeItem('commercia_user');
     set({
       user: null,
@@ -143,6 +155,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (!businessId || !user.businesses.some((b: any) => b.id === businessId)) {
           businessId = user.businesses[0].id;
           localStorage.setItem('activeBusinessId', businessId);
+          localStorage.setItem('commercia_active_business_id', businessId);
         }
       }
       set({
@@ -154,6 +167,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('activeBusinessId');
+      localStorage.removeItem('commercia_active_business_id');
       localStorage.removeItem('commercia_user');
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
@@ -161,6 +176,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setActiveBusinessId: (id: string) => {
     localStorage.setItem('activeBusinessId', id);
+    localStorage.setItem('commercia_active_business_id', id);
     set({ activeBusinessId: id });
   },
 }));

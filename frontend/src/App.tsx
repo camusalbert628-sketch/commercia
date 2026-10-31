@@ -302,6 +302,14 @@ export function App() {
             }
           />
           <Route
+            path="/subscriptions"
+            element={
+              <ProtectedRoute>
+                <SubscriptionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin"
             element={
               <ProtectedRoute>

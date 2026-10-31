@@ -34,6 +34,7 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { getBusinessProfile } from '../../config/businessProfiles';
 import { TradeConfigModal } from '../common/TradeConfigModal';
+import { getSupportWhatsAppNumber } from '../../utils/formatters';
 
 interface SidebarProps {
   debtCount?: number;
@@ -831,7 +832,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
                       <span>Appel Direct</span>
                     </a>
                     <a
-                      href={`https://wa.me/237690000000?text=${encodeURIComponent("Bonjour assistance COMMERCIA, je souhaite échanger avec un conseiller pour ma boutique " + (activeBusiness?.name || ''))}`}
+                      href={`https://wa.me/${getSupportWhatsAppNumber(activeBusiness?.currency || user?.phone)}?text=${encodeURIComponent("Bonjour assistance COMMERCIA, je souhaite échanger avec un conseiller pour ma boutique " + (activeBusiness?.name || ''))}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2 } from 'lucide-react';
+import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2, HardDrive, Download, Upload, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useModals } from '../../context/ModalContext';
@@ -7,6 +7,7 @@ import { api } from '../../services/api';
 import { NotificationItem } from '../../types';
 import { TeamModal } from '../modals/TeamModal';
 import { BranchModal } from '../modals/BranchModal';
+import { exportFullCommerceBackup, importCommerceBackup } from '../../utils/backupService';
 
 interface NavbarProps {
   onOpenSaleModal?: () => void;
@@ -23,7 +24,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
   const [showBusinessDropdown, setShowBusinessDropdown] = useState(false);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [showBranchModal, setShowBranchModal] = useState(false);
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [backupMessage, setBackupMessage] = useState('');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -360,6 +364,31 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
           <span>Équipe</span>
         </button>
 
+        {/* Bouton Sauvegarde & Sécurité */}
+        <button
+          onClick={() => {
+            setBackupMessage('');
+            setShowBackupModal(true);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 12px',
+            borderRadius: '10px',
+            background: '#F1F5F9',
+            color: '#1E293B',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            border: '1px solid #CBD5E1',
+            cursor: 'pointer',
+          }}
+          title="Sauvegarder ou restaurer toutes les données de votre commerce en 1 clic"
+        >
+          <HardDrive size={16} color="#059669" />
+          <span>Sauvegarde</span>
+        </button>
+
         {onOpenSaleModal && (
           <button className="btn btn-primary" onClick={onOpenSaleModal} style={{ padding: '8px 16px', fontSize: '0.88rem', fontWeight: 700 }}>
             <Plus size={16} />
@@ -514,6 +543,119 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
       {/* Modals Équipe et Multi-Boutiques */}
       <TeamModal isOpen={showTeamModal} onClose={() => setShowTeamModal(false)} />
       <BranchModal isOpen={showBranchModal} onClose={() => setShowBranchModal(false)} />
+
+      {/* Modal Sauvegarde Sécurisée 1-Clic */}
+      {showBackupModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <HardDrive size={20} color="#059669" />
+                <h3 style={{ fontSize: '1.15rem', margin: 0 }}>Sauvegarde & Restauration</h3>
+              </div>
+              <button
+                type="button"
+                className="close-btn"
+                onClick={() => setShowBackupModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '20px' }}>
+              <p style={{ fontSize: '0.88rem', color: '#64748B', lineHeight: 1.5, marginBottom: '20px' }}>
+                Ne perdez jamais vos ventes ni votre stock. Exportez un fichier de sauvegarde complet ou restaurez vos données sur un nouveau smartphone/ordinateur.
+              </p>
+
+              {backupMessage && (
+                <div style={{ padding: '10px 14px', borderRadius: '8px', background: backupMessage.includes('succès') ? '#ECFDF5' : '#FEF2F2', color: backupMessage.includes('succès') ? '#059669' : '#DC2626', fontSize: '0.85rem', marginBottom: '16px', fontWeight: 600 }}>
+                  {backupMessage}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      exportFullCommerceBackup();
+                      setBackupMessage('Sauvegarde exportée avec succès ! Gardez ce fichier en lieu sûr.');
+                    } catch (e: any) {
+                      setBackupMessage(e.message || 'Erreur lors de la sauvegarde.');
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    background: '#059669',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
+                  }}
+                >
+                  <Download size={18} />
+                  <span>Télécharger ma sauvegarde complète (JSON)</span>
+                </button>
+
+                <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: '0.78rem', margin: '4px 0' }}>OU</div>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".json,application/json"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      try {
+                        const content = event.target?.result as string;
+                        importCommerceBackup(content);
+                        setBackupMessage('Données restaurées avec succès ! Rechargement en cours...');
+                        setTimeout(() => window.location.reload(), 1200);
+                      } catch (err: any) {
+                        setBackupMessage(err.message || 'Fichier incompatible.');
+                      }
+                    };
+                    reader.readAsText(file);
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    background: '#F1F5F9',
+                    color: '#1E293B',
+                    border: '1px solid #CBD5E1',
+                    fontWeight: 700,
+                    fontSize: '0.92rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Upload size={18} color="#0062FF" />
+                  <span>Restaurer une sauvegarde depuis un fichier</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

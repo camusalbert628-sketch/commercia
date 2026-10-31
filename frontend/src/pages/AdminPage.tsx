@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { downloadCSVWithBOM } from '../utils/formatters';
 
 interface AdminUser {
   id: string;
@@ -154,14 +155,7 @@ export const AdminPage: React.FC = () => {
     const rows = paymentsList
       .map(p => `"${p.reference}","${p.createdAt}","${p.user?.firstName || ''} ${p.user?.lastName || ''}","${p.user?.email || ''}","${p.plan?.displayName || ''}",${p.amount},"${p.currency}","${p.provider}","${p.status}"`)
       .join('\n');
-    const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `COMMERCIA_Transactions_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCSVWithBOM(`COMMERCIA_Transactions_${new Date().toISOString().slice(0, 10)}.csv`, headers + rows);
   };
 
   if (!user?.isAdmin) {

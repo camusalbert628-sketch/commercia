@@ -3,7 +3,7 @@
 // =========================================================================
 
 export type SubscriptionPlanId = 'free' | 'pro' | 'business';
-export type TrackingModeId = 'simple' | 'avec_stock' | 'complet';
+export type TrackingModeId = 'simple' | 'avec_stock' | 'avec_credit' | 'complet';
 
 export interface PlanConfig {
   id: SubscriptionPlanId;
@@ -28,7 +28,7 @@ export interface PlanConfig {
 
 export interface ManagementModeConfig {
   id: TrackingModeId;
-  code: 'A' | 'B' | 'C';
+  code: 'A' | 'B' | 'C' | 'D';
   title: string;
   subtitle: string;
   badge: string;
@@ -119,6 +119,26 @@ export const MANAGEMENT_MODES: ManagementModeConfig[] = [
     iconName: 'Rocket',
     defaultSettings: {
       enableStock: true,
+      enableCredits: true,
+    },
+  },
+  {
+    id: 'avec_credit',
+    code: 'D',
+    title: 'Carnet de crédits clients',
+    subtitle: 'Ventes, Dépenses & Dettes clients',
+    badge: 'Sécurité de Caisse',
+    description: 'Suivi rigoureux des clients qui vous doivent de l\'argent, dates d\'échéance et relances WhatsApp en 1 clic.',
+    features: [
+      'Encaissement et clôture de caisse',
+      'Carnet d\'ardoises & dettes clients',
+      'Relances WhatsApp pré-remplies en 1 clic',
+      'Dépenses et suivi des sorties de fonds',
+    ],
+    recommendedFor: 'Commerçants et prestataires pratiquant la vente à crédit ou les acomptes',
+    iconName: 'Users',
+    defaultSettings: {
+      enableStock: false,
       enableCredits: true,
     },
   },

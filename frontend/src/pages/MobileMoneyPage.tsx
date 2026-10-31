@@ -62,18 +62,30 @@ export const MobileMoneyPage: React.FC = () => {
     fetchData();
   }, [activeBusinessId]);
 
-  // Estimation de commission automatique recommandée selon barème usuel
-  const updateCommissionEstimate = (amount: number, type: string) => {
-    if (amount <= 5000) return 100;
-    if (amount <= 20000) return 200;
-    if (amount <= 50000) return 350;
-    if (amount <= 100000) return 600;
-    return Math.round(amount * 0.007); // ~0.7%
+  // Estimation de commission automatique recommandée selon barème usuel et opérateur
+  const updateCommissionEstimate = (amount: number, type: string, operator: string) => {
+    if (!amount || amount <= 0) return 0;
+    if (operator === 'wave') {
+      return Math.max(10, Math.round(amount * 0.01));
+    }
+    if (type === 'depot') {
+      if (amount <= 5000) return 100;
+      if (amount <= 20000) return 200;
+      if (amount <= 50000) return 350;
+      if (amount <= 100000) return 600;
+      return Math.round(amount * 0.007);
+    } else {
+      if (amount <= 5000) return 150;
+      if (amount <= 20000) return 300;
+      if (amount <= 50000) return 500;
+      if (amount <= 100000) return 900;
+      return Math.round(amount * 0.01);
+    }
   };
 
   const handleAmountChange = (amount: number) => {
     setOpClientAmount(amount);
-    setOpCommission(updateCommissionEstimate(amount, opType));
+    setOpCommission(updateCommissionEstimate(amount, opType, opOperator));
   };
 
   const handleCreateOperation = async (e: React.FormEvent) => {
@@ -124,7 +136,7 @@ export const MobileMoneyPage: React.FC = () => {
 
         <button
           onClick={() => {
-            setOpCommission(updateCommissionEstimate(Number(opClientAmount) || 0, opType));
+            setOpCommission(updateCommissionEstimate(Number(opClientAmount) || 0, opType, opOperator));
             setShowOpModal(true);
           }}
           style={{
@@ -341,7 +353,10 @@ export const MobileMoneyPage: React.FC = () => {
                   </label>
                   <select
                     value={opOperator}
-                    onChange={(e) => setOpOperator(e.target.value)}
+                    onChange={(e) => {
+                      setOpOperator(e.target.value);
+                      setOpCommission(updateCommissionEstimate(Number(opClientAmount) || 0, opType, e.target.value));
+                    }}
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
                   >
                     <option value="orange_money">Orange Money</option>
@@ -358,7 +373,7 @@ export const MobileMoneyPage: React.FC = () => {
                     value={opType}
                     onChange={(e) => {
                       setOpType(e.target.value);
-                      setOpCommission(updateCommissionEstimate(Number(opClientAmount) || 0, e.target.value));
+                      setOpCommission(updateCommissionEstimate(Number(opClientAmount) || 0, e.target.value, opOperator));
                     }}
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
                   >

@@ -852,3 +852,52 @@ button:active {
   border: 1px solid #FECACA;
 }
 
+/* ========================================================================= */
+/* IMPRESSION PROFESSIONNELLE — REÇUS THERMIQUES (58mm / 80mm) & RAPPORTS A4 */
+/* ========================================================================= */
+@media print {
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .sidebar,
+  .navbar,
+  .bottom-nav,
+  .btn,
+  .close-btn {
+    display: none !important;
+  }
+
+  /* Thermal Receipt Printer Layout (58mm - 80mm) */
+  .receipt-printable,
+  .thermal-ticket {
+    width: 100% !important;
+    max-width: 76mm !important;
+    margin: 0 auto !important;
+    padding: 4mm !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .receipt-printable table,
+  .thermal-ticket table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .receipt-printable th,
+  .receipt-printable td,
+  .thermal-ticket th,
+  .thermal-ticket td {
+    padding: 2px 0 !important;
+    font-size: 10px !important;
+  }
+}
+

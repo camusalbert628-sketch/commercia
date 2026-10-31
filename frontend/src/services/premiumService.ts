@@ -13,6 +13,7 @@ import {
   TreasuryOverview,
   TreasuryStatusBadge,
 } from '../types/premium';
+import { calculateDiscountedPrice } from '../utils/promoService';
 
 const SUB_KEY = 'commercia_subscription_state';
 const RECEIPTS_KEY = 'commercia_payment_receipts';
@@ -186,12 +187,7 @@ export function simulatePayment(params: {
     ? (isAnnual ? 120000 : 12000)
     : (isAnnual ? 45000 : 4500);
 
-  let finalAmount = basePrice;
-  if (params.codePromo?.trim().toUpperCase() === 'COMMERCIA20') {
-    finalAmount = Math.round(basePrice * 0.8);
-  } else if (params.codePromo?.trim().toUpperCase() === 'BIENVENUE5000') {
-    finalAmount = Math.max(0, basePrice - 5000);
-  }
+  const { finalPrice: finalAmount } = calculateDiscountedPrice(basePrice, params.codePromo);
 
   // Grace extension rule: if paid during grace, add from previous end date so no days lost
   const now = Date.now();

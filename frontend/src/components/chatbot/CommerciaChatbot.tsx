@@ -412,7 +412,7 @@ export const CommerciaChatbot: React.FC = () => {
               <button
                 onClick={() => {
                   closeChatbot();
-                  navigate('/subscriptions');
+                  navigate('/subscription');
                 }}
                 style={{
                   width: '100%',

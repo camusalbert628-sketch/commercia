@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { calculateDiscountedPrice, validatePromoCode } from '../utils/promoService';
+import { formatCurrency } from '../utils/formatters';
 
 interface PaymentItem {
   id: string;
@@ -157,12 +159,7 @@ export const SubscriptionPage: React.FC = () => {
     ? (periodicite === 'annuel' ? 120000 : 12000)
     : (periodicite === 'annuel' ? 45000 : 4500);
 
-  let finalPrice = basePrice;
-  if (promoCode.trim().toUpperCase() === 'COMMERCIA20') {
-    finalPrice = Math.round(basePrice * 0.8);
-  } else if (promoCode.trim().toUpperCase() === 'BIENVENUE5000') {
-    finalPrice = Math.max(0, basePrice - 5000);
-  }
+  const { finalPrice } = calculateDiscountedPrice(basePrice, promoCode);
 
   // Formatters for credit card
   const handleCardNumberChange = (val: string) => {
@@ -1447,8 +1444,8 @@ export const SubscriptionPage: React.FC = () => {
                       type="button"
                       className="btn btn-secondary"
                       onClick={() => {
-                        if (promoCode.trim().toUpperCase() === 'COMMERCIA20') setPromoMessage('Code validé : -20% appliqués ! 🎉');
-                        else setPromoMessage('Code non reconnu.');
+                        const res = validatePromoCode(promoCode);
+                        setPromoMessage(res.message);
                       }}
                     >
                       Appliquer

@@ -3,6 +3,8 @@ import { Plus, AlertTriangle, Search, ArrowUp, X, Crown, Globe, Truck, Calculato
 import { api } from '../services/api';
 import { Product } from '../types';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { useAuthStore } from '../store/authStore';
+import { formatCurrency } from '../utils/formatters';
 
 export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -110,9 +112,21 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
-  const filtered = products.filter(p =>
-    search === '' || p.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const { user, activeBusinessId } = useAuthStore();
+  const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const currency = activeBusiness?.currency || 'FCFA';
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+
+  const filtered = products.filter(p => {
+    const matchesSearch = search === '' || p.name.toLowerCase().includes(search.toLowerCase());
+    const matchesLowStock = !onlyLowStock || p.quantity <= p.lowStockAlert;
+    return matchesSearch && matchesLowStock;
+  });
+
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const totalStockValue = products.reduce((sum, p) => sum + p.costPrice * p.quantity, 0);
   const totalPotentialRevenue = products.reduce((sum, p) => sum + p.sellingPrice * p.quantity, 0);
@@ -123,8 +137,8 @@ export const ProductsPage: React.FC = () => {
         <div>
           <h1 style={{ fontSize: '1.75rem', margin: '0 0 4px 0' }}>Gestion de Stock & Articles</h1>
           <p style={{ color: '#64748B', fontSize: '0.92rem', margin: 0 }}>
-            Valeur du stock (Coût d'achat) : <strong style={{ color: '#059669' }}>{totalStockValue.toLocaleString('fr-FR')} FCFA</strong>
-            {' — '}Potentiel de vente : <strong>{totalPotentialRevenue.toLocaleString('fr-FR')} FCFA</strong>
+            Valeur du stock (Coût d'achat) : <strong style={{ color: '#059669' }}>{formatCurrency(totalStockValue, currency)}</strong>
+            {' — '}Potentiel de vente : <strong>{formatCurrency(totalPotentialRevenue, currency)}</strong>
           </p>
         </div>
 
@@ -192,7 +206,7 @@ export const ProductsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => {
+              {paginated.map(p => {
                 const pPurchase = p.purchasePrice ?? p.costPrice;
                 const pFees = p.logisticsFees ?? 0;
                 const pCost = p.costPrice || (pPurchase + pFees);
@@ -230,21 +244,21 @@ export const ProductsPage: React.FC = () => {
                       <div style={{ fontSize: '0.78rem', color: '#64748B' }}>Unité : {p.unit}</div>
                     </td>
                     <td style={{ color: '#64748B', fontSize: '0.88rem' }}>
-                      <div>Achat : <strong>{pPurchase.toLocaleString('fr-FR')} FCFA</strong></div>
+                      <div>Achat : <strong>{formatCurrency(pPurchase, currency)}</strong></div>
                       {pFees > 0 ? (
-                        <div style={{ fontSize: '0.76rem', color: '#0284C7' }}>+ Frais/Fret : {pFees.toLocaleString('fr-FR')} FCFA</div>
+                        <div style={{ fontSize: '0.76rem', color: '#0284C7' }}>+ Frais/Fret : {formatCurrency(pFees, currency)}</div>
                       ) : (
-                        <div style={{ fontSize: '0.74rem', color: '#94A3B8' }}>0 FCFA de frais</div>
+                        <div style={{ fontSize: '0.74rem', color: '#94A3B8' }}>{formatCurrency(0, currency)} de frais</div>
                       )}
                     </td>
                     <td>
                       <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0F172A' }}>
-                        {pCost.toLocaleString('fr-FR')} FCFA
+                        {formatCurrency(pCost, currency)}
                       </div>
                       <div style={{ fontSize: '0.72rem', color: '#64748B' }}>Prix de revient net</div>
                     </td>
                     <td style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0062FF' }}>
-                      {p.sellingPrice.toLocaleString('fr-FR')} FCFA
+                      {formatCurrency(p.sellingPrice, currency)}
                     </td>
                     <td>
                       <span
@@ -258,7 +272,7 @@ export const ProductsPage: React.FC = () => {
                           display: 'inline-block',
                         }}
                       >
-                        +{margin.toLocaleString('fr-FR')} FCFA ({marginPercent}%)
+                        +{formatCurrency(margin, currency)} ({marginPercent}%)
                       </span>
                     </td>
                     <td>
@@ -317,6 +331,34 @@ export const ProductsPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+            <span style={{ fontSize: '0.84rem', color: '#64748B' }}>
+              Page <strong>{currentPage}</strong> sur <strong>{totalPages}</strong> ({filtered.length} articles)
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                style={{ padding: '6px 14px', fontSize: '0.84rem' }}
+              >
+                Précédent
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                style={{ padding: '6px 14px', fontSize: '0.84rem' }}
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Product Modal */}

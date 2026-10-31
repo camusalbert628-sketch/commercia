@@ -7,6 +7,7 @@ import { useModals } from '../context/ModalContext';
 import { ReceiptModal } from '../components/modals/ReceiptModal';
 import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { downloadCSVWithBOM } from '../utils/formatters';
 
 interface SalesPageProps {
   onOpenSaleModal?: () => void;
@@ -63,6 +64,11 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
     return matchesSearch && matchesMethod;
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const totalFiltered = filtered.reduce((sum, s) => sum + s.totalAmount, 0);
 
   // Free plan daily quota calculation
@@ -75,7 +81,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
       return;
     }
 
-    const headers = ['ID Vente', 'Date', 'Heure', 'Client', 'Articles', 'Mode de Règlement', 'Montant Total (FCFA)'];
+    const headers = ['ID Vente', 'Date', 'Heure', 'Client', 'Articles', 'Mode de Règlement', `Montant Total (${currency})`];
     const rows = filtered.map(s => {
       const d = new Date(s.saleDate);
       const dateStr = d.toLocaleDateString('fr-FR');
@@ -94,15 +100,8 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
       ].join(';');
     });
 
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `COMMERCIA_Ventes_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const csvContent = [headers.join(';'), ...rows].join('\n');
+    downloadCSVWithBOM(`COMMERCIA_Ventes_${new Date().toISOString().slice(0, 10)}.csv`, csvContent);
   };
 
   return (
@@ -271,7 +270,7 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
                   </td>
                 </tr>
               ) : (
-                filtered.map(s => (
+                paginated.map(s => (
                 <tr key={s.id}>
                   <td style={{ fontSize: '0.85rem' }}>
                     <div style={{ fontWeight: 600 }}>{new Date(s.saleDate).toLocaleDateString('fr-FR')}</div>
@@ -353,6 +352,34 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderTop: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+            <span style={{ fontSize: '0.84rem', color: '#64748B' }}>
+              Page <strong>{currentPage}</strong> sur <strong>{totalPages}</strong> ({filtered.length} ventes)
+            </span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                style={{ padding: '6px 14px', fontSize: '0.84rem' }}
+              >
+                Précédent
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                style={{ padding: '6px 14px', fontSize: '0.84rem' }}
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sale Detail / Receipt Modal */}

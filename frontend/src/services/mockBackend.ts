@@ -3,6 +3,7 @@
 import { calculateFinancialMetrics } from '../utils/finance';
 import { generateAIAnswer } from './aiKnowledgeEngine';
 import { generateCopilotLLMResponse } from './llmService';
+import { calculateDiscountedPrice } from '../utils/promoService';
 
 const USERS_DB_KEY = 'commercia_users_db';
 
@@ -731,9 +732,47 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       const saleId = parts[2];
       const raw = localStorage.getItem(saleKey);
       let sales = raw ? JSON.parse(raw) : [];
+      const targetSale = sales.find((s: any) => s.id === saleId);
+
+      // Re-increment product stock for each cancelled item
+      if (targetSale && targetSale.items && Array.isArray(targetSale.items)) {
+        const prodKey = `commercia_products_${activeBizId}`;
+        const rawProds = localStorage.getItem(prodKey);
+        if (rawProds) {
+          const prods = JSON.parse(rawProds);
+          let stockRestored = false;
+          targetSale.items.forEach((item: any) => {
+            const prod = prods.find((p: any) => p.id === item.productId || (item.name && p.name.toLowerCase() === item.name.toLowerCase()));
+            if (prod) {
+              prod.quantity = (Number(prod.quantity) || 0) + (Number(item.quantity) || 1);
+              stockRestored = true;
+            }
+          });
+          if (stockRestored) {
+            localStorage.setItem(prodKey, JSON.stringify(prods));
+          }
+        }
+
+        // Revert customer debt if it was a credit sale
+        if (targetSale.customerId && targetSale.paymentMethod === 'credit') {
+          const custKey = `commercia_customers_${activeBizId}`;
+          const rawCusts = localStorage.getItem(custKey);
+          if (rawCusts) {
+            const custs = JSON.parse(rawCusts);
+            const customer = custs.find((c: any) => c.id === targetSale.customerId);
+            if (customer) {
+              const owedAmount = Number(targetSale.totalAmount || 0) - Number(targetSale.paidAmount || 0);
+              customer.totalOwed = Math.max(0, (customer.totalOwed || 0) - owedAmount);
+              customer.totalBought = Math.max(0, (customer.totalBought || 0) - Number(targetSale.totalAmount || 0));
+              localStorage.setItem(custKey, JSON.stringify(custs));
+            }
+          }
+        }
+      }
+
       sales = sales.filter((s: any) => s.id !== saleId);
       localStorage.setItem(saleKey, JSON.stringify(sales));
-      return { message: 'Vente annulée avec succès.' };
+      return { message: 'Vente annulée avec succès et stock réintégré !' };
     }
 
     const raw = localStorage.getItem(saleKey);
@@ -932,9 +971,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       const pName = body?.planName || 'pro';
       const isYearly = body?.billingCycle === 'yearly';
       const basePrice = pName === 'business' ? (isYearly ? 120000 : 12000) : (isYearly ? 45000 : 4500);
-      let finalAmount = basePrice;
-      if (body?.promoCode?.trim().toUpperCase() === 'COMMERCIA20') finalAmount = Math.round(basePrice * 0.8);
-      else if (body?.promoCode?.trim().toUpperCase() === 'BIENVENUE5000') finalAmount = Math.max(0, basePrice - 5000);
+      const { finalPrice: finalAmount } = calculateDiscountedPrice(basePrice, body?.promoCode);
       
       const reference = `COMMERCIA-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -1090,8 +1127,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       // Pour Pro ou Business, initier le paiement sans activer directement !
       const isYearly = body?.billingCycle === 'yearly';
       const basePrice = pName === 'business' ? (isYearly ? 120000 : 12000) : (isYearly ? 45000 : 4500);
-      let finalAmount = basePrice;
-      if (body?.promoCode?.trim().toUpperCase() === 'COMMERCIA20') finalAmount = Math.round(basePrice * 0.8);
+      const { finalPrice: finalAmount } = calculateDiscountedPrice(basePrice, body?.promoCode);
       const reference = `COMMERCIA-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
       const rawPayments = localStorage.getItem('commercia_payments');

@@ -1429,9 +1429,19 @@ export const OnboardingPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    if (step === 1 && !name.trim()) {
-                      setError('Veuillez renseigner le nom commercial de votre activité ou boutique.');
-                      return;
+                    if (step === 1) {
+                      if (!name.trim() || name.trim().length < 2) {
+                        setError('Veuillez renseigner un nom commercial valide (au moins 2 caractères).');
+                        return;
+                      }
+                      if (!currency) {
+                        setError('Veuillez sélectionner la devise de tenue de caisse.');
+                        return;
+                      }
+                      if (!city.trim()) {
+                        setError('Veuillez renseigner la ville ou la commune de votre commerce.');
+                        return;
+                      }
                     }
                     if (step === 2 && sector === 'autre') {
                       setIsCustomSectorPage(true);
