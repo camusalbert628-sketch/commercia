@@ -13,10 +13,16 @@ import {
   RefreshCw,
   ShoppingBag,
   Info,
+  X,
+  Sparkles,
+  Calculator,
+  Flame,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { formatCurrency } from '../utils/formatters';
+import { CustomSelect, CustomSelectOption } from '../components/common/CustomSelect';
 
 export const FoodPrepPage: React.FC = () => {
   const { user, activeBusinessId } = useAuthStore();
@@ -68,6 +74,35 @@ export const FoodPrepPage: React.FC = () => {
   const [recipeYield, setRecipeYield] = useState(1);
   const [recipePrice, setRecipePrice] = useState(0);
   const [ingredientsList, setIngredientsList] = useState<Array<{ name: string; quantity: number; unit: string; unitCost: number }>>([]);
+
+  // Computed economics for Prep Modal
+  const prepTargetRevenue = (Number(prepPortions) || 0) * (Number(prepSellingPrice) || 0);
+  const prepCost = Number(prepIngredientsCost) || 0;
+  const prepGrossMargin = prepTargetRevenue - prepCost;
+  const prepUnitCost = (Number(prepPortions) || 0) > 0 ? prepCost / Number(prepPortions) : 0;
+  const prepMarginPercent = prepTargetRevenue > 0 ? Math.round((prepGrossMargin / prepTargetRevenue) * 100) : 0;
+
+  const recipeSelectOptions: CustomSelectOption[] = [
+    { value: '', label: '-- Saisie libre (Nouveau plat) --', icon: '🍲' },
+    ...recipes.map((r: any) => ({
+      value: r.id,
+      label: `${r.name} (${r.yieldPortions || 1} portions • ${formatCurrency(r.sellingPrice, currency)})`,
+      badge: `Coût: ${formatCurrency(r.totalCost, currency)}`,
+      icon: '📖',
+    })),
+  ];
+
+  const handleRecipeSelection = (recId: string) => {
+    setPrepRecipeId(recId);
+    if (!recId) return;
+    const rec = recipes.find((r: any) => r.id === recId);
+    if (rec) {
+      setPrepDishName(rec.name);
+      setPrepPortions(rec.yieldPortions || 1);
+      setPrepSellingPrice(rec.sellingPrice || 0);
+      setPrepIngredientsCost(rec.totalCost || 0);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -1062,94 +1097,336 @@ export const FoodPrepPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Préparation du jour */}
+      {/* Modal Préparation du jour Professionnelle */}
       {showPrepModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
-          <div style={{ background: '#FFFFFF', borderRadius: '16px', maxWidth: '480px', width: '100%', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#0F172A' }}>
-              Enregistrer une préparation du jour
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: '#64748B', marginTop: '4px', marginBottom: '16px' }}>
-              Renseignez les portions cuisinées et le montant engagé en achats frais.
-            </p>
-
-            <form onSubmit={handleCreatePrep}>
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '4px' }}>
-                  Nom du plat :
-                </label>
-                <input
-                  type="text"
-                  placeholder="ex: Riz sauce arachide & Poulet"
-                  value={prepDishName}
-                  onChange={(e) => setPrepDishName(e.target.value)}
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '16px',
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              borderRadius: '20px',
+              maxWidth: '560px',
+              width: '100%',
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+              maxHeight: '92vh',
+            }}
+          >
+            {/* MODAL HEADER */}
+            <div
+              style={{
+                padding: '18px 24px',
+                background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%)',
+                borderBottom: '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
+                    border: '1px solid #FED7AA',
+                    color: '#EA580C',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(234, 88, 12, 0.1)',
+                  }}
+                >
+                  <ChefHat size={22} />
+                </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '4px' }}>
-                    Portions préparées :
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Enregistrer une préparation du jour
+                    </h3>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        background: '#FFF7ED',
+                        color: '#C2410C',
+                        border: '1px solid #FED7AA',
+                      }}
+                    >
+                      Plat du jour
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                    Portions cuisinées, prix de vente et achats d'ingrédients frais
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPrepModal(false)}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  color: '#64748B',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                title="Fermer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePrep} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div
+                style={{
+                  padding: '20px 24px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  flex: 1,
+                }}
+              >
+                {/* Sélecteur Fiche Technique si existante */}
+                {recipes.length > 0 && (
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                      <Sparkles size={14} color="#EA580C" />
+                      <span>Pré-remplir depuis une fiche technique (Optionnel) :</span>
+                    </label>
+                    <CustomSelect
+                      value={prepRecipeId}
+                      onChange={handleRecipeSelection}
+                      options={recipeSelectOptions}
+                      placeholder="-- Saisie libre (Nouveau plat) --"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Nom du plat :
                   </label>
                   <input
-                    type="number"
-                    min="1"
-                    placeholder="ex: 20"
-                    value={prepPortions}
-                    onChange={(e) => setPrepPortions(e.target.value === '' ? '' : Number(e.target.value))}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
+                    type="text"
+                    placeholder="ex: Riz sauce arachide & Poulet braisé"
+                    value={prepDishName}
+                    onChange={(e) => setPrepDishName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      color: '#0F172A',
+                      outline: 'none',
+                    }}
                     required
                   />
                 </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                      Portions préparées :
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="ex: 20"
+                      value={prepPortions}
+                      onChange={(e) => setPrepPortions(e.target.value === '' ? '' : Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        color: '#0F172A',
+                        outline: 'none',
+                      }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                      Prix portion ({currency}) :
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="ex: 1500"
+                      value={prepSellingPrice}
+                      onChange={(e) => setPrepSellingPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        color: '#0F172A',
+                        outline: 'none',
+                      }}
+                      required
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '4px' }}>
-                    Prix portion ({currency}) :
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Coût des denrées et ingrédients ({currency}) :
                   </label>
                   <input
                     type="number"
                     min="0"
-                    placeholder="ex: 1500"
-                    value={prepSellingPrice}
-                    onChange={(e) => setPrepSellingPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
+                    placeholder="ex: 12000"
+                    value={prepIngredientsCost}
+                    onChange={(e) => setPrepIngredientsCost(e.target.value === '' ? '' : Number(e.target.value))}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      color: '#0F172A',
+                      outline: 'none',
+                    }}
                     required
                   />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '0.74rem', color: '#64748B' }}>
+                    <Info size={13} color="#0062FF" style={{ flexShrink: 0 }} />
+                    <span>Ne déduisez pas les denrées stockées pour demain (riz non cuit, épices en boîte de réserve).</span>
+                  </div>
                 </div>
+
+                {/* Simulation Financière Culinaire en Direct */}
+                {Boolean(prepPortions && prepSellingPrice) && (
+                  <div
+                    style={{
+                      background: prepGrossMargin >= 0 ? '#F0FDF4' : '#FEF2F2',
+                      border: `1.5px solid ${prepGrossMargin >= 0 ? '#BBF7D0' : '#FECDD3'}`,
+                      borderRadius: '14px',
+                      padding: '12px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 800, color: prepGrossMargin >= 0 ? '#166534' : '#991B1B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        📊 Projection économique du plat
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          background: prepGrossMargin >= 0 ? '#DCFCE7' : '#FEE2E2',
+                          color: prepGrossMargin >= 0 ? '#15803D' : '#DC2626',
+                        }}
+                      >
+                        {prepGrossMargin >= 0 ? `Marge brute : +${prepMarginPercent}%` : 'Déficit prévisionnel'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', textAlign: 'center' }}>
+                      <div style={{ background: '#FFFFFF', padding: '6px 8px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                        <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600 }}>CA Potentiel</div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0F172A' }}>
+                          {formatCurrency(prepTargetRevenue, currency)}
+                        </div>
+                      </div>
+                      <div style={{ background: '#FFFFFF', padding: '6px 8px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                        <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600 }}>Coût / portion</div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0062FF' }}>
+                          {formatCurrency(prepUnitCost, currency)}
+                        </div>
+                      </div>
+                      <div style={{ background: '#FFFFFF', padding: '6px 8px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                        <div style={{ fontSize: '0.66rem', color: '#64748B', fontWeight: 600 }}>Bénéfice Cible</div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: prepGrossMargin >= 0 ? '#15803D' : '#DC2626' }}>
+                          {prepGrossMargin >= 0 ? `+${formatCurrency(prepGrossMargin, currency)}` : formatCurrency(prepGrossMargin, currency)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '4px' }}>
-                  Coût des denrées et ingrédients ({currency}) :
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="ex: 12000"
-                  value={prepIngredientsCost}
-                  onChange={(e) => setPrepIngredientsCost(e.target.value === '' ? '' : Number(e.target.value))}
-                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  required
-                />
-                <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                  Ne déduisez pas les denrées stockées pour demain (riz non cuit, épices de réserve).
-                </span>
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
+              {/* MODAL FOOTER */}
+              <div
+                style={{
+                  padding: '14px 24px',
+                  background: '#F8FAFC',
+                  borderTop: '1px solid #E2E8F0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: '12px',
+                }}
+              >
                 <button
                   type="button"
+                  className="btn btn-secondary"
                   onClick={() => setShowPrepModal(false)}
-                  style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #E2E8F0', background: 'none', fontWeight: 700, cursor: 'pointer' }}
+                  style={{
+                    height: '42px',
+                    padding: '0 20px',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                  }}
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#0062FF', color: 'white', fontWeight: 700, cursor: 'pointer' }}
+                  className="btn btn-primary"
+                  style={{
+                    height: '42px',
+                    padding: '0 22px',
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                    fontSize: '0.9rem',
+                    background: 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: 'none',
+                  }}
                 >
-                  Enregistrer
+                  <CheckCircle2 size={16} />
+                  <span>Enregistrer la préparation</span>
                 </button>
               </div>
             </form>
