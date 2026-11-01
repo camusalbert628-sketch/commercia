@@ -1985,18 +1985,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           background: 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)',
           border: '1.5px solid #E2E8F0',
           borderRadius: '20px',
-          padding: '22px 26px',
+          padding: '22px 28px',
           marginTop: '36px',
-          marginBottom: '20px',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '18px',
+          marginBottom: '24px',
           boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
           <div
             style={{
               width: '50px',
@@ -2023,30 +2018,79 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowFeedbackModal(true)}
-          style={{
-            background: '#0F172A',
-            color: '#FFFFFF',
-            border: 'none',
-            borderRadius: '14px',
-            padding: '12px 24px',
-            fontSize: '0.9rem',
-            fontWeight: 700,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            cursor: 'pointer',
-            boxShadow: 'none',
-            transition: 'background 0.15s ease',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = '#0062FF')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = '#0F172A')}
-        >
-          <Sparkles size={16} />
-          <span>Donner mon avis & Suggestions</span>
-        </button>
+        {/* Action row right where indicated by the user's arrow and circle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setShowFeedbackModal(true)}
+            style={{
+              background: '#0F172A',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '11px 22px',
+              fontSize: '0.88rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              boxShadow: 'none',
+              transition: 'background 0.15s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = '#0062FF')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = '#0F172A')}
+          >
+            <Sparkles size={16} />
+            <span>Donner mon avis & Suggestions</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowFeedbackModal(true)}
+            style={{
+              background: '#EFF6FF',
+              color: '#0062FF',
+              border: '1px solid #BFDBFE',
+              borderRadius: '12px',
+              padding: '11px 20px',
+              fontSize: '0.88rem',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              boxShadow: 'none',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#DBEAFE';
+              e.currentTarget.style.borderColor = '#93C5FD';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#EFF6FF';
+              e.currentTarget.style.borderColor = '#BFDBFE';
+            }}
+          >
+            <Star size={16} fill="#F59E0B" color="#D97706" />
+            <span>Évaluer l'application (Note /5)</span>
+          </button>
+
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.8rem',
+              color: '#059669',
+              fontWeight: 600,
+              marginLeft: 'auto',
+            }}
+          >
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+            <span>Boîte à idées ouverte 7j/7</span>
+          </div>
+        </div>
       </div>
 
       {/* Floating Proactive Renewal Alert when <= 7 days */}
@@ -2058,43 +2102,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           isExpired={isExpired}
         />
       )}
-
-      {/* Discreet Floating Feedback Button */}
-      <button
-        type="button"
-        onClick={() => setShowFeedbackModal(true)}
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          left: '24px',
-          zIndex: 9990,
-          background: '#0F172A',
-          color: '#FFFFFF',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          borderRadius: '30px',
-          padding: '9px 18px',
-          fontSize: '0.82rem',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.25)',
-          cursor: 'pointer',
-          transition: 'all 0.15s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = '#0062FF';
-          e.currentTarget.style.transform = 'translateY(-2px)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = '#0F172A';
-          e.currentTarget.style.transform = 'translateY(0)';
-        }}
-        title="Donner une suggestion ou une note"
-      >
-        <Star size={15} fill="#F59E0B" color="#F59E0B" />
-        <span>Avis & Suggestions</span>
-      </button>
 
       {/* Evaluation & Feedback Modal */}
       <FeedbackModal

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Star,
@@ -111,18 +112,27 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
     onClose();
   };
 
-  return (
+  return createPortal(
     <div
       className="modal-overlay"
       style={{
-        zIndex: 99999,
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 999999,
         backgroundColor: 'rgba(15, 23, 42, 0.72)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
-        animation: 'fadeIn 0.2s ease-out',
+        padding: '20px',
+        margin: 0,
+        boxSizing: 'border-box',
+        overflowY: 'auto',
       }}
       onClick={handleResetAndClose}
     >
@@ -131,14 +141,15 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
         style={{
           maxWidth: '560px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: '88vh',
           overflowY: 'auto',
           background: '#FFFFFF',
           borderRadius: '24px',
-          padding: '28px 30px',
+          padding: '28px 32px',
           boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.3), 0 0 0 1px rgba(226, 232, 240, 0.8)',
           border: 'none',
           position: 'relative',
+          margin: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -520,6 +531,7 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
