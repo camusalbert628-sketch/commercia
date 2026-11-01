@@ -12,6 +12,10 @@ import {
   Lock,
   TrendingUp,
   FileText,
+  Landmark,
+  Building2,
+  X,
+  Sparkles,
 } from 'lucide-react';
 import {
   calculateTreasuryOverview,
@@ -26,6 +30,8 @@ import { TreasuryMovement, TreasuryAccount } from '../types/premium';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { CustomSelect } from '../components/common/CustomSelect';
+import { formatCurrency } from '../utils/formatters';
 
 export const TreasuryPage: React.FC = () => {
   const { user, activeBusinessId } = useAuthStore();
@@ -744,36 +750,42 @@ export const TreasuryPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Compte concerné</label>
-                  <select value={moveCompteId} onChange={e => setMoveCompteId(e.target.value)} style={{ width: '100%', padding: '10px' }} required>
-                    {overview.comptes.map(a => (
-                      <option key={a.id} value={a.id}>{a.nom} (Solde : {a.soldeActuel.toLocaleString('fr-FR')} {currency})</option>
-                    ))}
-                  </select>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}>Compte concerné</label>
+                  <CustomSelect
+                    value={moveCompteId}
+                    onChange={val => setMoveCompteId(val)}
+                    options={overview.comptes.map(a => ({
+                      value: a.id,
+                      label: `${a.nom} (Solde : ${a.soldeActuel.toLocaleString('fr-FR')} ${currency})`,
+                      icon: a.type === 'mobile_money' ? '📱' : a.type === 'banque' ? '🏦' : '💵',
+                    }))}
+                  />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Catégorie de flux</label>
-                  <select value={moveCategorie} onChange={e => setMoveCategorie(e.target.value)} style={{ width: '100%', padding: '10px' }}>
-                    {moveType === 'ENTREE' ? (
-                      <>
-                        <option value="Apport du propriétaire">Apport personnel du propriétaire (Non-CA)</option>
-                        <option value="Prêt reçu">Prêt bancaire ou tontine (Non-CA)</option>
-                        <option value="Ventes directes">Ventes directes de stock</option>
-                        <option value="Autre entrée">Autre entrée exceptionnelle</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="Prélèvement gérant">Prélèvement ration maison gérant (Non-charge)</option>
-                        <option value="Achats de marchandises">Achat de marchandises / stock</option>
-                        <option value="Loyer">Loyer du local commercial</option>
-                        <option value="Salaires / personnel">Salaires / primes équipe</option>
-                        <option value="Transport">Transport et fret</option>
-                        <option value="Électricité / Eau">Électricité & Eau</option>
-                        <option value="Marketing / Publicité">Marketing & Publicité</option>
-                      </>
-                    )}
-                  </select>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}>Catégorie de flux</label>
+                  <CustomSelect
+                    value={moveCategorie}
+                    onChange={val => setMoveCategorie(val)}
+                    options={
+                      moveType === 'ENTREE'
+                        ? [
+                            { value: 'Apport du propriétaire', label: 'Apport personnel du propriétaire (Non-CA)', icon: '💼' },
+                            { value: 'Prêt reçu', label: 'Prêt bancaire ou tontine (Non-CA)', icon: '🤝' },
+                            { value: 'Ventes directes', label: 'Ventes directes de stock', icon: '🛒' },
+                            { value: 'Autre entrée', label: 'Autre entrée exceptionnelle', icon: '✨' },
+                          ]
+                        : [
+                            { value: 'Prélèvement gérant', label: 'Prélèvement ration maison gérant (Non-charge)', icon: '🍲' },
+                            { value: 'Achats de marchandises', label: 'Achat de marchandises / stock', icon: '🏬' },
+                            { value: 'Loyer', label: 'Loyer du local commercial', icon: '🏠' },
+                            { value: 'Salaires / personnel', label: 'Salaires / primes équipe', icon: '👥' },
+                            { value: 'Transport', label: 'Transport et fret', icon: '🛵' },
+                            { value: 'Électricité / Eau', label: 'Électricité & Eau', icon: '💡' },
+                            { value: 'Marketing / Publicité', label: 'Marketing & Publicité', icon: '📣' },
+                          ]
+                    }
+                  />
                 </div>
 
                 <div>
@@ -810,11 +822,13 @@ export const TreasuryPage: React.FC = () => {
 
       {/* MODAL 2 : VIREMENT INTERNE */}
       {showVirementModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '480px' }}>
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ maxWidth: '500px', overflow: 'visible', borderRadius: '18px' }}>
             <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Virement Interne entre Comptes</h3>
-              <button onClick={() => setShowVirementModal(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8' }}>×</button>
+              <h3 style={{ fontSize: '1.2rem', margin: 0, fontWeight: 800 }}>Virement Interne entre Comptes</h3>
+              <button onClick={() => setShowVirementModal(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
             </div>
             <form onSubmit={handleVirement}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -822,21 +836,29 @@ export const TreasuryPage: React.FC = () => {
                   Un virement interne déplace l'argent d'un compte à un autre sans modifier le total de votre trésorerie disponible.
                 </p>
                 <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Compte Source (Débité)</label>
-                  <select value={virSource} onChange={e => setVirSource(e.target.value)} style={{ width: '100%', padding: '10px' }} required>
-                    {overview.comptes.map(a => (
-                      <option key={a.id} value={a.id}>{a.nom} (Solde : {a.soldeActuel.toLocaleString('fr-FR')} {currency})</option>
-                    ))}
-                  </select>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}>Compte Source (Débité) *</label>
+                  <CustomSelect
+                    value={virSource}
+                    onChange={val => setVirSource(val)}
+                    options={overview.comptes.map(a => ({
+                      value: a.id,
+                      label: `${a.nom} (Solde : ${a.soldeActuel.toLocaleString('fr-FR')} ${currency})`,
+                      icon: a.type === 'mobile_money' ? '📱' : a.type === 'banque' ? '🏦' : '💵',
+                    }))}
+                  />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Compte Destination (Crédité)</label>
-                  <select value={virDest} onChange={e => setVirDest(e.target.value)} style={{ width: '100%', padding: '10px' }} required>
-                    {overview.comptes.map(a => (
-                      <option key={a.id} value={a.id}>{a.nom} (Solde : {a.soldeActuel.toLocaleString('fr-FR')} {currency})</option>
-                    ))}
-                  </select>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '6px' }}>Compte Destination (Crédité) *</label>
+                  <CustomSelect
+                    value={virDest}
+                    onChange={val => setVirDest(val)}
+                    options={overview.comptes.map(a => ({
+                      value: a.id,
+                      label: `${a.nom} (Solde : ${a.soldeActuel.toLocaleString('fr-FR')} ${currency})`,
+                      icon: a.type === 'mobile_money' ? '📱' : a.type === 'banque' ? '🏦' : '💵',
+                    }))}
+                  />
                 </div>
 
                 <div>
@@ -865,48 +887,342 @@ export const TreasuryPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 3 : AJOUT COMPTE */}
+      {/* MODAL 3 : NOUVEAU COMPTE FINANCIER */}
       {showAddAccountModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '440px' }}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Nouveau Compte Financier</h3>
-              <button onClick={() => setShowAddAccountModal(false)} style={{ background: 'transparent', border: 'none', color: '#94A3B8' }}>×</button>
-            </div>
-            <form onSubmit={handleAddAccount}>
-              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div
+            className="modal-content"
+            style={{
+              maxWidth: '520px',
+              width: '95%',
+              borderRadius: '20px',
+              padding: 0,
+              overflow: 'visible',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%)',
+                borderBottom: '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+                    border: '1px solid #BFDBFE',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#0062FF',
+                    boxShadow: '0 2px 6px rgba(0, 98, 255, 0.12)',
+                  }}
+                >
+                  <Landmark size={22} />
+                </div>
                 <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Nom du compte *</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ fontSize: '1.18rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Nouveau Compte Financier
+                    </h3>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        background: '#EFF6FF',
+                        color: '#1D4ED8',
+                      }}
+                    >
+                      Trésorerie
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                    Configurez vos comptes de caisse, Mobile Money ou banque
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddAccountModal(false)}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  color: '#64748B',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                title="Fermer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddAccount}>
+              <div className="modal-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* 1. Nom du compte */}
+                <div>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '0.85rem', color: '#1E293B', marginBottom: '6px' }}>
+                    Nom ou intitulé du compte <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
                   <input
                     type="text"
                     value={newAccNom}
                     onChange={e => setNewAccNom(e.target.value)}
                     required
                     placeholder="Ex: Compte Orange Money Marchand, Caisse Principale..."
+                    style={{
+                      width: '100%',
+                      height: '42px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #CBD5E1',
+                      padding: '0 14px',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
                   />
+                  {/* Suggestions rapides */}
+                  <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Suggestions :</span>
+                    {['Orange Money Pro', 'Wave Marchand', 'MTN MoMo', 'Compte Banque Pro', 'Caisse Boutique'].map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => {
+                          setNewAccNom(s);
+                          if (s.toLowerCase().includes('caisse')) setNewAccType('caisse');
+                          else if (s.toLowerCase().includes('banque')) setNewAccType('banque');
+                          else setNewAccType('mobile_money');
+                        }}
+                        style={{
+                          background: '#F8FAFC',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: '6px',
+                          padding: '2px 8px',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          color: '#475569',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        +{s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                {/* 2. Type de compte avec CustomSelect */}
                 <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Type de compte</label>
-                  <select value={newAccType} onChange={e => setNewAccType(e.target.value as any)}>
-                    <option value="mobile_money">Mobile Money (OM, MTN, Wave)</option>
-                    <option value="banque">Compte bancaire</option>
-                    <option value="caisse">Caisse physique</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>Solde initial ({currency})</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={newAccSolde}
-                    onChange={e => setNewAccSolde(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder="0"
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '0.85rem', color: '#1E293B', marginBottom: '6px' }}>
+                    Type de compte financier <span style={{ color: '#DC2626' }}>*</span>
+                  </label>
+                  <CustomSelect
+                    value={newAccType}
+                    onChange={val => setNewAccType(val as any)}
+                    options={[
+                      {
+                        value: 'mobile_money',
+                        label: 'Mobile Money (Wave, Orange, MTN)',
+                        icon: '📱',
+                        badge: 'Recommandé',
+                      },
+                      {
+                        value: 'banque',
+                        label: 'Compte Bancaire Professionnel',
+                        icon: '🏦',
+                      },
+                      {
+                        value: 'caisse',
+                        label: 'Caisse Physique Boutique (Espèces)',
+                        icon: '💵',
+                      },
+                    ]}
                   />
+                  <div
+                    style={{
+                      marginTop: '6px',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      fontSize: '0.76rem',
+                      background: newAccType === 'mobile_money' ? '#F0F9FF' : newAccType === 'banque' ? '#F5F3FF' : '#F0FDF4',
+                      color: newAccType === 'mobile_money' ? '#0369A1' : newAccType === 'banque' ? '#6D28D9' : '#15803D',
+                      border: '1px solid',
+                      borderColor: newAccType === 'mobile_money' ? '#BAE6FD' : newAccType === 'banque' ? '#DDD6FE' : '#BBF7D0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>💡</span>
+                    <span>
+                      {newAccType === 'mobile_money' && 'Idéal pour recevoir les encaissements Wave / OM et payer vos fournisseurs.'}
+                      {newAccType === 'banque' && 'Pour les virements bancaires d\'exploitation, chèques et cartes bancaires pro.'}
+                      {newAccType === 'caisse' && 'Réservé aux liquidités en billets et pièces gardées dans le tiroir-caisse de la boutique.'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Solde initial */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1E293B', margin: 0 }}>
+                      Solde initial ({currency})
+                    </label>
+                    <span style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                      Argent actuellement présent
+                    </span>
+                  </div>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newAccSolde}
+                      onChange={e => setNewAccSolde(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="0"
+                      className="currency-input-hero"
+                      style={{
+                        width: '100%',
+                        height: '46px',
+                        fontSize: '1.25rem',
+                        fontWeight: 800,
+                        color: '#0F172A',
+                        borderRadius: '10px',
+                        border: '1.5px solid #CBD5E1',
+                        padding: '0 75px 0 14px',
+                        outline: 'none',
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        background: '#EFF6FF',
+                        color: '#1D4ED8',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.8rem',
+                        fontWeight: 800,
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      {currency}
+                    </div>
+                  </div>
+                  {/* Preset chips for Solde initial */}
+                  <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>Préréglage :</span>
+                    {[0, 25000, 50000, 100000, 250000, 500000].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setNewAccSolde(amt)}
+                        style={{
+                          background: '#FFFFFF',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: '6px',
+                          padding: '2px 8px',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: '#334155',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {amt === 0 ? '0' : `+${amt >= 1000 ? `${amt / 1000}k` : amt}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Live Account Preview Card */}
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
+                    border: '1.5px dashed #CBD5E1',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '1.5rem' }}>
+                      {newAccType === 'mobile_money' ? '📱' : newAccType === 'banque' ? '🏦' : '💵'}
+                    </span>
+                    <div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>
+                        {newAccNom.trim() || 'Aperçu de votre nouveau compte'}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>
+                        {newAccType === 'mobile_money' ? 'Mobile Money' : newAccType === 'banque' ? 'Compte Bancaire' : 'Caisse Physique'} • Synchronisé
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600 }}>Solde d'ouverture</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#059669' }}>
+                      {formatCurrency(Number(newAccSolde) || 0, currency)}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddAccountModal(false)}>Annuler</button>
-                <button type="submit" className="btn btn-primary">Créer le compte</button>
+
+              {/* Modal Footer */}
+              <div
+                className="modal-footer"
+                style={{
+                  padding: '14px 24px',
+                  background: '#F8FAFC',
+                  borderTop: '1px solid #E2E8F0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  gap: '10px',
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowAddAccountModal(false)}
+                  style={{ height: '40px', padding: '0 18px', borderRadius: '10px', fontWeight: 700 }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newAccNom.trim()}
+                  className="btn btn-primary"
+                  style={{
+                    height: '40px',
+                    padding: '0 22px',
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    background: !newAccNom.trim() ? '#94A3B8' : 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)',
+                    cursor: !newAccNom.trim() ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <Plus size={16} />
+                  <span>Créer le Compte</span>
+                </button>
               </div>
             </form>
           </div>
