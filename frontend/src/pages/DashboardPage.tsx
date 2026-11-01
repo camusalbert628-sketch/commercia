@@ -26,6 +26,7 @@ import {
   Star,
   AlertTriangle,
   ShieldCheck,
+  Lightbulb,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -43,7 +44,8 @@ import { useAuthStore } from '../store/authStore';
 import { DashboardSkeleton } from '../components/common/SkeletonLoader';
 import { getBusinessProfile } from '../config/businessProfiles';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
-import { FeedbackModal } from '../components/common/FeedbackModal';
+import { SuggestionModal } from '../components/common/SuggestionModal';
+import { RatingModal } from '../components/common/RatingModal';
 import { SubscriptionRenewalFloatingAlert } from '../components/common/SubscriptionRenewalFloatingAlert';
 
 const TRACKING_MODES_CONFIG = [
@@ -110,7 +112,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [showWhyModal, setShowWhyModal] = useState(false);
   const [hideBanner, setHideBanner] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -2022,7 +2025,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <button
             type="button"
-            onClick={() => setShowFeedbackModal(true)}
+            onClick={() => setShowSuggestionModal(true)}
             style={{
               background: '#0F172A',
               color: '#FFFFFF',
@@ -2041,13 +2044,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             onMouseEnter={(e) => (e.currentTarget.style.background = '#0062FF')}
             onMouseLeave={(e) => (e.currentTarget.style.background = '#0F172A')}
           >
-            <Sparkles size={16} />
-            <span>Donner mon avis & Suggestions</span>
+            <Lightbulb size={16} />
+            <span>Boîte à Idées & Suggestions</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setShowFeedbackModal(true)}
+            onClick={() => setShowRatingModal(true)}
             style={{
               background: '#EFF6FF',
               color: '#0062FF',
@@ -2103,13 +2106,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         />
       )}
 
-      {/* Evaluation & Feedback Modal */}
-      <FeedbackModal
-        isOpen={showFeedbackModal}
-        onClose={() => setShowFeedbackModal(false)}
+      {/* Distinct Dedicated Modal 1: Boîte à Idées & Suggestions */}
+      <SuggestionModal
+        isOpen={showSuggestionModal}
+        onClose={() => setShowSuggestionModal(false)}
         defaultUserName={userName}
         defaultBusinessName={businessName}
-        defaultPhone={user?.phone || ''}
+      />
+
+      {/* Distinct Dedicated Modal 2: Baromètre de Satisfaction & Évaluation /5 */}
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        defaultUserName={userName}
+        defaultBusinessName={businessName}
       />
     </div>
   );
