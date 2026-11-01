@@ -14,43 +14,47 @@ function getUsersDb(): any[] {
     if (raw) list = JSON.parse(raw);
   } catch (e) { /* ignore */ }
 
-  const hasMasterAdmin = list.some(u => (u.email || '').toLowerCase() === 'admin@commercia.com');
-  if (!hasMasterAdmin) {
-    const masterAdmin = {
-      id: 'master-super-admin-01',
-      email: 'admin@commercia.com',
-      password: 'CommerciaAdmin2026!',
-      firstName: 'Alexandre',
-      lastName: 'Dumas (Superviseur)',
-      phone: '+237 690 000 000',
-      isAdmin: true,
-      isActive: true,
-      isGoogleVerified: true,
-      locale: 'fr',
-      currency: 'XAF',
-      businesses: [
-        {
-          id: 'admin-flagship-shop-01',
-          name: 'COMMERCIA HQ (Siège & Supervision)',
-          sector: 'commerce',
-          profileId: 'epicerie_alimentation',
-          trackingMode: 'complet',
-          currency: 'XAF',
-          activeModules: ['sales', 'expenses', 'stock', 'cash', 'credits', 'commercial_lots', 'copilot_ai'],
-          salesChannels: ['boutique', 'whatsapp', 'livraison'],
-          role: 'owner',
-        },
-      ],
-      subscription: {
-        planName: 'business',
-        planDisplayName: 'Formule Business Permanente',
-        status: 'active',
-        isPro: true,
-        daysRemaining: 9999,
-        endDate: '2046-12-31T23:59:59.000Z',
-        features: ['Tout le système COMMERCIA illimité', 'Supervision Multi-Boutiques', 'Console Administrateur Déverrouillée'],
+  const masterAdminIdx = list.findIndex(u => (u.email || '').toLowerCase() === 'admin@commercia.com');
+  const masterAdmin = {
+    id: 'master-super-admin-01',
+    email: 'admin@commercia.com',
+    password: 'CommerciaAdmin2026!',
+    firstName: 'Alexandre',
+    lastName: 'Dumas (Superviseur)',
+    phone: '+237 690 000 000',
+    isAdmin: true,
+    isActive: true,
+    isGoogleVerified: true,
+    locale: 'fr',
+    currency: 'XAF',
+    businesses: [
+      {
+        id: 'admin-flagship-shop-01',
+        name: 'COMMERCIA HQ (Siège & Supervision)',
+        sector: 'commerce',
+        profileId: 'epicerie_alimentation',
+        trackingMode: 'complet',
+        currency: 'XAF',
+        activeModules: ['sales', 'expenses', 'stock', 'cash', 'credits', 'commercial_lots', 'copilot_ai'],
+        salesChannels: ['boutique', 'whatsapp', 'livraison'],
+        role: 'owner',
       },
-    };
+    ],
+    subscription: {
+      planName: 'business',
+      planDisplayName: 'Formule Business Permanente',
+      status: 'active',
+      isPro: true,
+      daysRemaining: 9999,
+      endDate: '2046-12-31T23:59:59.000Z',
+      features: ['Tout le système COMMERCIA illimité', 'Supervision Multi-Boutiques', 'Console Administrateur Déverrouillée'],
+    },
+  };
+
+  if (masterAdminIdx >= 0) {
+    list[masterAdminIdx] = { ...list[masterAdminIdx], ...masterAdmin };
+    saveUsersDb(list);
+  } else {
     list.unshift(masterAdmin);
     saveUsersDb(list);
   }
