@@ -181,8 +181,9 @@ select:focus {
 /* App Layout Grid */
 .app-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   width: 100%;
+  overflow: hidden;
 }
 
 .main-content {
@@ -190,7 +191,11 @@ select:focus {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
   background-color: var(--bg-main);
+  position: relative;
 }
 
 .page-wrapper {
@@ -203,13 +208,23 @@ select:focus {
 }
 
 @media (max-width: 768px) {
+  .app-container {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .main-content {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: visible;
+  }
   .page-wrapper {
     padding: 16px;
     padding-bottom: 90px; /* Space for mobile nav */
   }
 }
 
-/* Sidebar Styles */
+/* Sidebar Styles - Permanently fixed and independent scroll */
 .sidebar {
   width: 270px;
   background: linear-gradient(180deg, #08162B 0%, #0A1E38 100%);
@@ -219,9 +234,11 @@ select:focus {
   position: sticky;
   top: 0;
   height: 100vh;
+  max-height: 100vh;
   flex-shrink: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 40;
+  overflow: hidden;
 }
 
 .sidebar-header {
