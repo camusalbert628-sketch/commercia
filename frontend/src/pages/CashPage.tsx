@@ -532,20 +532,6 @@ export const CashPage: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          {/* Subtle decorative background circles */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '-40px',
-              right: '-40px',
-              width: '180px',
-              height: '180px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%)',
-              pointerEvents: 'none',
-            }}
-          />
-
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', position: 'relative', zIndex: 2 }}>
             <div style={{ maxWidth: '640px' }}>
               <div
@@ -577,10 +563,11 @@ export const CashPage: React.FC = () => {
 
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
-                  className="btn btn-primary btn-lg"
+                  type="button"
                   onClick={() => setShowOpenModal(true)}
                   style={{
-                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                    background: '#059669',
+                    color: '#FFFFFF',
                     border: 'none',
                     padding: '12px 24px',
                     fontSize: '1rem',
@@ -589,7 +576,7 @@ export const CashPage: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
-                    boxShadow: '0 8px 24px rgba(16, 185, 129, 0.35)',
+                    boxShadow: 'none',
                     cursor: 'pointer',
                   }}
                 >
