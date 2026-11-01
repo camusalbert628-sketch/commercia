@@ -111,7 +111,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className="business-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {activeBusiness?.name || 'Mon Activité'}
-                <ChevronDown size={14} color="#64748B" />
+                <ChevronDown
+                  size={14}
+                  color="#64748B"
+                  style={{
+                    transform: showBusinessDropdown ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                />
               </span>
               <span
                 style={{
@@ -173,7 +180,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
               border: '1px solid #E2E8F0',
               zIndex: 1000,
               padding: '12px',
-              animation: 'fadeIn 0.15s ease-out',
+              animation: 'dropdownUnfold 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              transformOrigin: 'top left',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px 10px', borderBottom: '1px solid #F1F5F9' }}>

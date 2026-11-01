@@ -12,6 +12,7 @@ import {
 import { BUSINESS_PROFILES, getBusinessProfile } from '../../config/businessProfiles';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../services/api';
+import { CustomSelect } from './CustomSelect';
 
 interface TradeConfigModalProps {
   isOpen: boolean;
@@ -271,51 +272,33 @@ export const TradeConfigModal: React.FC<TradeConfigModalProps> = ({
               <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>
                 2. Devise monétaire
               </label>
-              <select
+              <CustomSelect
                 value={selectedCurrency}
-                onChange={(e) => setSelectedCurrency(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1.5px solid #CBD5E1',
-                  background: '#FFFFFF',
-                  fontSize: '0.86rem',
-                  fontWeight: 600,
-                  outline: 'none',
-                }}
-              >
-                <option value="FCFA">FCFA (XOF / XAF)</option>
-                <option value="EUR">Euro (€)</option>
-                <option value="USD">Dollar ($)</option>
-                <option value="GNF">Franc Guinéen (GNF)</option>
-                <option value="CDF">Franc Congolais (CDF)</option>
-                <option value="MGA">Ariary Malgache (MGA)</option>
-              </select>
+                onChange={(val) => setSelectedCurrency(val)}
+                options={[
+                  { value: 'FCFA', label: 'FCFA (XOF / XAF)' },
+                  { value: 'EUR', label: 'Euro (€)' },
+                  { value: 'USD', label: 'Dollar ($)' },
+                  { value: 'GNF', label: 'Franc Guinéen (GNF)' },
+                  { value: 'CDF', label: 'Franc Congolais (CDF)' },
+                  { value: 'MGA', label: 'Ariary Malgache (MGA)' },
+                ]}
+              />
             </div>
 
             <div>
               <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>
                 3. Mode de pilotage
               </label>
-              <select
+              <CustomSelect
                 value={selectedTrackingMode}
-                onChange={(e) => setSelectedTrackingMode(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: '1.5px solid #CBD5E1',
-                  background: '#FFFFFF',
-                  fontSize: '0.86rem',
-                  fontWeight: 600,
-                  outline: 'none',
-                }}
-              >
-                <option value="complet">🚀 Mode Intégral (Stock + Crédits + Caisse)</option>
-                <option value="avec_stock">📦 Mode Stock & Alertes (Sans crédit)</option>
-                <option value="simple">⚡ Mode Simplifié (Ventes express sans stock)</option>
-              </select>
+                onChange={(val) => setSelectedTrackingMode(val)}
+                options={[
+                  { value: 'complet', label: '🚀 Mode Intégral (Stock + Crédits + Caisse)' },
+                  { value: 'avec_stock', label: '📦 Mode Stock & Alertes (Sans crédit)' },
+                  { value: 'simple', label: '⚡ Mode Simplifié (Ventes express sans stock)' },
+                ]}
+              />
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { Customer } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { CustomSelect } from '../components/common/CustomSelect';
 import { formatCurrency, downloadCSVWithBOM } from '../utils/formatters';
 
 const ITEMS_PER_PAGE = 12;
@@ -430,21 +431,20 @@ export const CustomersPage: React.FC = () => {
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
                     Comment nous a-t-il connus ? (Canal d'origine) *
                   </label>
-                  <select
+                  <CustomSelect
                     value={newChannel}
-                    onChange={e => setNewChannel(e.target.value)}
-                    style={{ width: '100%', padding: '10px' }}
-                  >
-                    <option value="Bouche-à-oreille / Recommandation">🌱 Bouche-à-oreille / Recommandation</option>
-                    <option value="WhatsApp (Statuts & Catalogue)">📱 WhatsApp (Statuts & Catalogue)</option>
-                    <option value="Facebook / Instagram Ads">🎯 Facebook / Instagram Ads</option>
-                    <option value="TikTok Organique & Vidéos">🎵 TikTok Organique & Vidéos</option>
-                    <option value="Passage devant la boutique">🚶 Passage devant la boutique</option>
-                    <option value="Marché / Stand / Événement">🎪 Marché / Stand / Événement</option>
-                    <option value="Flyers & Affichage quartier">📄 Flyers & Affichage quartier</option>
-                    <option value="Partenaires / Apporteurs d'affaires">🤝 Partenaires / Apporteurs d'affaires</option>
-                    <option value="Autre">Autre canal</option>
-                  </select>
+                    onChange={val => setNewChannel(val)}
+                    options={[
+                      { value: 'Bouche-à-oreille / Recommandation', label: '🌱 Bouche-à-oreille / Recommandation' },
+                      { value: 'WhatsApp (Statuts & Catalogue)', label: '📱 WhatsApp (Statuts & Catalogue)' },
+                      { value: 'Facebook / Instagram Ads', label: '🎯 Facebook / Instagram Ads' },
+                      { value: 'TikTok Organique & Vidéos', label: '🎵 TikTok Organique & Vidéos' },
+                      { value: 'Passage devant la boutique', label: '🚶 Passage devant la boutique' },
+                      { value: 'Marché / Stand / Événement', label: '🎪 Marché / Stand / Événement' },
+                      { value: "Partenaires / Apporteurs d'affaires", label: "🤝 Partenaires / Apporteurs d'affaires" },
+                      { value: 'Autre', label: 'Autre canal' },
+                    ]}
+                  />
                 </div>
 
                 <div>
@@ -514,10 +514,14 @@ export const CustomersPage: React.FC = () => {
                   <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
                     Moyen de règlement
                   </label>
-                  <select value={payMethod} onChange={e => setPayMethod(e.target.value)}>
-                    <option value="cash">💵 Espèces (Cash tiroir-caisse)</option>
-                    <option value="mobile_money">📱 Mobile Money</option>
-                  </select>
+                  <CustomSelect
+                    value={payMethod}
+                    onChange={val => setPayMethod(val)}
+                    options={[
+                      { value: 'cash', label: '💵 Espèces (Cash tiroir-caisse)' },
+                      { value: 'mobile_money', label: '📱 Mobile Money' },
+                    ]}
+                  />
                 </div>
               </div>
 

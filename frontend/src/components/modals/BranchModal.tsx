@@ -2,6 +2,34 @@ import React, { useState } from 'react';
 import { Store, Plus, X, AlertCircle, CheckCircle2, MapPin, Tag } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
+import { CustomSelect, CustomSelectOption } from '../common/CustomSelect';
+
+const PROFILE_OPTIONS: CustomSelectOption[] = [
+  { value: 'epicerie_alimentation', label: 'Épicerie / Supérette', icon: '🏪' },
+  { value: 'pret_a_porter', label: 'Prêt-à-porter / Boutique Vêtements', icon: '👗' },
+  { value: 'friperie_vetements', label: "Friperie & Ballots d'importation", icon: '📦' },
+  { value: 'cosmetiques_beaute', label: 'Cosmétiques & Parfumerie', icon: '💄' },
+  { value: 'quincaillerie_materiaux', label: 'Quincaillerie & BTP', icon: '🔨' },
+  { value: 'pharmacie_parapharmacie', label: 'Pharmacie & Santé', icon: '💊' },
+  { value: 'restauration_fastfood', label: 'Restaurant / Maquis / Fast-food', icon: '🍽️' },
+  { value: 'boulangerie_patisserie', label: 'Boulangerie / Pâtisserie', icon: '🥖' },
+  { value: 'services_reparation', label: 'Atelier / Réparation / Sav', icon: '🔧' },
+  { value: 'vente_en_ligne', label: 'Vente en ligne & E-commerce', icon: '🛍️' },
+];
+
+const CURRENCY_OPTIONS: CustomSelectOption[] = [
+  { value: 'FCFA', label: 'FCFA (XOF / XAF)' },
+  { value: 'EUR', label: 'Euro (€)' },
+  { value: 'USD', label: 'Dollar ($)' },
+  { value: 'GNF', label: 'Franc Guinéen (GNF)' },
+  { value: 'CDF', label: 'Franc Congolais (CDF)' },
+];
+
+const TRACKING_OPTIONS: CustomSelectOption[] = [
+  { value: 'avec_stock', label: 'Avec gestion des stocks & alertes', icon: '📦' },
+  { value: 'complet', label: 'Complet (Stock + Dettes clients)', icon: '💎' },
+  { value: 'simple', label: 'Simple (Ventes & Dépenses rapides)', icon: '⚡' },
+];
 
 interface BranchModalProps {
   isOpen: boolean;
@@ -201,22 +229,11 @@ export const BranchModal: React.FC<BranchModalProps> = ({ isOpen, onClose, onBra
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
                 Profil / Métier
               </label>
-              <select
+              <CustomSelect
                 value={profileId}
-                onChange={(e) => setProfileId(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '0.85rem', background: '#FFFFFF' }}
-              >
-                <option value="epicerie_alimentation">🏪 Épicerie / Supérette</option>
-                <option value="pret_a_porter">👗 Prêt-à-porter / Boutique Vêtements</option>
-                <option value="friperie_vetements">📦 Friperie & Ballots d'importation</option>
-                <option value="cosmetiques_beaute">💄 Cosmétiques & Parfumerie</option>
-                <option value="quincaillerie_materiaux">🔨 Quincaillerie & BTP</option>
-                <option value="pharmacie_parapharmacie">💊 Pharmacie & Santé</option>
-                <option value="restauration_fastfood">🍽️ Restaurant / Maquis / Fast-food</option>
-                <option value="boulangerie_patisserie">🥖 Boulangerie / Pâtisserie</option>
-                <option value="services_reparation">🔧 Atelier / Réparation / Sav</option>
-                <option value="vente_en_ligne">🛍️ Vente en ligne & E-commerce</option>
-              </select>
+                onChange={setProfileId}
+                options={PROFILE_OPTIONS}
+              />
             </div>
 
             <div>
@@ -238,32 +255,22 @@ export const BranchModal: React.FC<BranchModalProps> = ({ isOpen, onClose, onBra
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
                 Devise Monétaire
               </label>
-              <select
+              <CustomSelect
                 value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '0.85rem', background: '#FFFFFF' }}
-              >
-                <option value="FCFA">FCFA (XOF / XAF)</option>
-                <option value="EUR">Euro (€)</option>
-                <option value="USD">Dollar ($)</option>
-                <option value="GNF">Franc Guinéen (GNF)</option>
-                <option value="CDF">Franc Congolais (CDF)</option>
-              </select>
+                onChange={setCurrency}
+                options={CURRENCY_OPTIONS}
+              />
             </div>
 
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
                 Suivi du Stock
               </label>
-              <select
+              <CustomSelect
                 value={trackingMode}
-                onChange={(e) => setTrackingMode(e.target.value)}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '0.85rem', background: '#FFFFFF' }}
-              >
-                <option value="avec_stock">📦 Avec gestion des stocks & alertes</option>
-                <option value="complet">💎 Complet (Stock + Dettes clients)</option>
-                <option value="simple">⚡ Simple (Ventes & Dépenses rapides)</option>
-              </select>
+                onChange={setTrackingMode}
+                options={TRACKING_OPTIONS}
+              />
             </div>
           </div>
 
