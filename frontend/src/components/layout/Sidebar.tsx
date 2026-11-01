@@ -501,12 +501,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
                 gap: '6px',
                 padding: '8px 12px',
                 borderRadius: '8px',
-                background: 'linear-gradient(135deg, #FF6B00 0%, #FFA500 100%)',
+                background: '#FF6B00',
                 color: '#FFFFFF',
                 fontSize: '0.78rem',
                 fontWeight: 800,
                 textDecoration: 'none',
-                boxShadow: '0 4px 12px rgba(255, 107, 0, 0.35)',
+                boxShadow: 'none',
+                border: '1px solid #E65100',
                 marginTop: '4px',
               }}
             >

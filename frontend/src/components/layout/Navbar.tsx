@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2, HardDrive } from 'lucide-react';
+import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2, HardDrive, RotateCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useModals } from '../../context/ModalContext';
@@ -25,6 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -366,6 +367,35 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
         >
           <HardDrive size={16} color="#059669" />
           <span>Sauvegarde</span>
+        </button>
+
+        {/* Bouton Actualiser */}
+        <button
+          onClick={() => {
+            setIsRefreshing(true);
+            setTimeout(() => {
+              window.location.reload();
+            }, 300);
+          }}
+          disabled={isRefreshing}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 12px',
+            borderRadius: '10px',
+            background: '#F1F5F9',
+            color: '#1E293B',
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            border: '1px solid #CBD5E1',
+            cursor: isRefreshing ? 'wait' : 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          title="Actualiser l'application et recharger toutes les données"
+        >
+          <RotateCw size={15} color="#0062FF" className={isRefreshing ? 'spin' : ''} />
+          <span>Actualiser</span>
         </button>
 
         {onOpenSaleModal && (
