@@ -369,7 +369,7 @@ export const SubscriptionPage: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              boxShadow: '0 4px 14px rgba(0, 98, 255, 0.35)',
+              boxShadow: 'none',
               opacity: testActivating ? 0.7 : 1,
               transition: 'all 0.15s ease',
             }}
@@ -394,7 +394,7 @@ export const SubscriptionPage: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              boxShadow: '0 4px 14px rgba(124, 58, 237, 0.35)',
+              boxShadow: 'none',
               opacity: testActivating ? 0.7 : 1,
               transition: 'all 0.15s ease',
             }}
@@ -494,7 +494,7 @@ export const SubscriptionPage: React.FC = () => {
               setShowPayModal(true);
             }}
             style={{
-              boxShadow: '0 8px 20px rgba(0, 98, 255, 0.3)',
+              boxShadow: 'none',
               padding: '14px 28px',
               fontSize: '0.96rem',
               fontWeight: 700,
