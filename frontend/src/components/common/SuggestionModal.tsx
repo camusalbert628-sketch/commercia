@@ -284,7 +284,7 @@ export const SuggestionModal: React.FC<SuggestionModalProps> = ({
         ) : (
           <div>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '20px', paddingRight: '52px' }}>
               <div
                 style={{
                   width: '48px',
@@ -301,26 +301,27 @@ export const SuggestionModal: React.FC<SuggestionModalProps> = ({
               >
                 <Lightbulb size={24} color="#0062FF" />
               </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.01em' }}>
                     Boîte à Idées & Suggestions
                   </h3>
                   <span
                     style={{
-                      fontSize: '0.68rem',
+                      fontSize: '0.72rem',
                       fontWeight: 800,
                       background: '#ECFDF5',
                       color: '#059669',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
+                      padding: '3px 9px',
+                      borderRadius: '8px',
                       border: '1px solid #A7F3D0',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    Innovation
+                    💡 Innovation
                   </span>
                 </div>
-                <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: '#64748B' }}>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748B', lineHeight: 1.4 }}>
                   Proposez une fonctionnalité ou votez pour celles en cours de développement
                 </p>
               </div>

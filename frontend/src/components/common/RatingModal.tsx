@@ -257,7 +257,7 @@ export const RatingModal: React.FC<RatingModalProps> = ({
         ) : (
           <form onSubmit={handleSubmit}>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '22px', paddingRight: '52px' }}>
               <div
                 style={{
                   width: '48px',
@@ -274,26 +274,27 @@ export const RatingModal: React.FC<RatingModalProps> = ({
               >
                 <Award size={24} color="#D97706" />
               </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.01em' }}>
-                    Baromètre & Note de Satisfaction
+                    Baromètre de Satisfaction
                   </h3>
                   <span
                     style={{
-                      fontSize: '0.68rem',
+                      fontSize: '0.72rem',
                       fontWeight: 800,
                       background: '#EFF6FF',
                       color: '#0062FF',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
+                      padding: '3px 9px',
+                      borderRadius: '8px',
                       border: '1px solid #BFDBFE',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    Avis Certifié
+                    ✓ Avis Certifié
                   </span>
                 </div>
-                <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: '#64748B' }}>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#64748B', lineHeight: 1.4 }}>
                   Évaluez les performances et la fiabilité de votre copilote commercial
                 </p>
               </div>
