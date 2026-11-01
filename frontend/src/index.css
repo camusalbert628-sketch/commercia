@@ -731,6 +731,16 @@ body,
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* Custom utility for clean currency inputs */
+.currency-input-hero::-webkit-outer-spin-button,
+.currency-input-hero::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+.currency-input-hero[type=number] {
+  -moz-appearance: textfield !important;
+}
+
 .modal-header {
   padding: 20px 24px;
   border-bottom: 1px solid var(--border-color);

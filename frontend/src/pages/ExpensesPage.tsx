@@ -83,10 +83,12 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
       alert('Aucune dépense à exporter.');
       return;
     }
-    const headers = ['Date', 'Catégorie', 'Description / Motif', `Montant (${currency})`];
+    const headers = ['Date', 'Catégorie', 'Mode de paiement', 'Bénéficiaire', 'Description / Motif', `Montant (${currency})`];
     const rows = filtered.map(e => [
       formatLocalDateTime(e.expenseDate),
       e.category,
+      e.paymentMethod === 'mobile_money' ? 'Mobile Money' : e.paymentMethod === 'virement' ? 'Virement bancaire' : 'Espèces (Caisse)',
+      e.beneficiary || '',
       e.description || '',
       e.amount,
     ]);
@@ -196,7 +198,8 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
               <tr>
                 <th>Date</th>
                 <th>Catégorie</th>
-                <th>Description</th>
+                <th>Règlement</th>
+                <th>Description / Bénéficiaire</th>
                 <th>Montant</th>
                 <th style={{ textAlign: 'right' }}>Action</th>
               </tr>
@@ -219,13 +222,73 @@ export const ExpensesPage: React.FC<ExpensesPageProps> = ({ onOpenExpenseModal: 
                         color: '#92400E',
                         fontWeight: 600,
                         fontSize: '0.82rem',
+                        display: 'inline-block',
                       }}
                     >
                       {e.category}
                     </span>
                   </td>
+                  <td>
+                    {e.paymentMethod === 'mobile_money' ? (
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          background: '#F0F9FF',
+                          color: '#0369A1',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>📲</span>
+                        <span>Mobile Money</span>
+                      </span>
+                    ) : e.paymentMethod === 'virement' ? (
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          background: '#F5F3FF',
+                          color: '#6D28D9',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>🏦</span>
+                        <span>Banque</span>
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          background: '#ECFDF5',
+                          color: '#065F46',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>💵</span>
+                        <span>Espèces</span>
+                      </span>
+                    )}
+                  </td>
                   <td style={{ color: e.description ? '#0F172A' : '#94A3B8' }}>
-                    {e.description || 'Sans description particulière'}
+                    <div>{e.description || 'Sans note particulière'}</div>
+                    {e.beneficiary && (
+                      <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '2px', fontWeight: 600 }}>
+                        👤 {e.beneficiary}
+                      </div>
+                    )}
                   </td>
                   <td style={{ fontWeight: 800, fontSize: '1rem', color: '#DC2626' }}>
                     -{formatCurrency(e.amount, currency)}

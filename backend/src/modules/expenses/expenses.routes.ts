@@ -62,6 +62,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
       isFixedCost: z.boolean().default(false),
       description: z.string().optional(),
       expenseDate: z.string().optional(),
+      paymentMethod: z.string().optional(),
+      beneficiary: z.string().optional(),
     });
     const data = schema.parse(req.body);
 
@@ -86,10 +88,11 @@ router.post('/', async (req: AuthRequest, res, next) => {
       },
     });
 
-    // Link expense to active cash session
-    const activeSession = await req.prisma.cashSession.findFirst({
-      where: { businessId, status: 'open' },
-    });
+    // Link expense to active cash session only if paid in cash
+    if (!data.paymentMethod || data.paymentMethod === 'cash') {
+      const activeSession = await req.prisma.cashSession.findFirst({
+        where: { businessId, status: 'open' },
+      });
     if (activeSession) {
       await req.prisma.cashMovement.create({
         data: {
@@ -111,6 +114,7 @@ router.post('/', async (req: AuthRequest, res, next) => {
         },
       });
     }
+  }
 
     // Audit log
 

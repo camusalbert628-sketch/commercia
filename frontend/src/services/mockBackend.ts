@@ -790,20 +790,24 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     if (method === 'POST') {
       const raw = localStorage.getItem(expKey);
       const expenses = raw ? JSON.parse(raw) : [];
+      const paymentMethod = body?.paymentMethod || 'cash';
+      const beneficiary = body?.beneficiary || '';
       const newExpense = {
         id: 'e-' + Date.now(),
         amount: Number(body?.amount || 0),
         category: body?.category || 'Autre dépense',
         description: body?.description || '',
-        expenseDate: new Date().toISOString(),
+        paymentMethod,
+        beneficiary,
+        expenseDate: body?.expenseDate || new Date().toISOString(),
       };
       expenses.unshift(newExpense);
       localStorage.setItem(expKey, JSON.stringify(expenses));
 
-      // Sync with active cash session if open
+      // Sync with active cash session if open AND paid in cash
       const activeCashKey = `commercia_active_cash_session_${activeBizId}`;
       const activeCashRaw = localStorage.getItem(activeCashKey);
-      if (activeCashRaw) {
+      if (activeCashRaw && paymentMethod === 'cash') {
         try {
           const cs = JSON.parse(activeCashRaw);
           const amt = Number(newExpense.amount);
@@ -815,9 +819,9 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
               amount: amt,
               method: 'cash',
               category: 'expense',
-              description: `Dépense: ${newExpense.category}${newExpense.description ? ' - ' + newExpense.description : ''}`,
+              description: `Dépense: ${newExpense.category}${newExpense.description ? ' - ' + newExpense.description : ''}${beneficiary ? ' (Bénéficiaire: ' + beneficiary + ')' : ''}`,
               referenceId: newExpense.id,
-              createdAt: new Date().toISOString(),
+              createdAt: newExpense.expenseDate,
             };
             cs.movements = cs.movements || [];
             cs.movements.unshift(move);

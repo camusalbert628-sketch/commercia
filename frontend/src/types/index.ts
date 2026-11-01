@@ -91,6 +91,8 @@ export interface Expense {
   categoryId?: string;
   expenseCategory?: { name: string; icon?: string };
   description?: string;
+  paymentMethod?: 'cash' | 'mobile_money' | 'virement' | string;
+  beneficiary?: string;
   expenseDate: string;
 }
 
