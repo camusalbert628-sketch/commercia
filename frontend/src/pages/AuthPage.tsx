@@ -120,6 +120,7 @@ export const AuthPage: React.FC = () => {
       const profile = JSON.parse(jsonPayload);
 
       const res = await api.post<any>('/auth/google', {
+        credential: response.credential,
         email: profile.email,
         firstName: profile.given_name || profile.name?.split(' ')[0] || 'Commerçant',
         lastName: profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '',

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { AuthRequest, authenticate } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 import { getUserSubscriptionDetails } from '../../utils/subscriptionUtils';
+import { getJwtSecret, getJwtRefreshSecret, verifyGoogleIdToken } from '../../config/security';
 
 const router = Router();
 
@@ -26,12 +27,12 @@ const loginSchema = z.object({
 const generateTokens = (userId: string) => {
   const accessToken = jwt.sign(
     { userId },
-    process.env.JWT_SECRET || 'default-secret',
+    getJwtSecret(),
     { expiresIn: (process.env.JWT_EXPIRES_IN || '15m') as any }
   );
   const refreshToken = jwt.sign(
     { userId },
-    process.env.JWT_REFRESH_SECRET || 'default-refresh-secret',
+    getJwtRefreshSecret(),
     { expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as any }
   );
   return { accessToken, refreshToken };
@@ -227,7 +228,8 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
 
 // POST /api/auth/google
 const googleAuthSchema = z.object({
-  email: z.string().email('Email Google invalide'),
+  credential: z.string().optional(),
+  email: z.string().email('Email Google invalide').optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   avatarUrl: z.string().optional(),
@@ -236,7 +238,16 @@ const googleAuthSchema = z.object({
 router.post('/google', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const data = googleAuthSchema.parse(req.body);
-    const email = data.email.toLowerCase().trim();
+    
+    // Vérification cryptographique stricte du jeton Google
+    const verifiedUser = await verifyGoogleIdToken(data.credential, {
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      avatarUrl: data.avatarUrl,
+    });
+
+    const email = verifiedUser.email;
 
     let user = await req.prisma.user.findUnique({
       where: { email },
@@ -257,10 +268,10 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
         data: {
           email,
           passwordHash: dummyPassword,
-          firstName: data.firstName || 'Commerçant',
-          lastName: data.lastName || 'Google',
-          avatarUrl: data.avatarUrl || null,
-          emailVerified: true,
+          firstName: verifiedUser.firstName,
+          lastName: verifiedUser.lastName,
+          avatarUrl: verifiedUser.avatarUrl || null,
+          emailVerified: verifiedUser.emailVerified,
         },
       });
 

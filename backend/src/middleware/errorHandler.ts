@@ -47,8 +47,10 @@ export const errorHandler = (
 
   console.error('Erreur non gérée:', err);
   
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
   return res.status(500).json({
-    error: err.message || 'Une erreur interne est survenue.',
+    error: isProduction ? 'Une erreur interne est survenue. Veuillez réessayer plus tard.' : (err.message || 'Une erreur interne est survenue.'),
     statusCode: 500,
   });
 };

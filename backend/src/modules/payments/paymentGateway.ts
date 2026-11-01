@@ -53,8 +53,14 @@ export class PaymentGatewayService {
    * Vérifie la signature cryptographique du webhook pour empêcher toute usurpation
    */
   public verifyWebhookSignature(payload: any, signatureHeader?: string): boolean {
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
     if (!signatureHeader) {
-      // Si aucune clé secrète configurée en mode dev, vérifier au minimum la concordance du site_id
+      if (isProduction) {
+        // En production, tout webhook non signé est strictement rejeté
+        return false;
+      }
+      // En dev local, vérifier au minimum la concordance du site_id
       if (this.cinetpaySiteId && payload.cpm_site_id && payload.cpm_site_id !== this.cinetpaySiteId) {
         return false;
       }
@@ -64,7 +70,14 @@ export class PaymentGatewayService {
     try {
       const hmac = crypto.createHmac('sha256', this.cinetpaySecretKey);
       const computed = hmac.update(JSON.stringify(payload)).digest('hex');
-      return crypto.timingSafeEqual(Buffer.from(signatureHeader), Buffer.from(computed));
+      const sigBuf = Buffer.from(signatureHeader.trim());
+      const compBuf = Buffer.from(computed);
+
+      // Protection contre les erreurs de longueur et les timing attacks
+      if (sigBuf.length !== compBuf.length) {
+        return false;
+      }
+      return crypto.timingSafeEqual(sigBuf, compBuf);
     } catch (e) {
       return false;
     }

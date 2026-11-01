@@ -182,11 +182,12 @@ router.post('/webhook', async (req: AuthRequest, res: Response, next: NextFuncti
 
     // Vérification active serveur-à-serveur auprès du provider
     const directVerification = await paymentGateway.verifyPaymentStatus(reference, payload.cpm_site_id);
-    const isPaymentConfirmed =
-      directVerification.status === 'completed' ||
-      payload.cpm_result === '00' ||
-      payload.status === 'ACCEPTED' ||
-      payload.status === 'completed';
+    const isLive = Boolean(process.env.CINETPAY_API_KEY && process.env.CINETPAY_SITE_ID);
+
+    // En environnement de production live, la confirmation directe de l'API CinetPay est requise
+    const isPaymentConfirmed = isLive
+      ? directVerification.status === 'completed'
+      : (directVerification.status === 'completed' || (isValidSignature && (payload.cpm_result === '00' || payload.status === 'completed')));
 
     const isPaymentFailed =
       directVerification.status === 'failed' ||
