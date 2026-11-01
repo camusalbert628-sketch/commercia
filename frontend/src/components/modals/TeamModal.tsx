@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
+import { CustomSelect } from '../common/CustomSelect';
 
 interface TeamMember {
   id: string;
@@ -407,14 +408,14 @@ export const TeamModal: React.FC<TeamModalProps> = ({ isOpen, onClose }) => {
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>
                     Rôle attribué *
                   </label>
-                  <select
+                  <CustomSelect
                     value={role}
-                    onChange={(e: any) => setRole(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.85rem', background: '#FFFFFF' }}
-                  >
-                    <option value="employee">🛒 Caissier / Vendeur (Marges masquées)</option>
-                    <option value="manager">👔 Gérant / Manager (Gestion stock & ventes)</option>
-                  </select>
+                    onChange={val => setRole(val as any)}
+                    options={[
+                      { value: 'employee', label: '🛒 Caissier / Vendeur (Marges masquées)' },
+                      { value: 'manager', label: '👔 Gérant / Manager (Gestion stock & ventes)' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#374151', marginBottom: '4px' }}>

@@ -588,12 +588,10 @@ router.post('/branches', authenticate, async (req: AuthRequest, res: Response, n
       where: { userId: req.userId, role: 'owner', isActive: true },
     });
 
-    // Contrôle strict des quotas multi-boutiques
-    if (!subDetails.isAdmin && !subDetails.isPro && subDetails.planName === 'free') {
-      throw new AppError('La création de plusieurs boutiques requiert un forfait PRO (jusqu’à 2 boutiques) ou BUSINESS (boutiques illimitées).', 403);
-    }
-    if (!subDetails.isAdmin && subDetails.planName === 'pro' && ownedBusinessesCount >= 2) {
-      throw new AppError('Le forfait PRO est limité à 2 boutiques. Passez au forfait BUSINESS pour gérer un nombre illimité de points de vente.', 403);
+    // Contrôle strict des quotas multi-boutiques (Exclusivité Formule BUSINESS)
+    const isBusiness = Boolean(subDetails.isAdmin || (subDetails.planName === 'business' && subDetails.isPro));
+    if (!isBusiness) {
+      throw new AppError('La gestion de plusieurs boutiques est exclusivement réservée à la Formule BUSINESS. Veuillez passer au forfait Business pour créer et administrer des succursales.', 403);
     }
 
     const data = createBranchSchema.parse(req.body);

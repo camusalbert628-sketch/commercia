@@ -2352,6 +2352,52 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     }
   }
 
+  // POST /business/branches (Création Multi-boutiques — STRICTEMENT RÉSERVÉ AU PLAN BUSINESS)
+  if (endpoint === '/business/branches' && method === 'POST') {
+    const rawUser = localStorage.getItem('commercia_user');
+    currentUser = rawUser ? JSON.parse(rawUser) : currentUser;
+
+    const planName = currentUser?.subscription?.planName || 'free';
+    const isBusiness = Boolean(currentUser?.isAdmin || (planName === 'business' && currentUser?.subscription?.status === 'active'));
+
+    if (!isBusiness) {
+      throw new Error('La création de plusieurs boutiques est une exclusivité du Plan BUSINESS. Passez à la formule Business pour ouvrir et synchroniser plusieurs succursales.');
+    }
+
+    const bizzName = (body?.name || '').trim() || 'Nouvelle Succursale';
+    const trackingMode = body?.trackingMode || 'avec_stock';
+    const newBizz = {
+      id: 'bizz-' + Date.now(),
+      name: bizzName,
+      sector: body?.sector || 'commerce',
+      profileId: body?.profileId || 'epicerie_alimentation',
+      city: body?.city || '',
+      currency: body?.currency || 'FCFA',
+      hasStock: trackingMode !== 'simple',
+      trackingMode: trackingMode,
+      role: 'owner',
+      createdAt: new Date().toISOString(),
+    };
+
+    if (currentUser) {
+      currentUser.businesses = [newBizz, ...(currentUser.businesses || [])];
+      localStorage.setItem('commercia_user', JSON.stringify(currentUser));
+      const users = getUsersDb();
+      const idx = users.findIndex(u => u.id === currentUser.id || (u.email && u.email === currentUser.email));
+      if (idx !== -1) {
+        users[idx] = currentUser;
+        saveUsersDb(users);
+      }
+    }
+    localStorage.setItem('activeBusinessId', newBizz.id);
+
+    return {
+      message: 'Nouvelle succursale créée avec succès ! 🎉',
+      business: newBizz,
+      user: currentUser,
+    };
+  }
+
   // Default fallback
   return { status: 'ok', mock: true };
 }

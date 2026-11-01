@@ -7,6 +7,7 @@ import { useModals } from '../context/ModalContext';
 import { ReceiptModal } from '../components/modals/ReceiptModal';
 import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { CustomSelect } from '../components/common/CustomSelect';
 import { downloadCSVWithBOM } from '../utils/formatters';
 
 interface SalesPageProps {
@@ -224,16 +225,18 @@ export const SalesPage: React.FC<SalesPageProps> = ({ onOpenSaleModal: propOpenS
           />
         </div>
 
-        <select
-          value={filterMethod}
-          onChange={e => setFilterMethod(e.target.value)}
-          style={{ width: 'auto', minWidth: '180px' }}
-        >
-          <option value="">Tous les règlements</option>
-          <option value="cash">💵 Espèces (Cash)</option>
-          <option value="mobile_money">📱 Mobile Money</option>
-          <option value="credit">⏳ À Crédit</option>
-        </select>
+        <div style={{ minWidth: '220px' }}>
+          <CustomSelect
+            value={filterMethod}
+            onChange={val => setFilterMethod(val)}
+            options={[
+              { value: '', label: 'Tous les règlements' },
+              { value: 'cash', label: '💵 Espèces (Cash)' },
+              { value: 'mobile_money', label: '📱 Mobile Money' },
+              { value: 'credit', label: '⏳ À Crédit' },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Sales Table */}

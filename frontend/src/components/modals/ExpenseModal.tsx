@@ -3,6 +3,7 @@ import { X, TrendingDown } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import { formatCurrency } from '../../utils/formatters';
+import { CustomSelect } from '../common/CustomSelect';
 
 interface ExpenseModalProps {
   isOpen: boolean;
@@ -226,15 +227,15 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onE
                     <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
                       Moyen de paiement
                     </label>
-                    <select
+                    <CustomSelect
                       value={customPaymentMethod}
-                      onChange={e => setCustomPaymentMethod(e.target.value as any)}
-                      style={{ background: '#FFFFFF', cursor: 'pointer' }}
-                    >
-                      <option value="cash">💵 Espèces (Cash)</option>
-                      <option value="mobile_money">📲 Mobile Money</option>
-                      <option value="virement">🏦 Virement bancaire</option>
-                    </select>
+                      onChange={val => setCustomPaymentMethod(val as any)}
+                      options={[
+                        { value: 'cash', label: '💵 Espèces (Cash)' },
+                        { value: 'mobile_money', label: '📲 Mobile Money' },
+                        { value: 'virement', label: '🏦 Virement bancaire' },
+                      ]}
+                    />
                   </div>
                 </div>
               </div>
