@@ -22,6 +22,10 @@ import {
   ShoppingBag,
   Sparkles,
   CheckCircle2,
+  Clock,
+  Star,
+  AlertTriangle,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -39,6 +43,8 @@ import { useAuthStore } from '../store/authStore';
 import { DashboardSkeleton } from '../components/common/SkeletonLoader';
 import { getBusinessProfile } from '../config/businessProfiles';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { FeedbackModal } from '../components/common/FeedbackModal';
+import { SubscriptionRenewalFloatingAlert } from '../components/common/SubscriptionRenewalFloatingAlert';
 
 const TRACKING_MODES_CONFIG = [
   {
@@ -104,6 +110,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [showWhyModal, setShowWhyModal] = useState(false);
   const [hideBanner, setHideBanner] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -347,7 +354,56 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const totalStockValue = products.reduce((sum, p) => sum + (Number(p.quantity || 0) * Number(p.sellingPrice || 0)), 0);
   const criticalStockProducts = products.filter(p => Number(p.quantity || 0) <= (Number(p.minStockAlert) || 5));
 
-  const planName = user?.subscription?.planName || 'free';
+  const sub = user?.subscription;
+  const planName = sub?.planName || 'free';
+  const isProOrBusiness = Boolean(user?.isAdmin || (sub?.isPro && sub?.status === 'active') || planName === 'pro' || planName === 'business');
+
+  // Dynamic Subscription Countdown & Validity Calculation
+  let daysRemaining = 0;
+  let formattedEndDate = '';
+  let isExpired = false;
+
+  if (sub?.endDate) {
+    const endMs = new Date(sub.endDate).getTime();
+    const nowMs = Date.now();
+    daysRemaining = Math.max(0, Math.ceil((endMs - nowMs) / (1000 * 60 * 60 * 24)));
+    isExpired = daysRemaining <= 0;
+    try {
+      formattedEndDate = new Date(sub.endDate).toLocaleDateString('fr-FR', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      formattedEndDate = sub.endDate;
+    }
+  } else if (sub?.daysRemaining !== undefined) {
+    daysRemaining = Number(sub.daysRemaining) || 0;
+    isExpired = daysRemaining <= 0;
+    const projectedDate = new Date(Date.now() + daysRemaining * 86400000);
+    formattedEndDate = projectedDate.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } else if (isProOrBusiness) {
+    daysRemaining = 30;
+    const projectedDate = new Date(Date.now() + 30 * 86400000);
+    formattedEndDate = projectedDate.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } else {
+    daysRemaining = 0;
+    formattedEndDate = 'Accès Gratuit';
+  }
+
+  const planDisplayName = sub?.planDisplayName || (planName === 'business' ? 'Plan Business VIP' : planName === 'pro' ? 'Plan Pro (Croissance)' : 'Plan Gratuit');
+  const percentRemaining = Math.min(100, Math.max(0, Math.round((daysRemaining / 30) * 100)));
 
   return (
     <div className="page-wrapper fade-in">
@@ -539,6 +595,170 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Real-time Subscription Countdown & Validity Card */}
+      <div
+        style={{
+          background: isExpired
+            ? 'linear-gradient(135deg, #FEF2F2 0%, #FFFFFF 100%)'
+            : daysRemaining <= 7 && isProOrBusiness
+            ? 'linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 100%)'
+            : 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)',
+          border: `1.5px solid ${isExpired ? '#FECACA' : daysRemaining <= 7 && isProOrBusiness ? '#FDE68A' : '#E2E8F0'}`,
+          borderRadius: '18px',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '14px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div
+            style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '14px',
+              background: isExpired
+                ? '#FEE2E2'
+                : daysRemaining <= 7 && isProOrBusiness
+                ? '#FEF3C7'
+                : '#EFF6FF',
+              color: isExpired
+                ? '#DC2626'
+                : daysRemaining <= 7 && isProOrBusiness
+                ? '#D97706'
+                : '#0062FF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {isExpired ? (
+              <AlertTriangle size={22} />
+            ) : daysRemaining <= 7 && isProOrBusiness ? (
+              <Clock size={22} />
+            ) : (
+              <ShieldCheck size={22} />
+            )}
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A' }}>
+                Validité du Forfait : {planDisplayName}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.74rem',
+                  fontWeight: 700,
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  background: isExpired
+                    ? '#FEE2E2'
+                    : daysRemaining <= 7 && isProOrBusiness
+                    ? '#FEF3C7'
+                    : '#ECFDF5',
+                  color: isExpired
+                    ? '#DC2626'
+                    : daysRemaining <= 7 && isProOrBusiness
+                    ? '#B45309'
+                    : '#059669',
+                  border: `1px solid ${
+                    isExpired ? '#FECACA' : daysRemaining <= 7 && isProOrBusiness ? '#FDE68A' : '#A7F3D0'
+                  }`,
+                }}
+              >
+                {user?.isAdmin
+                  ? 'Accès Administrateur Permanent'
+                  : isExpired
+                  ? '⚠️ Expiré • Renouvellement requis'
+                  : daysRemaining <= 7 && isProOrBusiness
+                  ? `⚠️ Renouvellement dans ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''}`
+                  : isProOrBusiness
+                  ? `✓ Actif (${daysRemaining} jours restants)`
+                  : 'Formule Gratuite (15 ventes/j)'}
+              </span>
+            </div>
+
+            <div
+              style={{
+                fontSize: '0.82rem',
+                color: '#64748B',
+                marginTop: '3px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span>
+                {user?.isAdmin
+                  ? 'Toutes les fonctionnalités sont actives en continu sans limitation temporelle.'
+                  : isExpired
+                  ? 'Votre abonnement est arrivé à son terme. Renouvelez pour continuer à utiliser toutes vos fonctionnalités.'
+                  : isProOrBusiness
+                  ? `Échéance de renouvellement : ${formattedEndDate} — Toutes les fonctions Pro sont actives.`
+                  : 'Passez au Plan Pro pour débloquer les ventes illimitées, le stock temps réel et le Copilote IA.'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Button & Days Countdown Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          {isProOrBusiness && !user?.isAdmin && (
+            <div style={{ textAlign: 'right', minWidth: '70px' }}>
+              <div
+                style={{
+                  fontSize: '1.35rem',
+                  fontWeight: 800,
+                  color: isExpired ? '#DC2626' : daysRemaining <= 7 ? '#D97706' : '#059669',
+                  lineHeight: 1.1,
+                }}
+              >
+                {daysRemaining} j
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#94A3B8', fontWeight: 600 }}>
+                {isExpired ? 'Délai dépassé' : 'Restant(s)'}
+              </div>
+            </div>
+          )}
+
+          <Link
+            to="/subscription"
+            style={{
+              background: isExpired
+                ? '#DC2626'
+                : daysRemaining <= 7 && isProOrBusiness
+                ? '#D97706'
+                : '#0062FF',
+              color: '#FFFFFF',
+              textDecoration: 'none',
+              padding: '10px 18px',
+              borderRadius: '12px',
+              fontWeight: 700,
+              fontSize: '0.86rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: 'none',
+              transition: 'background 0.15s ease',
+            }}
+          >
+            <span>
+              {isExpired || (daysRemaining <= 7 && isProOrBusiness)
+                ? 'Renouveler mon forfait'
+                : 'Gérer mon abonnement'}
+            </span>
+            <ChevronRight size={16} />
+          </Link>
+        </div>
+      </div>
 
       {/* Welcome Banner & Action Buttons */}
       <div
@@ -1758,6 +1978,132 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Section Évaluation, Remarques & Boîte à Idées */}
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%)',
+          border: '1.5px solid #E2E8F0',
+          borderRadius: '20px',
+          padding: '22px 26px',
+          marginTop: '36px',
+          marginBottom: '20px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '18px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div
+            style={{
+              width: '50px',
+              height: '50px',
+              borderRadius: '16px',
+              background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)',
+              border: '1px solid #FDE68A',
+              color: '#D97706',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Star size={26} fill="#D97706" color="#D97706" />
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0F172A' }}>
+              Votre avis & vos suggestions comptent pour COMMERCIA
+            </div>
+            <p style={{ margin: '3px 0 0 0', fontSize: '0.86rem', color: '#475569', lineHeight: 1.5 }}>
+              Une idée d'amélioration ? Une remarque sur la gestion de caisse, des stocks ou des dettes ? Notez l'application et aidez-nous à bâtir l'outil idéal pour votre quotidien de commerçant.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowFeedbackModal(true)}
+          style={{
+            background: '#0F172A',
+            color: '#FFFFFF',
+            border: 'none',
+            borderRadius: '14px',
+            padding: '12px 24px',
+            fontSize: '0.9rem',
+            fontWeight: 700,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            cursor: 'pointer',
+            boxShadow: 'none',
+            transition: 'background 0.15s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = '#0062FF')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = '#0F172A')}
+        >
+          <Sparkles size={16} />
+          <span>Donner mon avis & Suggestions</span>
+        </button>
+      </div>
+
+      {/* Floating Proactive Renewal Alert when <= 7 days */}
+      {isProOrBusiness && (
+        <SubscriptionRenewalFloatingAlert
+          daysRemaining={daysRemaining}
+          planDisplayName={planDisplayName}
+          formattedEndDate={formattedEndDate}
+          isExpired={isExpired}
+        />
+      )}
+
+      {/* Discreet Floating Feedback Button */}
+      <button
+        type="button"
+        onClick={() => setShowFeedbackModal(true)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          left: '24px',
+          zIndex: 9990,
+          background: '#0F172A',
+          color: '#FFFFFF',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: '30px',
+          padding: '9px 18px',
+          fontSize: '0.82rem',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 8px 24px rgba(15, 23, 42, 0.25)',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = '#0062FF';
+          e.currentTarget.style.transform = 'translateY(-2px)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = '#0F172A';
+          e.currentTarget.style.transform = 'translateY(0)';
+        }}
+        title="Donner une suggestion ou une note"
+      >
+        <Star size={15} fill="#F59E0B" color="#F59E0B" />
+        <span>Avis & Suggestions</span>
+      </button>
+
+      {/* Evaluation & Feedback Modal */}
+      <FeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        defaultUserName={userName}
+        defaultBusinessName={businessName}
+        defaultPhone={user?.phone || ''}
+      />
     </div>
   );
 };
