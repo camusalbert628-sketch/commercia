@@ -1290,20 +1290,23 @@ export const CashPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary"
                   style={{
-                    background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                    backgroundColor: '#065F46',
+                    color: '#FFFFFF',
                     border: 'none',
-                    padding: '10px 22px',
+                    padding: '11px 24px',
                     fontWeight: 800,
                     fontSize: '0.92rem',
-                    borderRadius: '10px',
+                    borderRadius: '12px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                    boxShadow: 'none',
                     cursor: 'pointer',
+                    transition: 'background-color 0.2s ease, transform 0.15s ease',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0062FF')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#065F46')}
                 >
                   <Unlock size={16} />
                   <span>

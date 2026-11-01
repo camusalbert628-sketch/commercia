@@ -288,7 +288,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
             fontWeight: 700,
             fontSize: '0.82rem',
             border: '1px solid rgba(255, 255, 255, 0.2)',
-            boxShadow: '0 4px 12px rgba(0, 98, 255, 0.25)',
+            boxShadow: 'none',
             cursor: 'pointer',
             transition: 'transform 0.15s ease',
           }}
