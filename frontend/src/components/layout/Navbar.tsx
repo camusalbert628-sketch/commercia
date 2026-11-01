@@ -120,30 +120,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
                   }}
                 />
               </span>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '2px 8px',
-                  borderRadius: '999px',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  background: isOnline ? '#ECFDF5' : '#FEF3C7',
-                  color: isOnline ? '#059669' : '#D97706',
-                  border: isOnline ? '1px solid #A7F3D0' : '1px solid #FDE68A',
-                }}
-              >
-                <span
-                  style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: isOnline ? '#10B981' : '#F59E0B',
-                  }}
-                />
-                {isOnline ? 'En ligne' : 'Hors-ligne'}
-              </span>
             </div>
             <div className="business-sector" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>{activeBusiness?.sector ? `Secteur : ${activeBusiness.sector}` : 'Micro-entreprise'}</span>
@@ -510,6 +486,35 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
               </div>
             </div>
           )}
+        </div>
+
+        {/* Statut de Connectivité (En ligne / Hors-ligne) */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            fontSize: '0.74rem',
+            fontWeight: 700,
+            background: isOnline ? '#ECFDF5' : '#FEF3C7',
+            color: isOnline ? '#059669' : '#D97706',
+            border: isOnline ? '1px solid #A7F3D0' : '1px solid #FDE68A',
+            userSelect: 'none',
+          }}
+          title={isOnline ? 'Connexion au serveur opérationnelle' : 'Mode hors-ligne actif (synchronisation automatique au retour réseau)'}
+        >
+          <span
+            style={{
+              width: '7px',
+              height: '7px',
+              borderRadius: '50%',
+              background: isOnline ? '#10B981' : '#F59E0B',
+              boxShadow: isOnline ? '0 0 6px rgba(16, 185, 129, 0.6)' : 'none',
+            }}
+          />
+          <span>{isOnline ? 'En ligne' : 'Hors-ligne'}</span>
         </div>
 
         {/* Avatar Profil Marchand */}

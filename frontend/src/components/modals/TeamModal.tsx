@@ -16,7 +16,10 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
+  Crown,
+  ArrowRight,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import { CustomSelect } from '../common/CustomSelect';
@@ -43,8 +46,10 @@ interface TeamModalProps {
 }
 
 export const TeamModal: React.FC<TeamModalProps> = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const { user, activeBusinessId } = useAuthStore();
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
+  const isBusiness = Boolean(user?.isAdmin || (user?.subscription?.planName === 'business' && user?.subscription?.status === 'active'));
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState<string>('owner');
@@ -203,7 +208,7 @@ export const TeamModal: React.FC<TeamModalProps> = ({ isOpen, onClose }) => {
                 Gestion d'Équipe & Caissiers
               </h3>
               <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748B' }}>
-                Boutique : <strong>{activeBusiness?.name || 'Mon Activité'}</strong> • Rôles et contrôles anti-fraude
+                Boutique : <strong>{activeBusiness?.name || 'Mon Activité'}</strong> • Exclusivité Formule Business
               </p>
             </div>
           </div>
@@ -226,7 +231,109 @@ export const TeamModal: React.FC<TeamModalProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Modal Body */}
+        {/* Business Plan Gate */}
+        {!isBusiness ? (
+          <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '20px',
+                background: 'linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                boxShadow: '0 8px 24px rgba(139, 92, 246, 0.35)',
+              }}
+            >
+              <Crown size={32} />
+            </div>
+
+            <span
+              style={{
+                display: 'inline-block',
+                background: '#FDF4FF',
+                color: '#C026D3',
+                border: '1px solid #F0ABFC',
+                padding: '3px 12px',
+                borderRadius: '999px',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                marginBottom: '10px',
+                textTransform: 'uppercase',
+              }}
+            >
+              Formule Business Requise
+            </span>
+
+            <h4 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', marginBottom: '8px' }}>
+              Gestion d'Équipe & Multi-Caissiers
+            </h4>
+
+            <p style={{ fontSize: '0.9rem', color: '#64748B', lineHeight: 1.55, maxWidth: '440px', margin: '0 auto 20px' }}>
+              La création de comptes d'accès pour vos vendeurs, gérants et caissiers avec codes PIN et masquage des marges est <strong>exclusivement réservée à la Formule BUSINESS</strong>.
+            </p>
+
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '14px', padding: '16px', textAlign: 'left', marginBottom: '24px' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: '8px' }}>
+                Ce que débloque la Formule Business pour votre équipe :
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: '#475569', lineHeight: 1.7 }}>
+                <li><strong>Caissiers et Vendeurs illimités</strong> avec sessions individuelles.</li>
+                <li><strong>Codes PIN sécurisés</strong> sur smartphone ou tablette de comptoir.</li>
+                <li><strong>Protection anti-fraude totale</strong> : prix d'achat et marges bénéficiaires masqués aux vendeurs.</li>
+                <li><strong>Traçabilité complète</strong> : chaque encaissement est signé par le nom du caissier.</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={onClose}
+                style={{
+                  padding: '11px 18px',
+                  borderRadius: '10px',
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Fermer
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate('/subscription');
+                }}
+                style={{
+                  padding: '11px 22px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%)',
+                  color: '#FFFFFF',
+                  fontSize: '0.88rem',
+                  fontWeight: 800,
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(139, 92, 246, 0.35)',
+                }}
+              >
+                <span>Passer à la Formule Business</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        ) : (
+        /* Modal Body */
         <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
           {errorMessage && (
             <div
@@ -566,6 +673,7 @@ export const TeamModal: React.FC<TeamModalProps> = ({ isOpen, onClose }) => {
             </div>
           )}
         </div>
+        )}
 
         {/* Modal Footer */}
         <div

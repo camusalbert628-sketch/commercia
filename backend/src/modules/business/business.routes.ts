@@ -400,12 +400,10 @@ router.post('/members', authenticate, async (req: AuthRequest, res: Response, ne
       where: { businessId, isActive: true },
     });
 
-    // Contrôle strict des quotas selon l'abonnement
-    if (!subDetails.isAdmin && !subDetails.isPro && subDetails.planName === 'free') {
-      throw new AppError('L\'ajout de caissiers et la gestion d\'équipe requièrent un forfait PRO ou BUSINESS.', 403);
-    }
-    if (!subDetails.isAdmin && subDetails.planName === 'pro' && activeMembersCount >= 3) {
-      throw new AppError('Le forfait PRO est limité à 3 collaborateurs. Passez au forfait BUSINESS pour des caissiers illimités.', 403);
+    // Contrôle strict des quotas selon l'abonnement (Exclusivité Formule BUSINESS)
+    const isBusiness = Boolean(subDetails.isAdmin || (subDetails.planName === 'business' && subDetails.isPro));
+    if (!isBusiness) {
+      throw new AppError('La gestion d\'équipe, des caissiers et des codes PIN est exclusivement réservée à la Formule BUSINESS. Veuillez passer au forfait Business pour déléguer les accès.', 403);
     }
 
     // Vérifier si un compte utilisateur existe déjà avec cet email
