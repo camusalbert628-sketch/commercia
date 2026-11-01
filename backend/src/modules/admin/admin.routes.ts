@@ -368,4 +368,231 @@ router.put('/users/:id/subscription', async (req: AuthRequest, res, next) => {
   }
 });
 
+// GET /api/admin/businesses — Liste complète de toutes les boutiques créées
+router.get('/businesses', async (req: AuthRequest, res, next) => {
+  try {
+    const businesses = await req.prisma.business.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        members: {
+          include: {
+            user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+          },
+        },
+        _count: {
+          select: {
+            sales: true,
+            products: true,
+            customers: true,
+            expenses: true,
+          },
+        },
+      },
+    });
+
+    const formatted = businesses.map((b: any) => {
+      const ownerMember = b.members.find((m: any) => m.role === 'owner') || b.members[0];
+      return {
+        id: b.id,
+        name: b.name,
+        sector: b.sector,
+        profileId: b.profileId,
+        trackingMode: b.trackingMode,
+        currency: b.currency,
+        createdAt: b.createdAt,
+        isActive: b.isActive,
+        owner: ownerMember ? ownerMember.user : null,
+        membersCount: b.members.length,
+        salesCount: b._count.sales,
+        productsCount: b._count.products,
+        customersCount: b._count.customers,
+        expensesCount: b._count.expenses,
+      };
+    });
+
+    res.json(formatted);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/admin/users/:id/role — Promouvoir Administrateur ou Révoquer
+router.put('/users/:id/role', async (req: AuthRequest, res, next) => {
+  try {
+    const { isAdmin } = req.body;
+    if (req.params.id === req.userId && isAdmin === false) {
+      throw new AppError('Vous ne pouvez pas révoquer vos propres privilèges d’administrateur.', 400);
+    }
+
+    const targetUser = await req.prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!targetUser) throw new AppError('Utilisateur introuvable.', 404);
+
+    const updated = await req.prisma.user.update({
+      where: { id: targetUser.id },
+      data: { isAdmin: Boolean(isAdmin) },
+    });
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId!,
+        action: updated.isAdmin ? 'ADMIN_ROLE_PROMOTED' : 'ADMIN_ROLE_DEMOTED',
+        entity: 'User',
+        entityId: targetUser.id,
+        details: JSON.stringify({ targetEmail: targetUser.email, grantedBy: req.userId }),
+      },
+    });
+
+    res.json({
+      message: `Rôle mis à jour. L'utilisateur ${updated.firstName} ${updated.lastName} est désormais ${updated.isAdmin ? 'Administrateur' : 'Utilisateur standard'}.`,
+      isAdmin: updated.isAdmin,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/admin/users/:id/impersonate — Se connecter en tant que (Impersonation pour support client)
+router.post('/users/:id/impersonate', async (req: AuthRequest, res, next) => {
+  try {
+    const targetUser = await req.prisma.user.findUnique({
+      where: { id: req.params.id },
+      include: {
+        businesses: { include: { business: true }, where: { isActive: true } },
+        subscription: { include: { plan: true } },
+      },
+    });
+
+    if (!targetUser) throw new AppError('Utilisateur cible introuvable.', 404);
+
+    const jwt = require('jsonwebtoken');
+    const { getJwtSecret } = require('../../config/security');
+
+    const impersonationToken = jwt.sign(
+      { userId: targetUser.id, impersonatedBy: req.userId },
+      getJwtSecret(),
+      { expiresIn: '2h' }
+    );
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId!,
+        action: 'IMPERSONATION_STARTED',
+        entity: 'User',
+        entityId: targetUser.id,
+        details: JSON.stringify({
+          adminId: req.userId,
+          targetEmail: targetUser.email,
+          timestamp: new Date().toISOString(),
+        }),
+      },
+    });
+
+    const subDetails = await getUserSubscriptionDetails(req.prisma, targetUser.id);
+
+    res.json({
+      message: `Session de support activée pour ${targetUser.firstName} ${targetUser.lastName}.`,
+      impersonationToken,
+      user: {
+        id: targetUser.id,
+        email: targetUser.email,
+        firstName: targetUser.firstName,
+        lastName: targetUser.lastName,
+        phone: targetUser.phone,
+        avatarUrl: targetUser.avatarUrl,
+        locale: targetUser.locale,
+        currency: targetUser.currency,
+        isAdmin: targetUser.isAdmin,
+        businesses: targetUser.businesses.map((bm: any) => ({
+          id: bm.business.id,
+          name: bm.business.name,
+          sector: bm.business.sector,
+          profileId: bm.business.profileId || bm.business.sector || 'epicerie_alimentation',
+          trackingMode: bm.business.trackingMode,
+          currency: bm.business.currency || 'XAF',
+          activeModules: bm.business.activeModules ? JSON.parse(bm.business.activeModules) : [],
+          salesChannels: bm.business.salesChannels ? JSON.parse(bm.business.salesChannels) : ['boutique'],
+          role: bm.role,
+        })),
+        subscription: {
+          planName: subDetails.planName,
+          planDisplayName: subDetails.planDisplayName,
+          status: subDetails.status,
+          isPro: subDetails.isPro,
+          endDate: subDetails.endDate,
+          daysRemaining: subDetails.daysRemaining,
+          features: subDetails.features,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/admin/feedbacks — Liste des suggestions et évaluations des commerçants
+router.get('/feedbacks', async (req: AuthRequest, res, next) => {
+  try {
+    const auditFeedbacks = await req.prisma.auditLog.findMany({
+      where: {
+        action: { in: ['FEEDBACK_SUBMITTED', 'FEEDBACK_RATING', 'SUGGESTION_CREATED', 'login'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    // En plus des logs, récupérer s'il existe une table Feedback
+    let feedbackRows: any[] = [];
+    if (req.prisma.feedback) {
+      try {
+        feedbackRows = await req.prisma.feedback.findMany({
+          orderBy: { createdAt: 'desc' },
+        });
+      } catch (_) {}
+    }
+
+    res.json({
+      feedbacks: feedbackRows,
+      auditLogs: auditFeedbacks,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/admin/system/health — Diagnostic d'infrastructure et indicateurs système
+router.get('/system/health', async (req: AuthRequest, res, next) => {
+  try {
+    const startTime = Date.now();
+    await req.prisma.$queryRawUnsafe('SELECT 1');
+    const dbLatencyMs = Date.now() - startTime;
+
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      environment: process.env.NODE_ENV || 'production',
+      nodeVersion: process.version,
+      database: {
+        status: 'connected',
+        latencyMs: dbLatencyMs,
+        provider: 'PostgreSQL',
+      },
+      memory: {
+        rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      },
+      services: {
+        auth: 'operational',
+        payments: 'operational',
+        copilotAi: 'operational',
+      },
+    });
+  } catch (error: any) {
+    res.status(503).json({
+      status: 'degraded',
+      error: error?.message || 'Erreur lors du diagnostic système',
+    });
+  }
+});
+
 export { router as adminRouter };

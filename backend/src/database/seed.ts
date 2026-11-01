@@ -67,7 +67,92 @@ async function main() {
   }
 
   console.log('✅ Plans d\'abonnement initialisés avec succès.');
-  console.log('ℹ️ Aucun compte fictif n\'est injecté. La base de données reste 100% vierge pour les vrais commerçants.');
+
+  // 2. Compte Super Administrateur Maître (Master Admin)
+  const bcrypt = require('bcryptjs');
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@commercia.com';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'CommerciaAdmin2026!';
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
+
+  const businessPlan = await prisma.plan.findUnique({ where: { name: 'business' } });
+
+  const adminUser = await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {
+      isAdmin: true,
+      isActive: true,
+      emailVerified: true,
+      firstName: 'Alexandre',
+      lastName: 'Dumas (Superviseur)',
+    },
+    create: {
+      email: adminEmail,
+      passwordHash,
+      firstName: 'Alexandre',
+      lastName: 'Dumas (Superviseur)',
+      phone: '+237 690 000 000',
+      isAdmin: true,
+      isActive: true,
+      emailVerified: true,
+      locale: 'fr',
+      currency: 'XAF',
+    },
+  });
+
+  // Abonnement Business permanent pour l'administrateur
+  if (businessPlan) {
+    const permanentEndDate = new Date();
+    permanentEndDate.setFullYear(permanentEndDate.getFullYear() + 20); // 20 ans
+
+    await prisma.subscription.upsert({
+      where: { userId: adminUser.id },
+      update: {
+        planId: businessPlan.id,
+        status: 'active',
+        endDate: permanentEndDate,
+      },
+      create: {
+        userId: adminUser.id,
+        planId: businessPlan.id,
+        status: 'active',
+        endDate: permanentEndDate,
+      },
+    });
+  }
+
+  // Boutique témoin d'administration
+  const existingBusinessMember = await prisma.businessMember.findFirst({
+    where: { userId: adminUser.id },
+  });
+
+  if (!existingBusinessMember) {
+    const adminShop = await prisma.business.create({
+      data: {
+        name: 'COMMERCIA HQ (Siège & Flagship)',
+        sector: 'commerce',
+        profileId: 'epicerie_alimentation',
+        trackingMode: 'complet',
+        currency: 'XAF',
+        activeModules: JSON.stringify(['sales', 'expenses', 'stock', 'cash', 'credits', 'commercial_lots', 'copilot_ai']),
+        salesChannels: JSON.stringify(['boutique', 'whatsapp', 'livraison']),
+        members: {
+          create: {
+            userId: adminUser.id,
+            role: 'owner',
+          },
+        },
+        settings: {
+          create: {
+            enableStock: true,
+            enableCredits: true,
+          },
+        },
+      },
+    });
+    console.log(`✅ Boutique témoin créée pour le Superviseur: ${adminShop.name}`);
+  }
+
+  console.log(`👑 Super Administrateur opérationnel: ${adminEmail} (Mot de passe: ${adminPassword})`);
 }
 
 main()

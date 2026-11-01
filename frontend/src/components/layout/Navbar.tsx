@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2, HardDrive, RotateCw } from 'lucide-react';
+import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2, HardDrive, RotateCw, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useModals } from '../../context/ModalContext';
@@ -368,6 +368,31 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
           <HardDrive size={16} color="#059669" />
           <span>Sauvegarde</span>
         </button>
+
+        {/* Bouton Console Super-Admin */}
+        {user?.isAdmin && (
+          <button
+            onClick={() => navigate('/admin')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 14px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+              color: '#FFFFFF',
+              fontWeight: 800,
+              fontSize: '0.82rem',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)',
+            }}
+            title="Accéder au Cockpit Super-Administrateur"
+          >
+            <ShieldAlert size={16} color="#60A5FA" />
+            <span>Console Admin</span>
+          </button>
+        )}
 
         {/* Bouton Actualiser */}
         <button

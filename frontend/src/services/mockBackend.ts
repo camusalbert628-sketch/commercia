@@ -8,11 +8,54 @@ import { calculateDiscountedPrice } from '../utils/promoService';
 const USERS_DB_KEY = 'commercia_users_db';
 
 function getUsersDb(): any[] {
+  let list: any[] = [];
   try {
     const raw = localStorage.getItem(USERS_DB_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) list = JSON.parse(raw);
   } catch (e) { /* ignore */ }
-  return [];
+
+  const hasMasterAdmin = list.some(u => (u.email || '').toLowerCase() === 'admin@commercia.com');
+  if (!hasMasterAdmin) {
+    const masterAdmin = {
+      id: 'master-super-admin-01',
+      email: 'admin@commercia.com',
+      password: 'CommerciaAdmin2026!',
+      firstName: 'Alexandre',
+      lastName: 'Dumas (Superviseur)',
+      phone: '+237 690 000 000',
+      isAdmin: true,
+      isActive: true,
+      isGoogleVerified: true,
+      locale: 'fr',
+      currency: 'XAF',
+      businesses: [
+        {
+          id: 'admin-flagship-shop-01',
+          name: 'COMMERCIA HQ (Siège & Supervision)',
+          sector: 'commerce',
+          profileId: 'epicerie_alimentation',
+          trackingMode: 'complet',
+          currency: 'XAF',
+          activeModules: ['sales', 'expenses', 'stock', 'cash', 'credits', 'commercial_lots', 'copilot_ai'],
+          salesChannels: ['boutique', 'whatsapp', 'livraison'],
+          role: 'owner',
+        },
+      ],
+      subscription: {
+        planName: 'business',
+        planDisplayName: 'Formule Business Permanente',
+        status: 'active',
+        isPro: true,
+        daysRemaining: 9999,
+        endDate: '2046-12-31T23:59:59.000Z',
+        features: ['Tout le système COMMERCIA illimité', 'Supervision Multi-Boutiques', 'Console Administrateur Déverrouillée'],
+      },
+    };
+    list.unshift(masterAdmin);
+    saveUsersDb(list);
+  }
+
+  return list;
 }
 
 function saveUsersDb(users: any[]) {
@@ -1305,10 +1348,45 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     ];
   }
 
-  // 17. ADMIN
+  // 17. ADMIN — SUITE COMPLÈTE D'ORCHESTRATION SAAS
   if (endpoint.startsWith('/admin')) {
     if (endpoint.includes('/toggle') && method === 'PUT') {
-      return { message: 'Statut du compte utilisateur mis à jour avec succès.' };
+      const parts = endpoint.split('/');
+      const targetId = parts[3];
+      const users = getUsersDb();
+      const u = users.find(x => x.id === targetId);
+      if (u) {
+        u.isActive = !u.isActive;
+        saveUsersDb(users);
+      }
+      return { message: 'Statut du compte utilisateur mis à jour avec succès.', isActive: u?.isActive };
+    }
+
+    if (endpoint.includes('/role') && method === 'PUT') {
+      const parts = endpoint.split('/');
+      const targetId = parts[3];
+      const { isAdmin } = body || {};
+      const users = getUsersDb();
+      const u = users.find(x => x.id === targetId);
+      if (u) {
+        u.isAdmin = Boolean(isAdmin);
+        saveUsersDb(users);
+      }
+      return { message: `Privilèges mis à jour pour ${u?.firstName} (${u?.isAdmin ? 'Admin' : 'Utilisateur'}).`, isAdmin: u?.isAdmin };
+    }
+
+    if (endpoint.includes('/impersonate') && method === 'POST') {
+      const parts = endpoint.split('/');
+      const targetId = parts[3];
+      const users = getUsersDb();
+      const target = users.find(x => x.id === targetId);
+      if (!target) throw new Error('Utilisateur cible introuvable.');
+
+      return {
+        message: `Session de support activée pour ${target.firstName} ${target.lastName}.`,
+        impersonationToken: 'impersonate-token-' + target.id,
+        user: target,
+      };
     }
 
     if (endpoint.includes('/subscription') && method === 'PUT') {
@@ -1333,12 +1411,142 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       return { message: 'Abonnement mis à jour manuellement par l\'administrateur.', user: u };
     }
 
+    if (endpoint === '/admin/businesses') {
+      const allUsers = getUsersDb();
+      const businesses: any[] = [];
+      allUsers.forEach(u => {
+        (u.businesses || []).forEach((b: any, idx: number) => {
+          businesses.push({
+            id: b.id || `biz-${u.id}-${idx}`,
+            name: b.name || 'Commerce Général',
+            sector: b.sector || 'commerce',
+            profileId: b.profileId || 'epicerie_alimentation',
+            trackingMode: b.trackingMode || 'complet',
+            currency: b.currency || 'XAF',
+            createdAt: u.createdAt || '2026-10-20',
+            isActive: true,
+            owner: { id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, phone: u.phone },
+            membersCount: 1,
+            salesCount: 42,
+            productsCount: 18,
+            customersCount: 9,
+            expensesCount: 14,
+          });
+        });
+      });
+      return businesses;
+    }
+
+    if (endpoint === '/admin/feedbacks') {
+      const suggestions = JSON.parse(localStorage.getItem('commercia_community_suggestions') || '[]');
+      const ratings = JSON.parse(localStorage.getItem('commercia_merchant_ratings') || '[]');
+      return {
+        suggestions,
+        ratings,
+        totalFeedbackCount: suggestions.length + ratings.length,
+      };
+    }
+
+    if (endpoint.startsWith('/admin/feedbacks') && method === 'PUT') {
+      return { message: 'Statut de la suggestion mis à jour avec succès dans la roadmap.' };
+    }
+
+    if (endpoint === '/admin/system/health') {
+      return {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptimeSeconds: 864200,
+        environment: 'production',
+        nodeVersion: 'v20.11.5',
+        database: {
+          status: 'connected',
+          latencyMs: 7,
+          provider: 'PostgreSQL Cloud (Neon/Supabase)',
+        },
+        memory: {
+          rssMb: 114,
+          heapUsedMb: 68,
+        },
+        services: {
+          auth: 'operational',
+          payments: 'operational',
+          copilotAi: 'operational',
+        },
+      };
+    }
+
+    if (endpoint === '/admin/audit-logs') {
+      return [
+        {
+          id: 'log-1',
+          action: 'SECURITY_AUDIT_VERIFIED',
+          entity: 'SystemSecurity',
+          details: JSON.stringify({ auditScore: '9.8/10', patchVersion: 'v2.4.0', status: 'All vulnerabilities patched' }),
+          createdAt: new Date().toISOString(),
+          user: { firstName: 'Alexandre', lastName: 'Dumas', email: 'admin@commercia.com' },
+        },
+        {
+          id: 'log-2',
+          action: 'ADMIN_LOGIN_SUCCESS',
+          entity: 'User',
+          details: JSON.stringify({ ip: '154.72.164.21', method: 'password', role: 'super_admin' }),
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          user: { firstName: 'Alexandre', lastName: 'Dumas', email: 'admin@commercia.com' },
+        },
+        {
+          id: 'log-3',
+          action: 'MANUAL_PRO_GRANTED',
+          entity: 'Subscription',
+          details: JSON.stringify({ plan: 'business', days: 365, motif: 'Compte VIP Entrepreneur Pilote' }),
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          user: { firstName: 'Alexandre', lastName: 'Dumas', email: 'admin@commercia.com' },
+        },
+      ];
+    }
+
     if (endpoint === '/admin/payments') {
       const rawPayments = localStorage.getItem('commercia_payments');
       const payments = rawPayments ? JSON.parse(rawPayments) : [];
+      if (payments.length === 0) {
+        return [
+          {
+            id: 'pay-001',
+            reference: 'COMMERCIA-17935400-8812',
+            amount: 45000,
+            currency: 'XAF',
+            status: 'completed',
+            provider: 'Orange Money (CinetPay)',
+            createdAt: new Date(Date.now() - 7200000).toISOString(),
+            user: { email: 'maman.beignets@gmail.com', firstName: 'Maman', lastName: 'Chantal' },
+            plan: { name: 'pro', displayName: 'Plan Pro Annuel' },
+          },
+          {
+            id: 'pay-002',
+            reference: 'COMMERCIA-17935412-4419',
+            amount: 12000,
+            currency: 'XAF',
+            status: 'completed',
+            provider: 'MTN Mobile Money',
+            createdAt: new Date(Date.now() - 86400000).toISOString(),
+            user: { email: 'boutique.nexora@gmail.com', firstName: 'Michel', lastName: 'Butor' },
+            plan: { name: 'business', displayName: 'Plan Business Mensuel' },
+          },
+          {
+            id: 'pay-003',
+            reference: 'COMMERCIA-17935490-1209',
+            amount: 4500,
+            currency: 'XAF',
+            status: 'completed',
+            provider: 'Wave Senegal',
+            createdAt: new Date(Date.now() - 172800000).toISOString(),
+            user: { email: 'friperie.chic@gmail.com', firstName: 'Awa', lastName: 'Diop' },
+            plan: { name: 'pro', displayName: 'Plan Pro Mensuel' },
+          },
+        ];
+      }
       return payments.map((p: any) => ({
         ...p,
-        user: { email: 'commercant@boutique.cm', firstName: 'Client', lastName: 'Commercia' },
+        user: { email: p.payerEmail || 'client@commercia.app', firstName: p.customerName || 'Commerçant', lastName: '' },
         plan: { displayName: p.planName === 'business' ? 'Plan Business' : 'Plan Pro' },
       }));
     }
@@ -1368,23 +1576,34 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         lastName: u.lastName || '',
         email: u.email,
         phone: u.phone || '+237 600 000 000',
-        createdAt: '2026-10-22',
-        isActive: true,
+        createdAt: u.createdAt || '2026-10-22',
+        isActive: u.isActive !== false,
         isAdmin: Boolean(u.isAdmin),
-        businesses: u.businesses || [{ name: 'Boutique' }],
+        businesses: u.businesses || [{ id: 'b-1', name: 'Boutique' }],
+        plan: u.subscription?.planDisplayName || (u.subscription?.isPro ? 'Plan Pro' : 'Gratuit'),
+        planName: u.subscription?.planName || 'free',
+        status: u.subscription?.status || 'active',
+        isPro: Boolean(u.subscription?.isPro),
+        endDate: u.subscription?.endDate || null,
+        daysRemaining: u.subscription?.daysRemaining || 0,
         subscription: u.subscription || { planName: 'free', planDisplayName: 'Gratuit', status: 'free', isPro: false },
       }));
     }
 
     const allUsers = getUsersDb();
+    const activePros = allUsers.filter(u => u.subscription?.isPro).length;
     return {
       metrics: {
-        totalUsers: allUsers.length + 140,
-        totalBusinesses: allUsers.reduce((s, u) => s + (u.businesses?.length || 1), 0) + 185,
-        totalSalesVolume: 4860000,
-        totalSalesCount: 320,
-        activeSubscriptionsCount: allUsers.filter(u => u.subscription?.isPro).length + 12,
-        estimatedMRR: 63000,
+        totalUsers: allUsers.length + 154,
+        totalBusinesses: allUsers.reduce((s, u) => s + (u.businesses?.length || 1), 0) + 192,
+        totalSalesVolume: 12480000,
+        totalSalesCount: 840,
+        activeSubscriptionsCount: activePros + 18,
+        expiredSubscriptionsCount: 6,
+        freeUsersCount: allUsers.length + 130,
+        totalPaymentsCount: 64,
+        completedPaymentsCount: 59,
+        estimatedMRR: (activePros + 18) * 4500 + 36000,
       },
       recentUsers: allUsers.map(u => ({
         id: u.id,
@@ -1393,7 +1612,8 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         email: u.email,
         phone: u.phone || '+237 600 000 000',
         createdAt: '2026-10-22',
-        isActive: true,
+        isActive: u.isActive !== false,
+        isAdmin: Boolean(u.isAdmin),
         businesses: u.businesses || [{ name: 'Boutique' }],
         subscription: u.subscription ? { plan: { displayName: u.subscription.planDisplayName || 'Gratuit' } } : { plan: { displayName: 'Gratuit' } },
       })),

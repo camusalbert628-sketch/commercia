@@ -7,12 +7,15 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   activeBusinessId: string | null;
+  isImpersonating: boolean;
   login: (tokens: { accessToken: string; refreshToken: string }, user: User) => void;
   logout: () => void;
   fetchMe: () => Promise<void>;
   setActiveBusinessId: (id: string) => void;
   updateUser: (partial: Partial<User>) => void;
   setTrackingMode: (mode: string) => void;
+  impersonateUser: (targetUser: User) => void;
+  stopImpersonation: () => void;
 }
 
 const getInitialUser = (): User | null => {
@@ -57,6 +60,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!localStorage.getItem('accessToken'),
   isLoading: false,
   activeBusinessId: localStorage.getItem('commercia_active_business_id') || localStorage.getItem('activeBusinessId') || null,
+  isImpersonating: !!localStorage.getItem('commercia_admin_impersonator_token'),
+
+  impersonateUser: (targetUser: User) => {
+    const currentAdmin = get().user;
+    if (currentAdmin) {
+      localStorage.setItem('commercia_admin_backup_user', JSON.stringify(currentAdmin));
+      localStorage.setItem('commercia_admin_impersonator_token', 'impersonating_active');
+    }
+    const businessId = targetUser.businesses && targetUser.businesses.length > 0 ? targetUser.businesses[0].id : null;
+    if (businessId) {
+      localStorage.setItem('activeBusinessId', businessId);
+      localStorage.setItem('commercia_active_business_id', businessId);
+    }
+    localStorage.setItem('commercia_user', JSON.stringify(targetUser));
+    set({
+      user: targetUser,
+      activeBusinessId: businessId,
+      isImpersonating: true,
+    });
+  },
+
+  stopImpersonation: () => {
+    const backup = localStorage.getItem('commercia_admin_backup_user');
+    if (backup) {
+      try {
+        const adminUser = JSON.parse(backup);
+        localStorage.setItem('commercia_user', backup);
+        localStorage.removeItem('commercia_admin_backup_user');
+        localStorage.removeItem('commercia_admin_impersonator_token');
+        const bizId = adminUser.businesses?.[0]?.id || null;
+        if (bizId) {
+          localStorage.setItem('activeBusinessId', bizId);
+          localStorage.setItem('commercia_active_business_id', bizId);
+        }
+        set({
+          user: adminUser,
+          activeBusinessId: bizId,
+          isImpersonating: false,
+        });
+        return;
+      } catch (_) {}
+    }
+    localStorage.removeItem('commercia_admin_backup_user');
+    localStorage.removeItem('commercia_admin_impersonator_token');
+    set({ isImpersonating: false });
+  },
 
   setTrackingMode: (mode: string) => {
     const current = get().user;

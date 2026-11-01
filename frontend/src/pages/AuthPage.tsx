@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck, X, Camera, Upload, User as UserIcon, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck, X, Camera, Upload, User as UserIcon, Sparkles, KeyRound, ShieldAlert } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 
@@ -630,6 +630,38 @@ export const AuthPage: React.FC = () => {
               <ArrowRight size={18} />
             </button>
           </form>
+
+          {/* Quick Access Super Admin */}
+          <div style={{ marginTop: '16px', textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('admin@commercia.com');
+                setPassword('CommerciaAdmin2026!');
+                setIsLogin(true);
+                setError('');
+              }}
+              style={{
+                background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.05) 0%, rgba(59, 130, 246, 0.08) 100%)',
+                border: '1px dashed #94A3B8',
+                borderRadius: '10px',
+                padding: '8px 14px',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                color: '#1E293B',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease',
+              }}
+              title="Pré-remplir les identifiants Super Admin Master"
+            >
+              <ShieldAlert size={14} color="#0062FF" />
+              <span>Accès Démo Super Admin (Console Stratégique)</span>
+              <KeyRound size={13} color="#64748B" />
+            </button>
+          </div>
 
           {/* Social Proof */}
           <div

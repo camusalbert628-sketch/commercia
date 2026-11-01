@@ -56,6 +56,7 @@ function PageLoadingFallback() {
 }
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
+  const { user, isImpersonating, stopImpersonation } = useAuthStore();
   const {
     isSaleModalOpen,
     closeSaleModal,
@@ -69,6 +70,44 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-container">
+      {isImpersonating && (
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 9999999,
+            background: 'linear-gradient(90deg, #7C3AED 0%, #4F46E5 100%)',
+            color: '#FFFFFF',
+            padding: '10px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+            fontSize: '0.88rem',
+            fontWeight: 700,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>🕵️ <strong>SESSION DE SUPERVISION ADMIN :</strong> Vous intervenez sur l'espace de <u>{user?.firstName} {user?.lastName}</u> ({user?.email})</span>
+          </div>
+          <button
+            type="button"
+            onClick={stopImpersonation}
+            style={{
+              background: '#FFFFFF',
+              color: '#4F46E5',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '6px 14px',
+              fontSize: '0.82rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+          >
+            Quitter & Revenir à la Console Admin
+          </button>
+        </div>
+      )}
       <OfflineSyncBanner />
       <Sidebar />
       <div className="main-content">
