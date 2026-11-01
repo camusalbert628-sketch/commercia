@@ -38,6 +38,7 @@ import {
   Bot,
   Send,
   Loader2,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -45,6 +46,7 @@ import { lotsService } from '../services/lotsService';
 import { generateCopilotLLMResponse, getLLMConfig } from '../services/llmService';
 import { renderProfessionalStrategyCards, renderNaturalFormattedText } from '../utils/textFormatter';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { CustomSelect, CustomSelectOption } from '../components/common/CustomSelect';
 import {
   LotsOverviewResponse,
   CampaignSummaryItem,
@@ -53,6 +55,14 @@ import {
   LotItem,
   ChannelRecommendation,
 } from '../types/lots';
+
+const LOT_CURRENCY_OPTIONS: CustomSelectOption[] = [
+  { value: 'XAF', label: 'FCFA (XAF / XOF)', badge: 'Taux 1.0', icon: '🇨🇲' },
+  { value: 'USD', label: 'Dollar US ($ USD)', badge: 'Taux ~615', icon: '🇺🇸' },
+  { value: 'EUR', label: 'Euro (€ EUR)', badge: 'Taux 655.957', icon: '🇪🇺' },
+  { value: 'CNY', label: 'Yuan Chinois (¥ CNY)', badge: 'Taux ~85', icon: '🇨🇳' },
+  { value: 'AUTRE', label: 'Autre devise internationale', icon: '🌐' },
+];
 
 export const LotsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -3322,68 +3332,190 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
       {/* 4-STEP WIZARD MODAL FOR NEW CAMPAIGN CREATION (SECTION 4 DU CAHIER DES CHARGES) */}
       {/* ========================================================================= */}
       {showWizardModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '750px', width: '95%' }}>
-            <div className="modal-header">
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
-                  Nouvelle Campagne de Gestion de Lot — Étape {wizardStep} sur 4
-                </h3>
-                <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
-                  {wizardStep === 1 && 'Informations Générales & Origine du Lot'}
-                  {wizardStep === 2 && 'Coûts d\'Approvisionnement & Frais d\'Approche'}
-                  {wizardStep === 3 && 'Inventaire & Décomposition en Articles Individuels'}
-                  {wizardStep === 4 && 'Récapitulatif Financier & Validation'}
-                </span>
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div
+            className="modal-content"
+            style={{
+              maxWidth: '820px',
+              width: '95%',
+              maxHeight: '92vh',
+              borderRadius: '20px',
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+            }}
+          >
+            {/* MODAL HEADER */}
+            <div
+              style={{
+                padding: '18px 24px',
+                background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%)',
+                borderBottom: '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
+                    border: '1px solid #C7D2FE',
+                    color: '#4F46E5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(79, 70, 229, 0.1)',
+                  }}
+                >
+                  <Boxes size={22} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Nouvelle Campagne de Gestion de Lot
+                    </h3>
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        background: '#EEF2FF',
+                        color: '#4338CA',
+                        border: '1px solid #C7D2FE',
+                      }}
+                    >
+                      Étape {wizardStep} sur 4
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
+                    {wizardStep === 1 && 'Informations Générales & Origine du Lot (Fournisseur, Devise, Achat)'}
+                    {wizardStep === 2 && 'Coûts d\'Approvisionnement & Frais d\'Approche (Fret, Douane, Transit)'}
+                    {wizardStep === 3 && 'Inventaire & Décomposition en Articles Individuels (Prix cibles & Marges)'}
+                    {wizardStep === 4 && 'Récapitulatif Financier, Calcul du Seuil de Rentabilité & Validation'}
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowWizardModal(false)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.3rem' }}
+                style={{
+                  background: '#F1F5F9',
+                  border: 'none',
+                  color: '#64748B',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                title="Fermer"
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 
             {/* Stepper Progress Bar */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', background: '#F8FAFC' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '8px',
+                padding: '12px 24px',
+                background: '#F8FAFC',
+                borderBottom: '1px solid #E2E8F0',
+              }}
+            >
               {[
-                { step: 1, label: '1. Généralités' },
-                { step: 2, label: '2. Coûts Approvisionnement' },
-                { step: 3, label: '3. Articles & Coûts Unitaires' },
-                { step: 4, label: '4. Validation' },
-              ].map(s => (
-                <div
-                  key={s.step}
-                  onClick={() => {
-                    if (s.step > wizardStep) {
-                      if (wizardStep === 1 && !wName.trim()) {
-                        alert('Veuillez renseigner un nom pour la campagne d\'abord.');
-                        return;
-                      }
-                      if (wizardStep === 3) {
-                        const emptyIndex = wItems.findIndex(it => !it.name || !it.name.trim());
-                        if (emptyIndex !== -1) {
-                          alert(`Veuillez renseigner la désignation de l'article ligne ${emptyIndex + 1}.`);
+                { step: 1, title: '1. Généralités', subtitle: 'Origine & devise' },
+                { step: 2, title: '2. Approvisionnement', subtitle: 'Frais d\'approche' },
+                { step: 3, title: '3. Articles & Marges', subtitle: 'Décomposition lot' },
+                { step: 4, title: '4. Validation', subtitle: 'Bilan financier' },
+              ].map(s => {
+                const isActive = wizardStep === s.step;
+                const isCompleted = wizardStep > s.step;
+                return (
+                  <div
+                    key={s.step}
+                    onClick={() => {
+                      if (s.step > wizardStep) {
+                        if (wizardStep === 1 && !wName.trim()) {
+                          alert('Veuillez renseigner un nom pour la campagne d\'abord.');
                           return;
                         }
+                        if (wizardStep === 3) {
+                          const emptyIndex = wItems.findIndex(it => !it.name || !it.name.trim());
+                          if (emptyIndex !== -1) {
+                            alert(`Veuillez renseigner la désignation de l'article ligne ${emptyIndex + 1}.`);
+                            return;
+                          }
+                        }
                       }
-                    }
-                    setWizardStep(s.step as any);
-                  }}
-                  style={{
-                    flex: 1,
-                    textAlign: 'center',
-                    fontSize: '0.8rem',
-                    fontWeight: wizardStep === s.step ? 800 : 500,
-                    color: wizardStep === s.step ? '#0062FF' : wizardStep > s.step ? '#10B981' : '#64748B',
-                    borderBottom: wizardStep === s.step ? '2px solid #0062FF' : 'none',
-                    paddingBottom: '4px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {s.label}
-                </div>
-              ))}
+                      setWizardStep(s.step as any);
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '12px',
+                      background: isActive ? '#FFFFFF' : isCompleted ? '#ECFDF5' : 'transparent',
+                      border: isActive
+                        ? '1.5px solid #0062FF'
+                        : isCompleted
+                        ? '1px solid #A7F3D0'
+                        : '1px solid transparent',
+                      boxShadow: isActive ? '0 2px 8px rgba(0, 98, 255, 0.1)' : 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      transition: 'all 0.18s ease',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '50%',
+                        background: isActive ? '#0062FF' : isCompleted ? '#059669' : '#E2E8F0',
+                        color: isActive || isCompleted ? '#FFFFFF' : '#64748B',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {isCompleted ? <Check size={14} /> : s.step}
+                    </div>
+                    <div style={{ overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: isActive ? 800 : 600,
+                          color: isActive ? '#0062FF' : isCompleted ? '#065F46' : '#64748B',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {s.title}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: '#94A3B8', whiteSpace: 'nowrap' }}>
+                        {s.subtitle}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto', padding: '24px' }}>
@@ -3462,23 +3594,18 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                       <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
                         Devise d'achat
                       </label>
-                      <select
+                      <CustomSelect
                         value={wCurrency}
-                        onChange={e => {
-                          setWCurrency(e.target.value);
-                          if (e.target.value === 'XAF') setWExchangeRate(1.0);
-                          else if (e.target.value === 'USD') setWExchangeRate(615);
-                          else if (e.target.value === 'EUR') setWExchangeRate(655.957);
-                          else if (e.target.value === 'CNY') setWExchangeRate(85);
+                        onChange={val => {
+                          setWCurrency(val);
+                          if (val === 'XAF') setWExchangeRate(1.0);
+                          else if (val === 'USD') setWExchangeRate(615);
+                          else if (val === 'EUR') setWExchangeRate(655.957);
+                          else if (val === 'CNY') setWExchangeRate(85);
                         }}
-                        style={{ width: '100%', padding: '10px' }}
-                      >
-                        <option value="XAF">FCFA (XAF / XOF)</option>
-                        <option value="USD">Dollar US ($ USD)</option>
-                        <option value="EUR">Euro (€ EUR)</option>
-                        <option value="CNY">Yuan Chinois (¥ CNY)</option>
-                        <option value="AUTRE">Autre devise</option>
-                      </select>
+                        options={LOT_CURRENCY_OPTIONS}
+                        placeholder="Choisir la devise..."
+                      />
                     </div>
 
                     <div>
@@ -3834,15 +3961,51 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
             </div>
 
             {/* Stepper Footer */}
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <div>
+            <div
+              className="modal-footer"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '14px 24px',
+                background: '#F8FAFC',
+                borderTop: '1px solid #E2E8F0',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowWizardModal(false)}
+                  style={{
+                    height: '40px',
+                    padding: '0 16px',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    color: '#64748B',
+                  }}
+                >
+                  Annuler
+                </button>
                 {wizardStep > 1 && (
                   <button
                     type="button"
                     className="btn btn-secondary"
                     onClick={() => setWizardStep((wizardStep - 1) as any)}
+                    style={{
+                      height: '40px',
+                      padding: '0 18px',
+                      borderRadius: '10px',
+                      fontWeight: 700,
+                      fontSize: '0.88rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
                   >
-                    Précédent
+                    <ArrowLeft size={16} />
+                    <span>Précédent</span>
                   </button>
                 )}
               </div>
@@ -3853,8 +4016,21 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                     type="button"
                     className="btn btn-primary"
                     onClick={handleNextWizardStep}
+                    style={{
+                      height: '42px',
+                      padding: '0 22px',
+                      borderRadius: '10px',
+                      fontWeight: 800,
+                      fontSize: '0.9rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      background: 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)',
+                      boxShadow: '0 4px 12px rgba(0, 98, 255, 0.25)',
+                    }}
                   >
-                    Suivant ({wizardStep + 1}/4)
+                    <span>Suivant ({wizardStep + 1}/4)</span>
+                    <ArrowRight size={16} />
                   </button>
                 ) : (
                   <>
@@ -3863,6 +4039,13 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                       className="btn btn-secondary"
                       onClick={() => handleCreateCampaignSubmit('draft')}
                       disabled={loading}
+                      style={{
+                        height: '42px',
+                        padding: '0 18px',
+                        borderRadius: '10px',
+                        fontWeight: 700,
+                        fontSize: '0.88rem',
+                      }}
                     >
                       Enregistrer en Brouillon
                     </button>
@@ -3871,9 +4054,31 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                       className="btn btn-primary"
                       onClick={() => handleCreateCampaignSubmit('active')}
                       disabled={loading}
-                      style={{ background: '#10B981' }}
+                      style={{
+                        height: '42px',
+                        padding: '0 22px',
+                        borderRadius: '10px',
+                        fontWeight: 800,
+                        fontSize: '0.9rem',
+                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                        border: 'none',
+                        boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
                     >
-                      {loading ? 'Création en cours...' : 'Valider et Lancer la Campagne'}
+                      {loading ? (
+                        <>
+                          <RefreshCw size={16} className="spin" />
+                          <span>Création en cours...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={16} />
+                          <span>Valider et Lancer la Campagne</span>
+                        </>
+                      )}
                     </button>
                   </>
                 )}

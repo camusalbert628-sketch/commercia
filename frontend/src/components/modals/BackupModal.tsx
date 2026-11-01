@@ -325,9 +325,9 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => 
                 width: '100%',
                 height: '44px',
                 borderRadius: '12px',
-                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                background: '#059669',
                 color: '#FFFFFF',
-                border: 'none',
+                border: '1px solid #047857',
                 fontWeight: 800,
                 fontSize: '0.9rem',
                 cursor: isExporting ? 'wait' : 'pointer',
@@ -335,7 +335,7 @@ export const BackupModal: React.FC<BackupModalProps> = ({ isOpen, onClose }) => 
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
+                boxShadow: 'none',
                 transition: 'all 0.15s ease',
               }}
             >

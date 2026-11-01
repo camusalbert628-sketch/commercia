@@ -7,6 +7,7 @@ import { growthService } from '../../services/growthService';
 import { AcquisitionChannel } from '../../types/growth';
 import { useAuthStore } from '../../store/authStore';
 import { formatCurrency } from '../../utils/formatters';
+import { CustomSelect, CustomSelectOption } from '../common/CustomSelect';
 
 interface SaleModalProps {
   isOpen: boolean;
@@ -289,44 +290,155 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
     );
   }
 
+  // Prepared options for CustomSelect dropdowns
+  const productOptions: CustomSelectOption[] = [
+    { value: '', label: '-- Choisir un produit en stock --' },
+    ...products.map(p => ({
+      value: p.id,
+      label: `${p.name} — ${formatCurrency(p.sellingPrice, currency)} (${p.quantity} en stock)`,
+      disabled: p.quantity <= 0,
+      icon: '📦',
+    })),
+  ];
+
+  const channelOptions: CustomSelectOption[] = [
+    { value: '', label: '-- Attribuer à un canal --' },
+    ...channels.map(ch => {
+      let icon = '🎯';
+      const lower = ch.name.toLowerCase();
+      if (lower.includes('facebook') || ch.type === 'paid_social') icon = '📢';
+      if (lower.includes('instagram')) icon = '📸';
+      if (lower.includes('tiktok')) icon = '🎵';
+      if (lower.includes('whatsapp') || lower.includes('direct')) icon = '💬';
+      if (lower.includes('google') || ch.type === 'search') icon = '🔍';
+      if (ch.type === 'referral') icon = '🗣️';
+      if (ch.type === 'influencer') icon = '⭐';
+      if (ch.type === 'affiliation') icon = '🤝';
+      if (ch.type === 'organic') icon = '🌐';
+      return {
+        value: ch.id,
+        label: ch.name,
+        badge: ch.type,
+        icon,
+      };
+    }),
+  ];
+
+  const comptoirCustomerOptions: CustomSelectOption[] = [
+    { value: '', label: '-- Client comptoir libre (Anonyme) --', icon: '👤' },
+    ...customers.map(c => ({
+      value: c.id,
+      label: `${c.name} ${c.phone ? `(${c.phone})` : ''}`,
+      badge: c.totalOwed > 0 ? `Doit: ${formatCurrency(c.totalOwed, currency)}` : undefined,
+      icon: '👤',
+    })),
+  ];
+
+  const customerOptions: CustomSelectOption[] = [
+    { value: '', label: '-- Choisir un client du carnet --', icon: '👤' },
+    ...customers.map(c => ({
+      value: c.id,
+      label: `${c.name} ${c.phone ? `(${c.phone})` : ''}`,
+      badge: c.totalOwed > 0 ? `Crédit: ${formatCurrency(c.totalOwed, currency)}` : undefined,
+      icon: '👤',
+    })),
+  ];
+
   return (
-    <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: '600px' }}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+    <div className="modal-overlay" style={{ zIndex: 9999 }}>
+      <div
+        className="modal-content"
+        style={{
+          maxWidth: '680px',
+          width: '95%',
+          maxHeight: '92vh',
+          borderRadius: '20px',
+          padding: 0,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+        }}
+      >
+        {/* MODAL HEADER */}
+        <div
+          style={{
+            padding: '18px 24px',
+            background: 'linear-gradient(180deg, #FFFFFF 0%, #FAFAFA 100%)',
+            borderBottom: '1px solid #E2E8F0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div
               style={{
-                background: '#EFF6FF',
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
+                border: '1px solid #BFDBFE',
                 color: '#0062FF',
-                padding: '8px',
-                borderRadius: '8px',
                 display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(0, 98, 255, 0.1)',
               }}
             >
-              <ShoppingBag size={20} />
+              <ShoppingBag size={22} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Nouvelle Vente</h3>
-              <p style={{ fontSize: '0.8rem', color: '#64748B' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                Nouvelle Vente
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '3px 0 0 0' }}>
                 Enregistrement instantané (Cash, Mobile Money ou Crédit)
               </p>
             </div>
           </div>
-          <button onClick={handleClose} style={{ background: 'transparent', color: '#94A3B8' }}>
-            <X size={20} />
+          <button
+            type="button"
+            onClick={handleClose}
+            style={{
+              background: '#F1F5F9',
+              border: 'none',
+              color: '#64748B',
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            title="Fermer"
+          >
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <div
+            className="modal-body"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '18px',
+              padding: '20px 24px',
+              overflowY: 'auto',
+              flex: 1,
+            }}
+          >
             {/* Free Plan Quota Indicator */}
             {!isPro && (
               <div
                 style={{
                   background: todaySalesCount >= 15 ? '#FEF2F2' : '#F0F9FF',
                   border: todaySalesCount >= 15 ? '1.5px solid #FCA5A5' : '1px solid #BAE6FD',
-                  borderRadius: '10px',
-                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
@@ -372,24 +484,19 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
               </div>
             )}
 
-            {/* Quick product selector from inventory */}
+            {/* Quick product selector from inventory with CustomSelect */}
             {products.length > 0 && (
               <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                  Sélection rapide depuis le stock :
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <Package size={14} color="#0062FF" />
+                  <span>Sélection rapide depuis le stock :</span>
                 </label>
-                <select
+                <CustomSelect
                   value={selectedProductId}
-                  onChange={e => handleProductSelect(e.target.value)}
-                  style={{ width: '100%' }}
-                >
-                  <option value="">-- Choisir un produit en stock --</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id} disabled={p.quantity <= 0}>
-                      {p.name} — {formatCurrency(p.sellingPrice, currency)} ({p.quantity} en stock)
-                    </option>
-                  ))}
-                </select>
+                  onChange={val => handleProductSelect(val)}
+                  options={productOptions}
+                  placeholder="-- Choisir un produit en stock --"
+                />
               </div>
             )}
 
@@ -644,18 +751,12 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
               {/* 1. Client Comptoir */}
               {customerQuality === 'comptoir' && (
                 <div>
-                  <select
+                  <CustomSelect
                     value={customerId}
-                    onChange={e => setCustomerId(e.target.value)}
-                    style={{ width: '100%', fontSize: '0.85rem' }}
-                  >
-                    <option value="">-- Client comptoir libre (Anonyme) --</option>
-                    {customers.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Doit: ${formatCurrency(c.totalOwed, currency)}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={val => setCustomerId(val)}
+                    options={comptoirCustomerOptions}
+                    placeholder="-- Client comptoir libre (Anonyme) --"
+                  />
                 </div>
               )}
 
@@ -766,19 +867,13 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
               {/* 4. Client Fidèle / Répertoire */}
               {customerQuality === 'fidele' && (
                 <div>
-                  <select
+                  <CustomSelect
                     value={customerId}
-                    onChange={e => setCustomerId(e.target.value)}
-                    style={{ width: '100%', fontSize: '0.85rem' }}
+                    onChange={val => setCustomerId(val)}
+                    options={customerOptions}
+                    placeholder="-- Choisir un client du carnet --"
                     required={paymentMethod === 'credit'}
-                  >
-                    <option value="">-- Choisir un client du carnet --</option>
-                    {customers.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.phone ? `(${c.phone})` : ''} {c.totalOwed > 0 ? `— Crédit en cours: ${formatCurrency(c.totalOwed, currency)}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
               )}
 
@@ -822,18 +917,12 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
                     <Target size={14} color="#0062FF" />
                     <span>Canal d'acquisition (Source) :</span>
                   </label>
-                  <select
+                  <CustomSelect
                     value={selectedChannelId}
-                    onChange={e => setSelectedChannelId(e.target.value)}
-                    style={{ width: '100%', fontSize: '0.82rem', padding: '8px' }}
-                  >
-                    <option value="">-- Attribuer à un canal --</option>
-                    {channels.map(ch => (
-                      <option key={ch.id} value={ch.id}>
-                        {ch.name} ({ch.type})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={val => setSelectedChannelId(val)}
+                    options={channelOptions}
+                    placeholder="-- Attribuer à un canal --"
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
@@ -870,15 +959,48 @@ export const SaleModal: React.FC<SaleModalProps> = ({ isOpen, onClose, onSaleCre
             </div>
           </div>
 
-          <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={handleClose} disabled={loading}>
+          <div
+            className="modal-footer"
+            style={{
+              padding: '14px 24px',
+              background: '#F8FAFC',
+              borderTop: '1px solid #E2E8F0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: '12px',
+            }}
+          >
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleClose}
+              disabled={loading}
+              style={{
+                height: '42px',
+                padding: '0 20px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '0.88rem',
+              }}
+            >
               Annuler
             </button>
             <button
               type="submit"
               className="btn btn-primary"
               disabled={loading || totalAmount <= 0 || (!isPro && todaySalesCount >= 15)}
-              style={(!isPro && todaySalesCount >= 15) ? { background: '#94A3B8', cursor: 'not-allowed', borderColor: '#94A3B8' } : {}}
+              style={{
+                height: '42px',
+                padding: '0 22px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.9rem',
+                background: (!isPro && todaySalesCount >= 15) ? '#94A3B8' : 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)',
+                borderColor: (!isPro && todaySalesCount >= 15) ? '#94A3B8' : '#0062FF',
+                cursor: (!isPro && todaySalesCount >= 15) ? 'not-allowed' : 'pointer',
+                boxShadow: (!isPro && todaySalesCount >= 15 || totalAmount <= 0) ? 'none' : '0 4px 12px rgba(0, 98, 255, 0.25)',
+              }}
             >
               {loading
                 ? 'Enregistrement...'
