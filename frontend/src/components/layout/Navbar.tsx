@@ -385,7 +385,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
               fontSize: '0.82rem',
               border: '1px solid rgba(255, 255, 255, 0.25)',
               cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)',
+              boxShadow: 'none',
             }}
             title="Accéder au Cockpit Super-Administrateur"
           >

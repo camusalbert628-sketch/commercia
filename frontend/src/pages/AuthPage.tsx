@@ -832,7 +832,7 @@ export const AuthPage: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 10px rgba(0, 98, 255, 0.25)',
+                  boxShadow: 'none',
                 }}
               >
                 {googleLoading ? 'Connexion en cours...' : '⚡ Continuer en tant que Michel Butor'}

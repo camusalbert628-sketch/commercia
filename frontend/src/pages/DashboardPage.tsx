@@ -477,7 +477,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 fontWeight: 700,
                 fontSize: '0.88rem',
                 textDecoration: 'none',
-                boxShadow: '0 4px 12px rgba(255, 107, 0, 0.3)',
+                boxShadow: 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',

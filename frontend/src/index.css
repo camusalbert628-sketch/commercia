@@ -5,12 +5,12 @@
   --primary: #0062FF;
   --primary-hover: #004BD6;
   --primary-light: #EFF6FF;
-  --primary-glow: rgba(0, 98, 255, 0.22);
+  --primary-glow: transparent;
 
   --accent-orange: #FF6B00;
   --accent-orange-hover: #E05E00;
   --accent-orange-light: #FFF4ED;
-  --accent-orange-glow: rgba(255, 107, 0, 0.28);
+  --accent-orange-glow: transparent;
 
   --secondary: #FF6B00;
   --secondary-light: #FFF4ED;
@@ -40,8 +40,8 @@
   --shadow-md: 0 4px 10px -1px rgba(8, 22, 43, 0.08), 0 2px 4px -2px rgba(8, 22, 43, 0.04);
   --shadow-lg: 0 12px 24px -4px rgba(8, 22, 43, 0.1), 0 4px 6px -4px rgba(8, 22, 43, 0.04);
   --shadow-xl: 0 20px 30px -5px rgba(8, 22, 43, 0.12), 0 8px 10px -6px rgba(8, 22, 43, 0.06);
-  --shadow-glow: 0 0 20px rgba(0, 98, 255, 0.25);
-  --shadow-orange-glow: 0 0 20px rgba(255, 107, 0, 0.3);
+  --shadow-glow: none;
+  --shadow-orange-glow: none;
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -452,7 +452,7 @@ select:focus {
   align-items: center;
   justify-content: center;
   margin-top: -24px;
-  box-shadow: 0 6px 18px rgba(0, 98, 255, 0.4);
+  box-shadow: none;
   border: 3px solid #08162B;
 }
 
@@ -523,7 +523,55 @@ select:focus {
   box-shadow: var(--shadow-md);
 }
 
-/* Buttons */
+/* Buttons — Zero Glow Policy (No luminous halos or neon shadows) */
+button,
+.btn,
+.btn-primary,
+.btn-accent,
+.btn-secondary,
+.btn-danger,
+.btn-outline,
+.btn-lg,
+.btn-sm,
+a.btn,
+.mobile-action-btn,
+button[type="button"],
+button[type="submit"],
+[role="button"] {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+button:hover,
+.btn:hover,
+.btn-primary:hover,
+.btn-accent:hover,
+.btn-secondary:hover,
+.btn-danger:hover,
+.btn-outline:hover,
+.btn-lg:hover,
+.btn-sm:hover,
+a.btn:hover,
+.mobile-action-btn:hover,
+button[type="button"]:hover,
+button[type="submit"]:hover,
+[role="button"]:hover {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+button:focus,
+button:active,
+.btn:focus,
+.btn:active,
+.btn-primary:focus,
+.btn-accent:focus,
+[role="button"]:focus {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -533,30 +581,31 @@ select:focus {
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 0.95rem;
+  box-shadow: none !important;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-primary {
   background: linear-gradient(135deg, #0062FF 0%, #004BD6 100%);
   color: #FFFFFF;
-  box-shadow: 0 4px 12px rgba(0, 98, 255, 0.25);
+  box-shadow: none !important;
 }
 
 .btn-primary:hover {
   background: linear-gradient(135deg, #0052CC 0%, #003FB8 100%);
-  box-shadow: 0 6px 18px rgba(0, 98, 255, 0.38);
+  box-shadow: none !important;
   transform: translateY(-1px);
 }
 
 .btn-accent {
   background: linear-gradient(135deg, #FF6B00 0%, #FF8A00 100%);
   color: #FFFFFF;
-  box-shadow: 0 4px 12px rgba(255, 107, 0, 0.28);
+  box-shadow: none !important;
 }
 
 .btn-accent:hover {
   background: linear-gradient(135deg, #E05E00 0%, #FF6B00 100%);
-  box-shadow: 0 6px 18px rgba(255, 107, 0, 0.4);
+  box-shadow: none !important;
   transform: translateY(-1px);
 }
 
@@ -844,18 +893,18 @@ tr:hover td {
   }
 }
 
-/* Pulsing Glow Animation for AI Copilot */
+/* Clean Animation for AI Copilot (without glowing halo) */
 @keyframes pulseGlow {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(0, 98, 255, 0.2), inset 0 0 15px rgba(0, 98, 255, 0.05);
+    box-shadow: none;
   }
   50% {
-    box-shadow: 0 0 25px rgba(0, 98, 255, 0.38), inset 0 0 20px rgba(0, 98, 255, 0.1);
+    box-shadow: none;
   }
 }
 
 .ai-glow-card {
-  animation: pulseGlow 3s ease-in-out infinite;
+  box-shadow: none !important;
 }
 
 /* Smooth Fade-in Animation for Page Transitions */
