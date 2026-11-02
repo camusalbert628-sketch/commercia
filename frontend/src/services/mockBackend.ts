@@ -53,12 +53,305 @@ function getUsersDb(): any[] {
 
   if (masterAdminIdx >= 0) {
     list[masterAdminIdx] = { ...list[masterAdminIdx], ...masterAdmin };
-    saveUsersDb(list);
   } else {
     list.unshift(masterAdmin);
-    saveUsersDb(list);
   }
 
+  // Seed realistic directory of African merchants if only master admin is present
+  if (list.length <= 1) {
+    const seedMerchants = [
+      {
+        id: 'user-cm-001',
+        email: 'chantal.beignets@gmail.com',
+        password: 'Password123!',
+        firstName: 'Maman',
+        lastName: 'Chantal',
+        phone: '+237 677 44 12 90',
+        country: 'Cameroun',
+        city: 'Douala (Akwa)',
+        profileSector: 'Restauration & Beignets',
+        isAdmin: false,
+        isActive: true,
+        isGoogleVerified: true,
+        locale: 'fr',
+        currency: 'XAF',
+        createdAt: '2026-09-12T10:30:00.000Z',
+        lastLoginAt: '2026-11-01T14:20:00.000Z',
+        ipAddress: '154.72.164.88',
+        businesses: [
+          {
+            id: 'biz-cm-001',
+            name: 'Chez Maman Chantal — Beignets Haricots & Bouillie',
+            sector: 'restauration_repas',
+            profileId: 'restauration_repas',
+            trackingMode: 'simplifie',
+            currency: 'XAF',
+            activeModules: ['sales', 'expenses', 'food_prep', 'cash'],
+            role: 'owner',
+            salesCount: 164,
+            salesVolume: 4250000,
+          },
+        ],
+        subscription: {
+          planName: 'pro',
+          planDisplayName: 'Plan Pro (Croissance)',
+          status: 'active',
+          isPro: true,
+          daysRemaining: 24,
+          endDate: '2026-11-26T23:59:59.000Z',
+        },
+      },
+      {
+        id: 'user-ci-002',
+        email: 'michelbutor6@gmail.com',
+        password: 'Password123!',
+        firstName: 'Michel',
+        lastName: 'Butor',
+        phone: '+225 07 89 44 21 00',
+        country: 'Côte d’Ivoire',
+        city: 'Abidjan (Cocody)',
+        profileSector: 'Supermarché & Épicerie Fine',
+        isAdmin: false,
+        isActive: true,
+        isGoogleVerified: true,
+        locale: 'fr',
+        currency: 'XOF',
+        createdAt: '2026-08-05T09:15:00.000Z',
+        lastLoginAt: '2026-11-02T07:10:00.000Z',
+        ipAddress: '41.202.219.14',
+        businesses: [
+          {
+            id: 'biz-ci-002',
+            name: 'Boutique Nexora — Alimentation Générale',
+            sector: 'commerce',
+            profileId: 'epicerie_alimentation',
+            trackingMode: 'complet',
+            currency: 'XOF',
+            activeModules: ['sales', 'expenses', 'stock', 'cash', 'credits', 'copilot_ai'],
+            role: 'owner',
+            salesCount: 382,
+            salesVolume: 16840000,
+          },
+        ],
+        subscription: {
+          planName: 'business',
+          planDisplayName: 'Plan Business (Multi-Points)',
+          status: 'active',
+          isPro: true,
+          daysRemaining: 180,
+          endDate: '2027-05-01T23:59:59.000Z',
+        },
+      },
+      {
+        id: 'user-sn-003',
+        email: 'awa.diop.friperie@gmail.com',
+        password: 'Password123!',
+        firstName: 'Awa',
+        lastName: 'Diop',
+        phone: '+221 77 512 88 44',
+        country: 'Sénégal',
+        city: 'Dakar (Sandaga)',
+        profileSector: 'Friperie Chic & Ballots Import',
+        isAdmin: false,
+        isActive: true,
+        isGoogleVerified: false,
+        locale: 'fr',
+        currency: 'XOF',
+        createdAt: '2026-10-01T11:45:00.000Z',
+        lastLoginAt: '2026-10-31T18:00:00.000Z',
+        ipAddress: '197.239.75.102',
+        businesses: [
+          {
+            id: 'biz-sn-003',
+            name: 'Awa Friperie Prestige — Ballots & Détail',
+            sector: 'commerce',
+            profileId: 'friperie_vetements',
+            trackingMode: 'complet',
+            currency: 'XOF',
+            activeModules: ['sales', 'expenses', 'stock', 'commercial_lots', 'credits'],
+            role: 'owner',
+            salesCount: 220,
+            salesVolume: 7450000,
+          },
+        ],
+        subscription: {
+          planName: 'pro',
+          planDisplayName: 'Plan Pro (Croissance)',
+          status: 'active',
+          isPro: true,
+          daysRemaining: 6,
+          endDate: '2026-11-08T23:59:59.000Z',
+        },
+      },
+      {
+        id: 'user-bj-004',
+        email: 'koffi.mensah@gmail.com',
+        password: 'Password123!',
+        firstName: 'Koffi',
+        lastName: 'Mensah',
+        phone: '+229 96 11 32 45',
+        country: 'Bénin',
+        city: 'Cotonou (Dantokpa)',
+        profileSector: 'Quincaillerie & Matériaux',
+        isAdmin: false,
+        isActive: true,
+        isGoogleVerified: true,
+        locale: 'fr',
+        currency: 'XOF',
+        createdAt: '2026-10-18T14:10:00.000Z',
+        lastLoginAt: '2026-10-29T12:00:00.000Z',
+        ipAddress: '196.28.245.19',
+        businesses: [
+          {
+            id: 'biz-bj-004',
+            name: 'Quincaillerie Centrale Mensah & Fils',
+            sector: 'commerce',
+            profileId: 'quincaillerie_materiaux',
+            trackingMode: 'complet',
+            currency: 'XOF',
+            activeModules: ['sales', 'expenses', 'stock', 'credits'],
+            role: 'owner',
+            salesCount: 54,
+            salesVolume: 2150000,
+          },
+        ],
+        subscription: {
+          planName: 'free',
+          planDisplayName: 'Plan Gratuit (Démarrage)',
+          status: 'free',
+          isPro: false,
+          daysRemaining: 0,
+          endDate: null,
+        },
+      },
+      {
+        id: 'user-ml-005',
+        email: 'fatou.couture.bamako@gmail.com',
+        password: 'Password123!',
+        firstName: 'Fatoumata',
+        lastName: 'Traoré',
+        phone: '+223 76 89 22 10',
+        country: 'Mali',
+        city: 'Bamako (Badalabougou)',
+        profileSector: 'Atelier Couture & Confection Bazin',
+        isAdmin: false,
+        isActive: true,
+        isGoogleVerified: true,
+        locale: 'fr',
+        currency: 'XOF',
+        createdAt: '2026-09-28T08:20:00.000Z',
+        lastLoginAt: '2026-11-01T19:40:00.000Z',
+        ipAddress: '41.73.104.62',
+        businesses: [
+          {
+            id: 'biz-ml-005',
+            name: 'Fatou Bazin & Broderies Fines',
+            sector: 'services',
+            profileId: 'atelier_couture',
+            trackingMode: 'complet',
+            currency: 'XOF',
+            activeModules: ['sales', 'expenses', 'service_orders', 'credits'],
+            role: 'owner',
+            salesCount: 112,
+            salesVolume: 5890000,
+          },
+        ],
+        subscription: {
+          planName: 'pro',
+          planDisplayName: 'Plan Pro (Croissance)',
+          status: 'active',
+          isPro: true,
+          daysRemaining: 18,
+          endDate: '2026-11-20T23:59:59.000Z',
+        },
+      },
+      {
+        id: 'user-cm-006',
+        email: 'jp.mecanique.yde@gmail.com',
+        password: 'Password123!',
+        firstName: 'Jean-Paul',
+        lastName: 'Mbarga',
+        phone: '+237 699 01 22 33',
+        country: 'Cameroun',
+        city: 'Yaoundé (Mvan)',
+        profileSector: 'Garage Auto & Dépannage',
+        isAdmin: false,
+        isActive: false, // Compte suspendu pour démonstration
+        isGoogleVerified: false,
+        locale: 'fr',
+        currency: 'XAF',
+        createdAt: '2026-09-02T16:00:00.000Z',
+        lastLoginAt: '2026-10-15T11:20:00.000Z',
+        ipAddress: '129.0.210.45',
+        businesses: [
+          {
+            id: 'biz-cm-006',
+            name: 'Garage Moderne Mbarga Mvan',
+            sector: 'services',
+            profileId: 'garage_mecanique',
+            trackingMode: 'complet',
+            currency: 'XAF',
+            activeModules: ['sales', 'expenses', 'service_orders'],
+            role: 'owner',
+            salesCount: 38,
+            salesVolume: 3200000,
+          },
+        ],
+        subscription: {
+          planName: 'free',
+          planDisplayName: 'Suspendu (Non-Conformité)',
+          status: 'suspended',
+          isPro: false,
+          daysRemaining: 0,
+          endDate: null,
+        },
+      },
+      {
+        id: 'user-ga-007',
+        email: 'brice.pharma.gabon@gmail.com',
+        password: 'Password123!',
+        firstName: 'Brice',
+        lastName: 'Ondo',
+        phone: '+241 66 12 99 00',
+        country: 'Gabon',
+        city: 'Libreville (Louis)',
+        profileSector: 'Parapharmacie & Soins',
+        isAdmin: false,
+        isActive: true,
+        isGoogleVerified: true,
+        locale: 'fr',
+        currency: 'XAF',
+        createdAt: '2026-07-14T10:00:00.000Z',
+        lastLoginAt: '2026-11-02T06:30:00.000Z',
+        ipAddress: '197.234.221.7',
+        businesses: [
+          {
+            id: 'biz-ga-007',
+            name: 'Pharmacie & Parfumerie du Littoral',
+            sector: 'commerce',
+            profileId: 'pharmacie_cosmetique',
+            trackingMode: 'complet',
+            currency: 'XAF',
+            activeModules: ['sales', 'expenses', 'stock', 'cash', 'copilot_ai'],
+            role: 'owner',
+            salesCount: 295,
+            salesVolume: 12100000,
+          },
+        ],
+        subscription: {
+          planName: 'business',
+          planDisplayName: 'Plan Business (Multi-Points)',
+          status: 'active',
+          isPro: true,
+          daysRemaining: 290,
+          endDate: '2027-08-19T23:59:59.000Z',
+        },
+      },
+    ];
+    list.push(...seedMerchants);
+  }
+
+  saveUsersDb(list);
   return list;
 }
 
@@ -1572,42 +1865,183 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
       }));
     }
 
+    // DELETE USER FROM ADMIN
+    if (endpoint.startsWith('/admin/users/') && method === 'DELETE') {
+      const parts = endpoint.split('/');
+      const targetId = parts[3];
+      const users = getUsersDb();
+      const userIndex = users.findIndex(x => x.id === targetId);
+      if (userIndex === -1) throw new Error('Utilisateur introuvable.');
+      const deletedUser = users[userIndex];
+      if ((deletedUser.email || '').toLowerCase() === 'admin@commercia.com') {
+        throw new Error('Action impossible : le compte Super Admin Master ne peut pas être supprimé.');
+      }
+      users.splice(userIndex, 1);
+      saveUsersDb(users);
+      return { message: `Le compte de ${deletedUser.firstName} ${deletedUser.lastName} (${deletedUser.email}) a été supprimé définitivement.` };
+    }
+
+    // CREATE NEW USER FROM ADMIN
+    if (endpoint === '/admin/users' && method === 'POST') {
+      const users = getUsersDb();
+      const { email, firstName, lastName, phone, planName, password, role, businessName, sector, country, city, currency } = body || {};
+      if (!email || !firstName) throw new Error('Email et prénom sont obligatoires.');
+      if (users.some(u => (u.email || '').toLowerCase() === email.toLowerCase())) {
+        throw new Error('Cette adresse email est déjà utilisée par un autre compte.');
+      }
+      const isBusiness = planName === 'business';
+      const isPro = planName === 'pro' || isBusiness;
+      const newUser = {
+        id: 'user-' + Date.now(),
+        email: email.trim().toLowerCase(),
+        password: password || 'Commercia2026!',
+        firstName: firstName.trim(),
+        lastName: (lastName || '').trim(),
+        phone: phone || '+237 600 000 000',
+        country: country || 'Cameroun',
+        city: city || 'Douala',
+        profileSector: sector || 'commerce',
+        isAdmin: role === 'admin',
+        isActive: true,
+        isGoogleVerified: false,
+        locale: 'fr',
+        currency: currency || 'XAF',
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+        ipAddress: '154.72.' + Math.floor(Math.random() * 200 + 10) + '.' + Math.floor(Math.random() * 200 + 10),
+        businesses: [
+          {
+            id: 'biz-' + Date.now(),
+            name: businessName || `${firstName} Boutique`,
+            sector: sector || 'commerce',
+            profileId: 'epicerie_alimentation',
+            trackingMode: 'complet',
+            currency: currency || 'XAF',
+            activeModules: ['sales', 'expenses', 'stock', 'cash'],
+            role: 'owner',
+            salesCount: 0,
+            salesVolume: 0,
+          },
+        ],
+        subscription: {
+          planName: isBusiness ? 'business' : isPro ? 'pro' : 'free',
+          planDisplayName: isBusiness ? 'Plan Business' : isPro ? 'Plan Pro (Croissance)' : 'Plan Gratuit (Démarrage)',
+          status: isPro ? 'active' : 'free',
+          isPro,
+          daysRemaining: isPro ? 30 : 0,
+          endDate: isPro ? new Date(Date.now() + 30 * 86400000).toISOString() : null,
+        },
+      };
+      users.unshift(newUser);
+      saveUsersDb(users);
+      return { message: `Marchand ${newUser.firstName} ${newUser.lastName} créé avec succès !`, user: newUser };
+    }
+
+    // UPDATE USER DETAILS
+    if (endpoint.startsWith('/admin/users/') && method === 'PUT' && !endpoint.includes('/toggle') && !endpoint.includes('/role') && !endpoint.includes('/subscription')) {
+      const parts = endpoint.split('/');
+      const targetId = parts[3];
+      const users = getUsersDb();
+      const u = users.find(x => x.id === targetId);
+      if (!u) throw new Error('Utilisateur introuvable.');
+      if (body?.firstName) u.firstName = body.firstName;
+      if (body?.lastName !== undefined) u.lastName = body.lastName;
+      if (body?.phone) u.phone = body.phone;
+      if (body?.country) u.country = body.country;
+      if (body?.city) u.city = body.city;
+      if (body?.profileSector) u.profileSector = body.profileSector;
+      if (body?.newPassword) u.password = body.newPassword;
+      saveUsersDb(users);
+      return { message: `Profil de ${u.firstName} mis à jour.`, user: u };
+    }
+
+    // PLATFORM CONFIGURATION
+    if (endpoint === '/admin/config') {
+      const CONFIG_KEY = 'commercia_platform_config';
+      let config = {
+        platformName: 'COMMERCIA',
+        tagline: 'Le copilote financier & SaaS des entrepreneurs africains',
+        maintenanceMode: false,
+        allowRegistrations: true,
+        freeTrialDays: 14,
+        freeDailySalesLimit: 15,
+        proPriceMonthly: 4500,
+        businessPriceMonthly: 12000,
+        defaultCurrency: 'XAF',
+        sessionTimeoutHours: 24,
+        systemAnnouncement: {
+          enabled: false,
+          message: 'Bienvenue sur la mise à jour 2.4 de COMMERCIA !',
+          type: 'info',
+        },
+        cinetpayLive: true,
+        waveLive: true,
+        orangeMoneyLive: true,
+        mtnMoMoLive: true,
+        aiDefaultProvider: 'gemini',
+        auditRetentionDays: 90,
+      };
+      try {
+        const stored = localStorage.getItem(CONFIG_KEY);
+        if (stored) config = { ...config, ...JSON.parse(stored) };
+      } catch (e) {}
+
+      if (method === 'PUT') {
+        config = { ...config, ...(body || {}) };
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+        return { message: 'Configurations enregistrées avec succès.', config };
+      }
+      return config;
+    }
+
     if (endpoint === '/admin/users') {
       const allUsers = getUsersDb();
-      return allUsers.map(u => ({
-        id: u.id,
-        firstName: u.firstName,
-        lastName: u.lastName || '',
-        email: u.email,
-        phone: u.phone || '+237 600 000 000',
-        createdAt: u.createdAt || '2026-10-22',
-        isActive: u.isActive !== false,
-        isAdmin: Boolean(u.isAdmin),
-        businesses: u.businesses || [{ id: 'b-1', name: 'Boutique' }],
-        plan: u.subscription?.planDisplayName || (u.subscription?.isPro ? 'Plan Pro' : 'Gratuit'),
-        planName: u.subscription?.planName || 'free',
-        status: u.subscription?.status || 'active',
-        isPro: Boolean(u.subscription?.isPro),
-        endDate: u.subscription?.endDate || null,
-        daysRemaining: u.subscription?.daysRemaining || 0,
-        subscription: u.subscription || { planName: 'free', planDisplayName: 'Gratuit', status: 'free', isPro: false },
-      }));
+      return allUsers.map(u => {
+        const b = u.businesses?.[0] || {};
+        return {
+          id: u.id,
+          firstName: u.firstName,
+          lastName: u.lastName || '',
+          email: u.email,
+          phone: u.phone || '+237 600 000 000',
+          country: u.country || 'Cameroun',
+          city: u.city || 'Douala',
+          profileSector: u.profileSector || b.sector || 'Commerce Général',
+          createdAt: u.createdAt || '2026-10-22',
+          lastLoginAt: u.lastLoginAt || '2026-11-01',
+          ipAddress: u.ipAddress || '154.72.164.21',
+          isActive: u.isActive !== false,
+          isAdmin: Boolean(u.isAdmin),
+          businesses: u.businesses || [{ id: 'b-1', name: 'Boutique' }],
+          plan: u.subscription?.planDisplayName || (u.subscription?.isPro ? 'Plan Pro' : 'Gratuit'),
+          planName: u.subscription?.planName || 'free',
+          status: u.subscription?.status || 'active',
+          isPro: Boolean(u.subscription?.isPro),
+          endDate: u.subscription?.endDate || null,
+          daysRemaining: u.subscription?.daysRemaining || 0,
+          totalSales: b.salesVolume || (u.subscription?.isPro ? 4850000 : 850000),
+          salesCount: b.salesCount || (u.subscription?.isPro ? 120 : 25),
+          subscription: u.subscription || { planName: 'free', planDisplayName: 'Gratuit', status: 'free', isPro: false },
+        };
+      });
     }
 
     const allUsers = getUsersDb();
     const activePros = allUsers.filter(u => u.subscription?.isPro).length;
+    const totalVolume = allUsers.reduce((sum, u) => sum + (u.businesses?.[0]?.salesVolume || 1200000), 0);
+    const totalSalesCount = allUsers.reduce((sum, u) => sum + (u.businesses?.[0]?.salesCount || 45), 0);
     return {
       metrics: {
-        totalUsers: allUsers.length + 154,
-        totalBusinesses: allUsers.reduce((s, u) => s + (u.businesses?.length || 1), 0) + 192,
-        totalSalesVolume: 12480000,
-        totalSalesCount: 840,
-        activeSubscriptionsCount: activePros + 18,
-        expiredSubscriptionsCount: 6,
-        freeUsersCount: allUsers.length + 130,
-        totalPaymentsCount: 64,
-        completedPaymentsCount: 59,
-        estimatedMRR: (activePros + 18) * 4500 + 36000,
+        totalUsers: allUsers.length,
+        totalBusinesses: allUsers.reduce((s, u) => s + (u.businesses?.length || 1), 0),
+        totalSalesVolume: totalVolume,
+        totalSalesCount: totalSalesCount,
+        activeSubscriptionsCount: activePros,
+        expiredSubscriptionsCount: 1,
+        freeUsersCount: allUsers.filter(u => !u.subscription?.isPro).length,
+        totalPaymentsCount: 48,
+        completedPaymentsCount: 46,
+        estimatedMRR: activePros * 4500 + 12000,
       },
       recentUsers: allUsers.map(u => ({
         id: u.id,
@@ -1615,7 +2049,9 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         lastName: u.lastName || '',
         email: u.email,
         phone: u.phone || '+237 600 000 000',
-        createdAt: '2026-10-22',
+        country: u.country || 'Cameroun',
+        city: u.city || 'Douala',
+        createdAt: u.createdAt || '2026-10-22',
         isActive: u.isActive !== false,
         isAdmin: Boolean(u.isAdmin),
         businesses: u.businesses || [{ name: 'Boutique' }],

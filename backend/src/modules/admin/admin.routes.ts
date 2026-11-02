@@ -595,4 +595,171 @@ router.get('/system/health', async (req: AuthRequest, res, next) => {
   }
 });
 
+// POST /api/admin/users — Créer manuellement un commerçant depuis l'espace admin
+router.post('/users', async (req: AuthRequest, res, next) => {
+  try {
+    const { email, firstName, lastName, phone, planName, password, role, businessName, sector, currency } = req.body || {};
+    if (!email || !firstName) throw new AppError('Email et prénom sont obligatoires.', 400);
+
+    const existing = await req.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (existing) throw new AppError('Cette adresse email est déjà enregistrée.', 400);
+
+    const bcrypt = require('bcryptjs');
+    const passwordHash = await bcrypt.hash(password || 'Commercia2026!', 10);
+
+    const newUser = await req.prisma.user.create({
+      data: {
+        email: email.trim().toLowerCase(),
+        passwordHash,
+        firstName: firstName.trim(),
+        lastName: (lastName || '').trim(),
+        phone: phone || null,
+        isAdmin: role === 'admin',
+        isActive: true,
+      },
+    });
+
+    // Créer la boutique initiale
+    const newBiz = await req.prisma.business.create({
+      data: {
+        name: businessName || `${firstName} Boutique`,
+        sector: sector || 'commerce',
+        trackingMode: 'complet',
+        currency: currency || 'XAF',
+      },
+    });
+
+    await req.prisma.businessMember.create({
+      data: {
+        userId: newUser.id,
+        businessId: newBiz.id,
+        role: 'owner',
+      },
+    });
+
+    // Abonnement initial
+    const plan = await req.prisma.subscriptionPlan.findFirst({
+      where: { name: planName === 'business' ? 'business' : planName === 'pro' ? 'pro' : 'free' },
+    });
+    if (plan) {
+      const isPaid = plan.name !== 'free';
+      const endDate = isPaid ? new Date(Date.now() + 30 * 86400000) : null;
+      await req.prisma.subscription.create({
+        data: {
+          userId: newUser.id,
+          planId: plan.id,
+          status: isPaid ? 'active' : 'free',
+          endDate,
+        },
+      });
+    }
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId!,
+        action: 'USER_CREATED_BY_ADMIN',
+        entity: 'User',
+        entityId: newUser.id,
+        details: JSON.stringify({ email: newUser.email, role, planName }),
+      },
+    });
+
+    res.status(201).json({
+      message: `Compte commerçant pour ${newUser.firstName} ${newUser.lastName} créé avec succès !`,
+      user: newUser,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/admin/users/:id — Supprimer définitivement un utilisateur et ses boutiques
+router.delete('/users/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const targetUser = await req.prisma.user.findUnique({ where: { id: req.params.id } });
+    if (!targetUser) throw new AppError('Utilisateur introuvable.', 404);
+
+    if (targetUser.email.toLowerCase() === 'admin@commercia.com' || targetUser.id === req.userId) {
+      throw new AppError('Action impossible : vous ne pouvez pas supprimer ce compte administrateur.', 400);
+    }
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId!,
+        action: 'USER_DELETED_BY_ADMIN',
+        entity: 'User',
+        entityId: targetUser.id,
+        details: JSON.stringify({ email: targetUser.email, name: `${targetUser.firstName} ${targetUser.lastName}` }),
+      },
+    });
+
+    // Supprimer les adhésions aux boutiques et les abonnements
+    await req.prisma.businessMember.deleteMany({ where: { userId: targetUser.id } });
+    await req.prisma.subscription.deleteMany({ where: { userId: targetUser.id } });
+    await req.prisma.user.delete({ where: { id: targetUser.id } });
+
+    res.json({ message: `Le compte ${targetUser.email} a été supprimé définitivement.` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/admin/users/:id — Mettre à jour un commerçant
+router.put('/users/:id', async (req: AuthRequest, res, next) => {
+  try {
+    const { firstName, lastName, phone, newPassword } = req.body || {};
+    const updateData: any = {};
+    if (firstName) updateData.firstName = firstName.trim();
+    if (lastName !== undefined) updateData.lastName = lastName.trim();
+    if (phone !== undefined) updateData.phone = phone.trim();
+
+    if (newPassword) {
+      const bcrypt = require('bcryptjs');
+      updateData.passwordHash = await bcrypt.hash(newPassword, 10);
+    }
+
+    const updated = await req.prisma.user.update({
+      where: { id: req.params.id },
+      data: updateData,
+    });
+
+    res.json({ message: 'Profil utilisateur mis à jour.', user: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Configuration Plateforme en mémoire persistée
+let platformConfigState = {
+  platformName: 'COMMERCIA',
+  tagline: 'Le copilote financier & SaaS des entrepreneurs africains',
+  maintenanceMode: false,
+  allowRegistrations: true,
+  freeTrialDays: 14,
+  freeDailySalesLimit: 15,
+  proPriceMonthly: 4500,
+  businessPriceMonthly: 12000,
+  defaultCurrency: 'XAF',
+  sessionTimeoutHours: 24,
+  systemAnnouncement: {
+    enabled: false,
+    message: 'Bienvenue sur la mise à jour 2.4 de COMMERCIA !',
+    type: 'info',
+  },
+  cinetpayLive: true,
+  waveLive: true,
+  aiDefaultProvider: 'gemini',
+};
+
+// GET /api/admin/config — Obtenir les paramètres globaux de la plateforme
+router.get('/config', async (_req: AuthRequest, res) => {
+  res.json(platformConfigState);
+});
+
+// PUT /api/admin/config — Enregistrer les paramètres globaux de la plateforme
+router.put('/config', async (req: AuthRequest, res) => {
+  platformConfigState = { ...platformConfigState, ...(req.body || {}) };
+  res.json({ message: 'Configuration de la plateforme enregistrée.', config: platformConfigState });
+});
+
 export { router as adminRouter };

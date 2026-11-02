@@ -93,6 +93,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       if (endpoint.startsWith('/auth/login') && (parsedBody?.email || '').toLowerCase() === 'admin@commercia.com') {
         return await handleMockRequest(endpoint, method, parsedBody);
       }
+      // If admin endpoint fails on remote server (401, 404, 500, etc.), fall back to rich admin mock engine
+      if (endpoint.startsWith('/admin')) {
+        return await handleMockRequest(endpoint, method, parsedBody);
+      }
       throw new ApiError(errorData.error || `Erreur serveur (${response.status})`, response.status);
     }
 
