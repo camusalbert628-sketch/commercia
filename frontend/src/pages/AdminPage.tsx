@@ -40,6 +40,8 @@ import {
   CreditCard,
   UserCheck,
   Zap,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { api, ApiError } from '../services/api';
 
@@ -175,6 +177,23 @@ export const AdminPage: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Thème Admin (Clair / Sombre avec persistance)
+  const [adminTheme, setAdminTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      return (localStorage.getItem('commercia_admin_theme') as 'dark' | 'light') || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  const toggleAdminTheme = () => {
+    const nextTheme = adminTheme === 'dark' ? 'light' : 'dark';
+    setAdminTheme(nextTheme);
+    try {
+      localStorage.setItem('commercia_admin_theme', nextTheme);
+    } catch {}
+  };
 
   // Données Réelles du Dashboard
   const [stats, setStats] = useState<any>(null);
@@ -499,7 +518,15 @@ export const AdminPage: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#090D16', color: '#F1F5F9', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div
+      className={`commercia-admin-container ${adminTheme === 'light' ? 'admin-theme-light' : 'admin-theme-dark'}`}
+      style={{
+        minHeight: '100vh',
+        background: adminTheme === 'light' ? '#F8FAFC' : '#090D16',
+        color: adminTheme === 'light' ? '#0F172A' : '#F1F5F9',
+        fontFamily: 'Inter, system-ui, sans-serif'
+      }}
+    >
       {/* Toast Notification */}
       {successToast && (
         <div style={{
@@ -570,6 +597,30 @@ export const AdminPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Commutateur Thème Mode Clair / Mode Sombre */}
+          <button
+            onClick={toggleAdminTheme}
+            style={{
+              background: adminTheme === 'light' ? '#FFFFFF' : 'rgba(255,255,255,0.06)',
+              border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.12)'}`,
+              color: adminTheme === 'light' ? '#0F172A' : '#CBD5E1',
+              padding: '8px 14px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: adminTheme === 'light' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
+              transition: 'all 0.15s ease-in-out',
+            }}
+            title="Basculer entre le mode clair et le mode sombre pour la console d'administration"
+          >
+            {adminTheme === 'light' ? <Moon size={14} color="#4F46E5" /> : <Sun size={14} color="#FBBF24" />}
+            <span>{adminTheme === 'light' ? 'Mode Sombre' : 'Mode Clair'}</span>
+          </button>
+
           {/* Commutateur Plein Écran / Vue Normale */}
           <button
             onClick={() => setIsWideMode(!isWideMode)}

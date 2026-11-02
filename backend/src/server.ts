@@ -76,11 +76,13 @@ app.use(
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
-// Rate limiting
+// Rate limiting (1000 requêtes par fenêtre de 15 minutes pour permettre navigation fluide et métriques en direct)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 1000,
   message: { error: 'Trop de requêtes, veuillez réessayer plus tard.' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 

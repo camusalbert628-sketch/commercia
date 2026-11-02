@@ -555,9 +555,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             <div className="menu-category">Super Administration</div>
             <NavLink
               to="/admin"
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+              className={({ isActive }) => `nav-item admin-saas-beveled-btn ${isActive ? 'active' : ''}`}
             >
-              <ShieldAlert size={18} />
+              <ShieldAlert size={18} style={{ color: '#FFFFFF', flexShrink: 0 }} />
               <span>Administration SaaS</span>
             </NavLink>
           </>

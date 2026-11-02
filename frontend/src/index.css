@@ -328,6 +328,48 @@ select:focus {
   box-shadow: inset 0 0 12px rgba(0, 98, 255, 0.15);
 }
 
+/* Bouton Super Administration SaaS Vert Biseauté - Zéro Halo / Effet Lumineux */
+.nav-item.admin-saas-beveled-btn {
+  background: linear-gradient(180deg, #10B981 0%, #059669 100%) !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  border-top: 2px solid rgba(255, 255, 255, 0.5) !important;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+  border-right: 2px solid rgba(0, 0, 0, 0.35) !important;
+  border-bottom: 3.5px solid #064E3B !important;
+  border-radius: 8px !important;
+  box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.4), 
+              inset -1px -1.5px 0px rgba(0, 0, 0, 0.35),
+              0 2px 3px rgba(0, 0, 0, 0.25) !important;
+  filter: none !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  margin-top: 4px;
+}
+
+.nav-item.admin-saas-beveled-btn:hover {
+  background: linear-gradient(180deg, #34D399 0%, #059669 100%) !important;
+  color: #FFFFFF !important;
+  border-top: 2px solid rgba(255, 255, 255, 0.65) !important;
+  border-bottom: 3.5px solid #064E3B !important;
+  box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.5), 
+              inset -1px -1.5px 0px rgba(0, 0, 0, 0.35),
+              0 3px 5px rgba(0, 0, 0, 0.25) !important;
+  filter: none !important;
+}
+
+.nav-item.admin-saas-beveled-btn:active,
+.nav-item.admin-saas-beveled-btn.active {
+  background: linear-gradient(180deg, #059669 0%, #047857 100%) !important;
+  border-top: 3px solid #064E3B !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.25) !important;
+  border-left: 2px solid rgba(0, 0, 0, 0.35) !important;
+  border-right: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: inset 1px 2px 3px rgba(0, 0, 0, 0.45), 
+              inset -1px -1px 0px rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(1px);
+  filter: none !important;
+}
+
 .nav-item .badge {
   margin-left: auto;
   font-size: 0.75rem;
@@ -843,8 +885,33 @@ tr:last-child td {
   border-bottom: none;
 }
 
+/* Professional Table Hover Contrast Rules */
 tr:hover td {
-  background-color: #F8FAFC;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Super Admin Container - Table Row Hovering (Dark Mode) */
+.commercia-admin-container.admin-theme-dark table tbody tr:hover td,
+.commercia-admin-container.admin-theme-dark table tr:hover td {
+  background-color: #1E293B !important;
+  color: #FFFFFF !important;
+}
+
+.commercia-admin-container.admin-theme-dark table tbody tr:hover td div,
+.commercia-admin-container.admin-theme-dark table tbody tr:hover td span {
+  color: inherit;
+}
+
+/* Super Admin Container - Table Row Hovering (Light Mode) */
+.commercia-admin-container.admin-theme-light table tbody tr:hover td,
+.commercia-admin-container.admin-theme-light table tr:hover td {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+}
+
+.commercia-admin-container.admin-theme-light table tbody tr:hover td div,
+.commercia-admin-container.admin-theme-light table tbody tr:hover td span {
+  color: inherit;
 }
 
 /* Responsive adjustments */
@@ -1039,5 +1106,149 @@ button:active {
     padding: 2px 0 !important;
     font-size: 10px !important;
   }
+}
+
+/* ==========================================================================
+   COMMERCIA SUPER ADMIN - ARCHITECTURE MODE CLAIR & PROTECTION DU SURVOL
+   ========================================================================== */
+
+/* 1. Élimination stricte des bugs de survol des tableaux (Protection Dark & Light) */
+.commercia-admin-container table {
+  border-collapse: collapse !important;
+}
+
+.commercia-admin-container.admin-theme-dark table tbody tr:hover td {
+  background-color: #1E293B !important;
+  color: #FFFFFF !important;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.commercia-admin-container.admin-theme-dark table tbody tr:hover td div {
+  color: #FFFFFF !important;
+}
+
+.commercia-admin-container.admin-theme-dark table tbody tr:hover td div[style*="color: #94A3B8"] {
+  color: #CBD5E1 !important;
+}
+
+.commercia-admin-container.admin-theme-light table tbody tr:hover td {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.commercia-admin-container.admin-theme-light table tbody tr:hover td div {
+  color: #0F172A !important;
+}
+
+.commercia-admin-container.admin-theme-light table tbody tr:hover td div[style*="color: #94A3B8"],
+.commercia-admin-container.admin-theme-light table tbody tr:hover td div[style*="color: #64748B"] {
+  color: #475569 !important;
+}
+
+/* 2. MODE CLAIR POUR L'ESPACE SUPER ADMIN */
+.commercia-admin-container.admin-theme-light {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+/* Header Mode Clair */
+.commercia-admin-container.admin-theme-light header {
+  background-color: #FFFFFF !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.commercia-admin-container.admin-theme-light header div[style*="color: #FFFFFF"] {
+  color: #0F172A !important;
+}
+
+/* Sidebar Mode Clair */
+.commercia-admin-container.admin-theme-light aside {
+  background-color: #FFFFFF !important;
+  border-right: 1px solid #E2E8F0 !important;
+}
+
+.commercia-admin-container.admin-theme-light aside div[style*="color: #64748B"] {
+  color: #334155 !important;
+}
+
+/* Boutons de navigation latérale inactive */
+.commercia-admin-container.admin-theme-light aside button {
+  color: #475569 !important;
+}
+
+.commercia-admin-container.admin-theme-light aside button:hover {
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+}
+
+/* Cartes, Blocs & Conteneurs */
+.commercia-admin-container.admin-theme-light div[style*="background: #0F172A"],
+.commercia-admin-container.admin-theme-light div[style*="background: rgb(15, 23, 42)"] {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.commercia-admin-container.admin-theme-light div[style*="background: #090D16"],
+.commercia-admin-container.admin-theme-light div[style*="background: rgb(9, 13, 22)"] {
+  background-color: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+}
+
+/* Typographie en Mode Clair */
+.commercia-admin-container.admin-theme-light h2[style*="color: #FFFFFF"],
+.commercia-admin-container.admin-theme-light h3[style*="color: #FFFFFF"],
+.commercia-admin-container.admin-theme-light div[style*="color: #FFFFFF"],
+.commercia-admin-container.admin-theme-light span[style*="color: #FFFFFF"] {
+  color: #0F172A !important;
+}
+
+.commercia-admin-container.admin-theme-light div[style*="color: #E2E8F0"],
+.commercia-admin-container.admin-theme-light span[style*="color: #E2E8F0"] {
+  color: #1E293B !important;
+}
+
+.commercia-admin-container.admin-theme-light div[style*="color: #94A3B8"],
+.commercia-admin-container.admin-theme-light span[style*="color: #94A3B8"],
+.commercia-admin-container.admin-theme-light p[style*="color: #94A3B8"] {
+  color: #475569 !important;
+}
+
+.commercia-admin-container.admin-theme-light div[style*="color: #CBD5E1"] {
+  color: #334155 !important;
+}
+
+/* Champs de saisie, Recherche & Menus déroulants */
+.commercia-admin-container.admin-theme-light input,
+.commercia-admin-container.admin-theme-light select,
+.commercia-admin-container.admin-theme-light textarea {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
+.commercia-admin-container.admin-theme-light input::placeholder {
+  color: #94A3B8 !important;
+}
+
+/* En-têtes de table Mode Clair */
+.commercia-admin-container.admin-theme-light table thead tr {
+  border-bottom: 1px solid #E2E8F0 !important;
+  color: #475569 !important;
+}
+
+.commercia-admin-container.admin-theme-light table thead th {
+  background-color: #F8FAFC !important;
+  color: #475569 !important;
+}
+
+.commercia-admin-container.admin-theme-light table tbody tr {
+  border-bottom: 1px solid #F1F5F9 !important;
+}
+
+.commercia-admin-container.admin-theme-light table tbody td {
+  color: #0F172A !important;
 }
 
