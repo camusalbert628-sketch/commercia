@@ -33,18 +33,7 @@ const getInitialUser = (): User | null => {
     }
     if (!raw) return null;
     const parsed: User = JSON.parse(raw);
-    const testSubRaw = localStorage.getItem('commercia_test_subscription');
-    if (testSubRaw) {
-      try {
-        const testSub = JSON.parse(testSubRaw);
-        if (testSub && testSub.plan && testSub.plan !== 'free') {
-          parsed.subscription = {
-            ...(parsed.subscription || {}),
-            ...testSub,
-          } as any;
-        }
-      } catch (_) {}
-    }
+    localStorage.removeItem('commercia_test_subscription');
     const customTrackingMode = localStorage.getItem('commercia_active_tracking_mode');
     if (customTrackingMode && parsed.businesses && parsed.businesses.length > 0) {
       parsed.businesses[0].trackingMode = customTrackingMode;
@@ -185,18 +174,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: true });
       const user = await api.get<User>('/auth/me');
       
-      const testSubRaw = localStorage.getItem('commercia_test_subscription');
-      if (testSubRaw) {
-        try {
-          const testSub = JSON.parse(testSubRaw);
-          if (testSub && testSub.plan && testSub.plan !== 'free') {
-            user.subscription = {
-              ...(user.subscription || {}),
-              ...testSub,
-            } as any;
-          }
-        } catch (_) {}
-      }
+      localStorage.removeItem('commercia_test_subscription');
 
       localStorage.setItem('commercia_user', JSON.stringify(user));
       let businessId = get().activeBusinessId;

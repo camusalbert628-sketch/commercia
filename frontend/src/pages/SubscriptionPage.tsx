@@ -82,55 +82,6 @@ export const SubscriptionPage: React.FC = () => {
   const isExpired = sub?.status === 'expired' || (sub?.endDate && new Date(sub.endDate) < new Date());
   const isFree = !isPro && !isExpired;
 
-  const [testActivating, setTestActivating] = useState(false);
-  const [testNotice, setTestNotice] = useState<string | null>(null);
-
-  const handleTestActivate = async (plan: 'free' | 'pro' | 'business') => {
-    try {
-      setTestActivating(true);
-      const isProPlan = plan !== 'free';
-      const newSub = {
-        plan,
-        planName: plan,
-        displayName: plan === 'business' ? 'Plan Business' : plan === 'pro' ? 'Plan Pro' : 'Gratuit',
-        planDisplayName: plan === 'business' ? 'Plan Business' : plan === 'pro' ? 'Plan Pro' : 'Gratuit',
-        status: isProPlan ? 'active' : 'free',
-        isPro: isProPlan,
-        endDate: isProPlan ? new Date(Date.now() + 30 * 86400000).toISOString() : null,
-        daysRemaining: isProPlan ? 30 : 0,
-        limits: {
-          salesPerDay: -1,
-          aiQueries: -1,
-          stockEnabled: true,
-          creditEnabled: true,
-          multiShop: plan === 'business',
-        },
-      };
-
-      if (plan === 'free') {
-        localStorage.removeItem('commercia_test_subscription');
-      } else {
-        localStorage.setItem('commercia_test_subscription', JSON.stringify(newSub));
-      }
-
-      useAuthStore.getState().updateUser({ subscription: newSub as any });
-
-      try {
-        await api.post('/plans/test-activate', { planName: plan });
-      } catch (backendErr) {
-        console.warn('Backend test-activate notice:', backendErr);
-      }
-
-      await fetchMe();
-      await loadHistory();
-      setTestNotice(`Formule ${plan === 'business' ? 'Business' : plan === 'pro' ? 'Pro' : 'Gratuite'} activée avec succès en mode test !`);
-      setTimeout(() => setTestNotice(null), 5000);
-    } catch (err: any) {
-      alert(err?.message || 'Erreur lors de l\'activation du test');
-    } finally {
-      setTestActivating(false);
-    }
-  };
 
   const handleDeletePayment = async (paymentId: string) => {
     try {
@@ -248,20 +199,22 @@ export const SubscriptionPage: React.FC = () => {
     }
   };
 
-  // Sandbox simulation trigger for instant test / demo validation
-  const handleSandboxConfirm = async () => {
+  // Vérification manuelle auprès de la passerelle de paiement
+  const handleCheckVerification = async () => {
     if (!currentPaymentRef) return;
     try {
       setIsVerifying(true);
-      const res = await api.post<{ message: string; payment: PaymentItem }>('/payments/confirm-sandbox', {
-        reference: currentPaymentRef,
-      });
-      setVerifiedPayment(res.payment);
-      setPaymentStep('success');
-      await fetchMe();
-      await loadHistory();
+      const check = await api.get<{ status: string; payment: PaymentItem }>(`/payments/verify/${currentPaymentRef}`);
+      if (check.status === 'completed') {
+        setVerifiedPayment(check.payment);
+        setPaymentStep('success');
+        await fetchMe();
+        await loadHistory();
+      } else {
+        alert('Transaction en attente de validation par l\'opérateur.');
+      }
     } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || 'Erreur confirmation');
+      alert(err?.response?.data?.message || err?.message || 'Erreur lors de la vérification.');
     } finally {
       setIsVerifying(false);
     }
@@ -269,166 +222,6 @@ export const SubscriptionPage: React.FC = () => {
 
   return (
     <div className="page-wrapper" style={{ width: '100%', maxWidth: '100%' }}>
-      {/* 0. NOTIFICATION MESSAGE TEST */}
-      {testNotice && (
-        <div
-          style={{
-            background: '#ECFDF5',
-            border: '1.5px solid #10B981',
-            color: '#065F46',
-            padding: '14px 20px',
-            borderRadius: '12px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            fontWeight: 700,
-            fontSize: '0.92rem',
-            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-        >
-          <CheckCircle size={20} color="#10B981" />
-          <span>{testNotice}</span>
-        </div>
-      )}
-
-      {/* 0B. BANC D'ESSAI & TEST IMMÉDIAT PRO / BUSINESS */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, #0F172A 0%, #1E1B4B 60%, #312E81 100%)',
-          borderRadius: '18px',
-          padding: '22px 26px',
-          marginBottom: '28px',
-          color: '#FFFFFF',
-          boxShadow: '0 12px 30px rgba(15, 23, 42, 0.28)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '18px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', maxWidth: '640px' }}>
-          <div
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '14px',
-              background: 'linear-gradient(135deg, #FF6B00 0%, #FF8A00 100%)',
-              color: '#FFFFFF',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              boxShadow: '0 6px 16px rgba(255, 107, 0, 0.4)',
-            }}
-          >
-            <Sparkles size={24} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#FFFFFF' }}>
-                Banc d'Essai : Testez Pro et Business en 1 Clic
-              </span>
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 800,
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  color: '#FFFFFF',
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Accès Immédiat
-              </span>
-            </div>
-            <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#CBD5E1', lineHeight: 1.45 }}>
-              Basculez librement pour tester toutes les fonctionnalités (ventes illimitées, stock, dettes, copilote IA, multi-caisses) sans carte ni débit.
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            disabled={testActivating || (isPro && sub?.planName === 'pro')}
-            onClick={() => handleTestActivate('pro')}
-            style={{
-              background: isPro && sub?.planName === 'pro' ? '#10B981' : '#0062FF',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '10px 18px',
-              fontSize: '0.86rem',
-              fontWeight: 700,
-              cursor: isPro && sub?.planName === 'pro' ? 'default' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: 'none',
-              opacity: testActivating ? 0.7 : 1,
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Crown size={16} />
-            <span>{isPro && sub?.planName === 'pro' ? '✓ Pro Actif (Test)' : '⚡ Tester Pro'}</span>
-          </button>
-
-          <button
-            type="button"
-            disabled={testActivating || (isPro && sub?.planName === 'business')}
-            onClick={() => handleTestActivate('business')}
-            style={{
-              background: isPro && sub?.planName === 'business' ? '#10B981' : 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '10px 18px',
-              fontSize: '0.86rem',
-              fontWeight: 700,
-              cursor: isPro && sub?.planName === 'business' ? 'default' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: 'none',
-              opacity: testActivating ? 0.7 : 1,
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Sparkles size={16} />
-            <span>{isPro && sub?.planName === 'business' ? '✓ Business Actif (Test)' : '💼 Tester Business'}</span>
-          </button>
-
-          {!isFree && (
-            <button
-              type="button"
-              disabled={testActivating}
-              onClick={() => handleTestActivate('free')}
-              style={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                color: '#E2E8F0',
-                border: '1px solid rgba(255, 255, 255, 0.25)',
-                borderRadius: '12px',
-                padding: '10px 14px',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <RefreshCw size={13} />
-              <span>Remettre en Gratuit</span>
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* 1. STATUS BANNER */}
       {isFree && (
@@ -687,11 +480,10 @@ export const SubscriptionPage: React.FC = () => {
             </ul>
             <button
               className="btn btn-secondary"
-              disabled={isFree || testActivating}
-              onClick={() => handleTestActivate('free')}
-              style={{ width: '100%', padding: '12px', fontWeight: 700 }}
+              disabled
+              style={{ width: '100%', padding: '12px', fontWeight: 700, opacity: isFree ? 1 : 0.6 }}
             >
-              {isFree ? 'Version actuellement active' : 'Repasser en gratuit (Test)'}
+              {isFree ? '✓ Formule Actuelle (Gratuite)' : 'Formule Gratuite'}
             </button>
           </div>
 
@@ -758,30 +550,7 @@ export const SubscriptionPage: React.FC = () => {
                 }}
                 style={{ width: '100%', padding: '12px', fontWeight: 700 }}
               >
-                {isPro && sub?.planName === 'pro' ? 'Prolonger Pro (Paiement)' : 'S\'abonner à Pro (Mobile Money)'}
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-outline"
-                disabled={testActivating || (isPro && sub?.planName === 'pro')}
-                onClick={() => handleTestActivate('pro')}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  fontWeight: 700,
-                  fontSize: '0.84rem',
-                  borderColor: '#93C5FD',
-                  color: '#0062FF',
-                  background: isPro && sub?.planName === 'pro' ? '#EFF6FF' : '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                <Crown size={15} />
-                <span>{isPro && sub?.planName === 'pro' ? '✓ Formule Pro Actuelle' : '⚡ Tester la Formule Pro (1 clic)'}</span>
+                {isPro && sub?.planName === 'pro' ? 'Prolonger Pro (Paiement)' : 'S\'abonner à Pro (Paiement)'}
               </button>
             </div>
           </div>
@@ -825,30 +594,7 @@ export const SubscriptionPage: React.FC = () => {
                 }}
                 style={{ width: '100%', padding: '12px', fontWeight: 700 }}
               >
-                {isPro && sub?.planName === 'business' ? 'Prolonger Business (Paiement)' : 'S\'abonner à Business (Mobile Money)'}
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-outline"
-                disabled={testActivating || (isPro && sub?.planName === 'business')}
-                onClick={() => handleTestActivate('business')}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  fontWeight: 700,
-                  fontSize: '0.84rem',
-                  borderColor: '#C4B5FD',
-                  color: '#7C3AED',
-                  background: isPro && sub?.planName === 'business' ? '#F5F3FF' : '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                <Sparkles size={15} />
-                <span>{isPro && sub?.planName === 'business' ? '✓ Formule Business Actuelle' : '💼 Tester la Formule Business (1 clic)'}</span>
+                {isPro && sub?.planName === 'business' ? 'Prolonger Business (Paiement)' : 'S\'abonner à Business (Paiement)'}
               </button>
             </div>
           </div>
@@ -1574,16 +1320,16 @@ export const SubscriptionPage: React.FC = () => {
 
                 <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: '16px' }}>
                   <div style={{ fontSize: '0.80rem', color: '#475569', marginBottom: '10px' }}>
-                    ⚡ Activation immédiate du compte :
+                    Le serveur vérifie automatiquement la confirmation de débit :
                   </div>
                   <button
                     type="button"
-                    className="btn btn-primary"
-                    onClick={handleSandboxConfirm}
+                    className="btn btn-outline"
+                    onClick={handleCheckVerification}
                     disabled={isVerifying}
-                    style={{ background: '#059669', borderColor: '#059669', width: '100%', fontWeight: 700 }}
+                    style={{ width: '100%', fontWeight: 700 }}
                   >
-                    {isVerifying ? 'Confirmation serveur en cours...' : "Confirmer et activer l'abonnement"}
+                    {isVerifying ? 'Vérification en cours...' : 'Vérifier le statut du paiement'}
                   </button>
                 </div>
               </div>

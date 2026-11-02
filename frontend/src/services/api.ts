@@ -1,5 +1,3 @@
-import { handleMockRequest } from './mockBackend';
-
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const DEFAULT_API_URL = isLocal ? 'http://localhost:3001/api' : 'https://backend-phi-three-43.vercel.app/api';
 const BASE_URL = isLocal ? 'http://localhost:3001/api' : (import.meta.env.VITE_API_URL || DEFAULT_API_URL);
@@ -29,9 +27,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['x-business-id'] = activeBusinessId;
   }
 
-  const method = options.method || 'GET';
-  const parsedBody = options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : undefined;
-
   try {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
@@ -39,7 +34,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     });
 
     if (response.status === 401) {
-      // Attempt token refresh or logout
+      // Tentative de rafraîchissement de jeton
       const refreshToken = localStorage.getItem('refreshToken');
       if (refreshToken && endpoint !== '/auth/refresh') {
         try {
@@ -56,15 +51,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
             const retryRes = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
             if (!retryRes.ok) {
               const errData = await retryRes.json().catch(() => ({}));
-              throw new ApiError(errData.error || 'Erreur requête', retryRes.status);
+              throw new ApiError(errData.error || errData.message || 'Erreur requête', retryRes.status);
             }
             return retryRes.json();
           }
         } catch (e) {
-          if (endpoint.startsWith('/admin')) {
-            throw new ApiError('Session Super Admin expirée. Veuillez vous reconnecter.', 401);
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
           }
-          return await handleMockRequest(endpoint, method, parsedBody);
+          throw new ApiError('Session expirée. Veuillez vous reconnecter.', 401);
         }
       } else {
         localStorage.removeItem('accessToken');
@@ -76,38 +73,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       }
     }
 
-    // Pour l'espace Super Admin, aucune donnée fictive n'est tolérée
-    if (endpoint.startsWith('/admin')) {
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new ApiError(errorData.error || `Erreur serveur (${response.status})`, response.status);
-      }
-      return response.json();
-    }
-
-    // Fallback for static cloud hosting returning 404/405/502 on normal user API routes
-    if (response.status === 404 || response.status === 405 || response.status === 502) {
-      return await handleMockRequest(endpoint, method, parsedBody);
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('text/html')) {
-      return await handleMockRequest(endpoint, method, parsedBody);
-    }
-
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new ApiError(errorData.error || `Erreur serveur (${response.status})`, response.status);
+      throw new ApiError(errorData.error || errorData.message || `Erreur serveur (${response.status})`, response.status);
     }
 
     return response.json();
   } catch (err: any) {
     if (err instanceof ApiError) throw err;
-    if (endpoint.startsWith('/admin')) {
-      throw new ApiError(err?.message || 'Impossible de joindre le serveur d’administration.', 500);
-    }
-    // On network failure or offline for standard user demo, serve from mock
-    return await handleMockRequest(endpoint, method, parsedBody);
+    throw new ApiError(err?.message || 'Impossible de contacter les serveurs COMMERCIA.', 500);
   }
 }
 

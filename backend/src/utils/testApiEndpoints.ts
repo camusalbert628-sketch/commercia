@@ -22,29 +22,31 @@ async function runApiValidation() {
     await prisma.$connect();
     assert(true, '1. Base de données SQLite connectée avec succès');
 
-    // 2. Vérification des utilisateurs et authentification
-    const moussa = await prisma.user.findUnique({
+    // 2. Vérification des utilisateurs et authentification de production
+    const demoUser = await prisma.user.findUnique({
       where: { email: 'moussa@boutique.cm' },
+    });
+    assert(!demoUser, '2.1 Aucun compte de démonstration (moussa@boutique.cm) résiduel en base');
+
+    const admin = await prisma.user.findUnique({
+      where: { email: 'admin@commercia.com' },
       include: { businesses: { include: { business: true } } },
     });
-    assert(!!moussa, '2.1 Utilisateur commerçant démo (moussa@boutique.cm) présent');
-    assert(moussa!.businesses.length > 0, '2.2 Entreprise associée trouvée');
+    assert(!!admin && admin.isAdmin, '2.2 Super Administrateur (admin@commercia.com) vérifié et actif');
+    assert(admin!.businesses.length > 0, '2.3 Espace d\'entreprise associé au Super Admin');
 
-    const admin = await prisma.user.findUnique({ where: { email: 'admin@commercia.com' } });
-    assert(!!admin && admin.isAdmin, '2.3 Super Administrateur (admin@commercia.com) présent');
-
-    const passMatch = await bcrypt.compare('bizz1234', moussa!.passwordHash);
-    assert(passMatch, '2.4 Authentification par mot de passe sécurisé validée (bcrypt)');
+    const passMatch = await bcrypt.compare('CommerciaAdmin2026!', admin!.passwordHash);
+    assert(passMatch, '2.4 Authentification par mot de passe sécurisé Super Admin validée (bcrypt 12 rounds)');
 
     // 3. Test de token JWT
-    const businessId = moussa!.businesses[0].businessId;
+    const businessId = admin!.businesses[0].businessId;
     const token = jwt.sign(
-      { userId: moussa!.id, businessId, isAdmin: false },
+      { userId: admin!.id, businessId, isAdmin: true },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
     const decoded: any = jwt.verify(token, JWT_SECRET);
-    assert(decoded.userId === moussa!.id, '3. Génération & validation JWT multi-tenant réussie');
+    assert(decoded.userId === admin!.id, '3. Génération & validation JWT multi-tenant sécurisée');
 
     // 4. Test Dashboard & Métriques financières
     const [sales, expenses, debt] = await Promise.all([
@@ -141,7 +143,7 @@ async function runApiValidation() {
     assert(plansCount >= 3, `7.1 Plans SaaS initialisés (${plansCount} plans : Free, Pro, Business)`);
 
     const userSub = await prisma.subscription.findUnique({
-      where: { userId: moussa!.id },
+      where: { userId: admin!.id },
       include: { plan: true },
     });
     assert(!!userSub && (userSub.status === 'active' || userSub.status === 'free'), `7.2 Abonnement utilisateur détecté (Plan ${userSub?.plan.displayName}, statut ${userSub?.status})`);
