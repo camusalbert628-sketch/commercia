@@ -85,6 +85,11 @@ jobs:
           cd backend
           npx ts-node tests/securityHardening.test.ts
 
+      - name: Execute Offensive Red Team Penetration Tests
+        run: |
+          cd backend
+          npx ts-node tests/penetrationTesting.test.ts
+
   build-verification:
     name: 🏗️ Secure Build & Type Safety
     runs-on: ubuntu-latest
