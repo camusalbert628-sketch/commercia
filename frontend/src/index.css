@@ -1112,207 +1112,536 @@ button:active {
    COMMERCIA SUPER ADMIN - ARCHITECTURE MODE CLAIR & PROTECTION DU SURVOL
    ========================================================================== */
 
-/* 1. Élimination stricte des bugs de survol des tableaux (Protection Dark & Light) */
-.commercia-admin-container table {
-  border-collapse: collapse !important;
-}
+/* ==========================================================================
+   COMMERCIA SUPER ADMIN - ENTERPRISE SAAS DESIGN SYSTEM ARCHITECTURE
+   Harmonized Light (#F7F8FA / #FFFFFF) & Dark (#090D16 / #0F172A) Themes
+   ========================================================================== */
 
-.commercia-admin-container.admin-theme-dark table tbody tr:hover td {
-  background-color: #1E293B !important;
-  color: #FFFFFF !important;
-  transition: background-color 0.15s ease-in-out;
-}
-
-.commercia-admin-container.admin-theme-dark table tbody tr:hover td div {
-  color: #FFFFFF !important;
-}
-
-.commercia-admin-container.admin-theme-dark table tbody tr:hover td div[style*="color: #94A3B8"] {
-  color: #CBD5E1 !important;
-}
-
-.commercia-admin-container.admin-theme-light table tbody tr:hover td {
-  background-color: #F1F5F9 !important;
-  color: #0F172A !important;
-  transition: background-color 0.15s ease-in-out;
-}
-
-.commercia-admin-container.admin-theme-light table tbody tr:hover td div {
-  color: #0F172A !important;
-}
-
-.commercia-admin-container.admin-theme-light table tbody tr:hover td div[style*="color: #94A3B8"],
-.commercia-admin-container.admin-theme-light table tbody tr:hover td div[style*="color: #64748B"] {
-  color: #475569 !important;
-}
-
-/* 2. MODE CLAIR POUR L'ESPACE SUPER ADMIN */
+/* 1. Design Tokens Définis pour les deux thèmes */
 .commercia-admin-container.admin-theme-light {
-  background-color: #F8FAFC !important;
-  color: #0F172A !important;
+  --admin-bg-base: #F7F8FA;
+  --admin-surface: #FFFFFF;
+  --admin-surface-subtle: #F8FAFC;
+  --admin-surface-hover: #F1F5F9;
+  --admin-surface-active: #EFF6FF;
+  --admin-border: #E5EAF0;
+  --admin-border-subtle: #EDF2F7;
+  --admin-border-focus: #2563EB;
+  --admin-text-primary: #172033;
+  --admin-text-secondary: #64748B;
+  --admin-text-muted: #94A3B8;
+  --admin-text-inverse: #FFFFFF;
+  --admin-primary: #2563EB;
+  --admin-primary-hover: #1D4ED8;
+  --admin-primary-subtle: #EFF6FF;
+  --admin-primary-border: #BFDBFE;
+  --admin-success: #10B981;
+  --admin-success-subtle: #ECFDF5;
+  --admin-success-border: #A7F3D0;
+  --admin-warning: #F59E0B;
+  --admin-warning-subtle: #FFFBEB;
+  --admin-warning-border: #FDE68A;
+  --admin-danger: #EF4444;
+  --admin-danger-subtle: #FEF2F2;
+  --admin-danger-border: #FECACA;
+  --admin-info: #0284C7;
+  --admin-info-subtle: #F0F9FF;
+  --admin-info-border: #BAE6FD;
+  --admin-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --admin-shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+  --admin-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --admin-shadow-dropdown: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+  --admin-backdrop: rgba(15, 23, 42, 0.45);
+  background-color: var(--admin-bg-base) !important;
+  color: var(--admin-text-primary) !important;
 }
 
-/* Header Mode Clair */
-.commercia-admin-container.admin-theme-light header {
-  background-color: #FFFFFF !important;
-  border-bottom: 1px solid #E2E8F0 !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+.commercia-admin-container.admin-theme-dark {
+  --admin-bg-base: #090D16;
+  --admin-surface: #0F172A;
+  --admin-surface-subtle: #1E293B;
+  --admin-surface-hover: #1E293B;
+  --admin-surface-active: rgba(37, 99, 235, 0.2);
+  --admin-border: rgba(255, 255, 255, 0.08);
+  --admin-border-subtle: rgba(255, 255, 255, 0.04);
+  --admin-border-focus: #3B82F6;
+  --admin-text-primary: #F8FAFC;
+  --admin-text-secondary: #94A3B8;
+  --admin-text-muted: #64748B;
+  --admin-text-inverse: #0F172A;
+  --admin-primary: #2563EB;
+  --admin-primary-hover: #3B82F6;
+  --admin-primary-subtle: rgba(37, 99, 235, 0.15);
+  --admin-primary-border: rgba(37, 99, 235, 0.3);
+  --admin-success: #10B981;
+  --admin-success-subtle: rgba(16, 185, 129, 0.15);
+  --admin-success-border: rgba(16, 185, 129, 0.3);
+  --admin-warning: #F59E0B;
+  --admin-warning-subtle: rgba(245, 158, 11, 0.15);
+  --admin-warning-border: rgba(245, 158, 11, 0.3);
+  --admin-danger: #EF4444;
+  --admin-danger-subtle: rgba(239, 68, 68, 0.15);
+  --admin-danger-border: rgba(239, 68, 68, 0.3);
+  --admin-info: #0284C7;
+  --admin-info-subtle: rgba(2, 132, 199, 0.15);
+  --admin-info-border: rgba(2, 132, 199, 0.3);
+  --admin-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+  --admin-shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+  --admin-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --admin-shadow-dropdown: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --admin-backdrop: rgba(0, 0, 0, 0.7);
+  background-color: var(--admin-bg-base) !important;
+  color: var(--admin-text-primary) !important;
 }
 
-.commercia-admin-container.admin-theme-light header div[style*="color: #FFFFFF"] {
-  color: #0F172A !important;
-}
-
-/* Sidebar Mode Clair */
-.commercia-admin-container.admin-theme-light aside {
-  background-color: #FFFFFF !important;
-  border-right: 1px solid #E2E8F0 !important;
-}
-
-.commercia-admin-container.admin-theme-light aside div[style*="color: #64748B"] {
-  color: #334155 !important;
-}
-
-/* Boutons de navigation latérale inactive */
-.commercia-admin-container.admin-theme-light aside button {
-  color: #475569 !important;
-}
-
-.commercia-admin-container.admin-theme-light aside button:hover {
-  background-color: #F1F5F9 !important;
-  color: #0F172A !important;
-}
-
-/* Boutons de navigation latérale active - Visibilité maximale garantie en mode clair */
-.commercia-admin-container.admin-theme-light aside button.active,
-.commercia-admin-container.admin-theme-light aside button[data-active="true"] {
-  background-color: #2563EB !important;
-  color: #FFFFFF !important;
-  font-weight: 700 !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
-}
-
-.commercia-admin-container.admin-theme-light aside button.active span,
-.commercia-admin-container.admin-theme-light aside button.active svg,
-.commercia-admin-container.admin-theme-light aside button.active *,
-.commercia-admin-container.admin-theme-light aside button[data-active="true"] span,
-.commercia-admin-container.admin-theme-light aside button[data-active="true"] svg,
-.commercia-admin-container.admin-theme-light aside button[data-active="true"] * {
-  color: #FFFFFF !important;
-  stroke: #FFFFFF !important;
-}
-
-.commercia-admin-container.admin-theme-light aside button.active:hover,
-.commercia-admin-container.admin-theme-light aside button[data-active="true"]:hover {
-  background-color: #1D4ED8 !important;
-  color: #FFFFFF !important;
-}
-
-/* Layout Figé de la Console Admin - Empêche tout recouvrement de la barre d'accueil */
+/* 2. Layout Figé de la Console Admin - Zéro recouvrement de la barre d'accueil */
 .commercia-admin-container {
   height: calc(100vh - 70px) !important;
   min-height: calc(100vh - 70px) !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
-.commercia-admin-container > header {
+.commercia-admin-container > header.admin-topbar {
   flex-shrink: 0 !important;
+  height: 58px !important;
   position: relative !important;
   top: 0 !important;
-  z-index: 20 !important;
+  z-index: 30 !important;
+  background-color: var(--admin-surface) !important;
+  border-bottom: 1px solid var(--admin-border) !important;
+  box-shadow: var(--admin-shadow-sm) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 0 20px !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .commercia-admin-container .admin-body-layout {
   display: flex !important;
   flex: 1 !important;
   min-height: 0 !important;
-  height: calc(100% - 65px) !important;
+  height: calc(100% - 58px) !important;
   overflow: hidden !important;
 }
 
+/* 3. Sidebar Professionnelle avec Mode Réduit (Collapsed) */
 .commercia-admin-container aside.admin-sidebar {
-  width: 270px !important;
   flex-shrink: 0 !important;
   height: 100% !important;
+  background-color: var(--admin-surface) !important;
+  border-right: 1px solid var(--admin-border) !important;
   overflow-y: auto !important;
+  overflow-x: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-border) transparent;
 }
 
+.commercia-admin-container aside.admin-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+.commercia-admin-container aside.admin-sidebar::-webkit-scrollbar-thumb {
+  background-color: var(--admin-border);
+  border-radius: 9999px;
+}
+
+/* Titres de rubriques fonctionnelles dans la sidebar */
+.commercia-admin-container .admin-sidebar-category {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  color: var(--admin-text-secondary) !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase !important;
+  padding: 8px 12px 4px 12px !important;
+  margin-top: 10px !important;
+  user-select: none !important;
+}
+
+/* Boutons de Navigation Latérale */
+.commercia-admin-container .admin-nav-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  width: 100% !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  border: none !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  text-decoration: none !important;
+  background: transparent !important;
+  color: var(--admin-text-secondary) !important;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  position: relative !important;
+}
+
+.commercia-admin-container .admin-nav-item:hover {
+  background-color: var(--admin-surface-hover) !important;
+  color: var(--admin-text-primary) !important;
+}
+
+/* État Actif : Style SaaS Premium avec accent distinctif */
+.commercia-admin-container.admin-theme-light .admin-nav-item.active,
+.commercia-admin-container.admin-theme-light .admin-nav-item[data-active="true"] {
+  background-color: #EFF6FF !important;
+  color: #1D4ED8 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08) !important;
+}
+
+.commercia-admin-container.admin-theme-light .admin-nav-item.active::before,
+.commercia-admin-container.admin-theme-light .admin-nav-item[data-active="true"]::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 6px !important;
+  bottom: 6px !important;
+  width: 3.5px !important;
+  border-radius: 0 3px 3px 0 !important;
+  background-color: #2563EB !important;
+}
+
+.commercia-admin-container.admin-theme-light .admin-nav-item.active svg,
+.commercia-admin-container.admin-theme-light .admin-nav-item[data-active="true"] svg {
+  color: #2563EB !important;
+  stroke: #2563EB !important;
+}
+
+.commercia-admin-container.admin-theme-dark .admin-nav-item.active,
+.commercia-admin-container.admin-theme-dark .admin-nav-item[data-active="true"] {
+  background-color: #2563EB !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+}
+
+.commercia-admin-container.admin-theme-dark .admin-nav-item.active svg,
+.commercia-admin-container.admin-theme-dark .admin-nav-item[data-active="true"] svg {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+/* 4. Espace de Travail Central */
 .commercia-admin-container main.admin-workspace {
   flex: 1 !important;
   min-width: 0 !important;
   height: 100% !important;
   overflow-y: auto !important;
   padding: 24px 28px !important;
+  background-color: var(--admin-bg-base) !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-border) transparent;
 }
 
-/* Cartes, Blocs & Conteneurs */
+.commercia-admin-container main.admin-workspace::-webkit-scrollbar {
+  width: 6px;
+}
+.commercia-admin-container main.admin-workspace::-webkit-scrollbar-thumb {
+  background-color: var(--admin-border);
+  border-radius: 9999px;
+}
+
+/* 5. Cartes, Bannières & Conteneurs */
+.commercia-admin-container .admin-card {
+  background-color: var(--admin-surface) !important;
+  border: 1px solid var(--admin-border) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--admin-shadow-card) !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.commercia-admin-container.admin-theme-light .admin-card-banner {
+  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%) !important;
+  border: 1px solid #334155 !important;
+  color: #FFFFFF !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.12) !important;
+}
+
+/* Adaptation automatique des blocs avec background en dur en mode clair */
 .commercia-admin-container.admin-theme-light div[style*="background: #0F172A"],
-.commercia-admin-container.admin-theme-light div[style*="background: rgb(15, 23, 42)"] {
+.commercia-admin-container.admin-theme-light div[style*="background: rgb(15, 23, 42)"],
+.commercia-admin-container.admin-theme-light div[style*="background:#0F172A"] {
   background-color: #FFFFFF !important;
-  border: 1px solid #E2E8F0 !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #E5EAF0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
 }
 
 .commercia-admin-container.admin-theme-light div[style*="background: #090D16"],
-.commercia-admin-container.admin-theme-light div[style*="background: rgb(9, 13, 22)"] {
+.commercia-admin-container.admin-theme-light div[style*="background: rgb(9, 13, 22)"],
+.commercia-admin-container.admin-theme-light div[style*="background:#090D16"] {
   background-color: #F8FAFC !important;
-  border-color: #E2E8F0 !important;
+  border-color: #E5EAF0 !important;
 }
 
-/* Typographie en Mode Clair */
+.commercia-admin-container.admin-theme-light div[style*="background: #1E293B"],
+.commercia-admin-container.admin-theme-light div[style*="background: rgb(30, 41, 59)"] {
+  background-color: #F1F5F9 !important;
+  border-color: #E5EAF0 !important;
+}
+
+/* Harmonisation typographique en Mode Clair */
+.commercia-admin-container.admin-theme-light h1[style*="color: #FFFFFF"],
 .commercia-admin-container.admin-theme-light h2[style*="color: #FFFFFF"],
 .commercia-admin-container.admin-theme-light h3[style*="color: #FFFFFF"],
-.commercia-admin-container.admin-theme-light div[style*="color: #FFFFFF"],
-.commercia-admin-container.admin-theme-light span[style*="color: #FFFFFF"] {
-  color: #0F172A !important;
+.commercia-admin-container.admin-theme-light div[style*="color: #FFFFFF"]:not([data-preserve-white]),
+.commercia-admin-container.admin-theme-light span[style*="color: #FFFFFF"]:not([data-preserve-white]) {
+  color: #172033 !important;
 }
 
 .commercia-admin-container.admin-theme-light div[style*="color: #E2E8F0"],
 .commercia-admin-container.admin-theme-light span[style*="color: #E2E8F0"] {
-  color: #1E293B !important;
+  color: #334155 !important;
 }
 
 .commercia-admin-container.admin-theme-light div[style*="color: #94A3B8"],
 .commercia-admin-container.admin-theme-light span[style*="color: #94A3B8"],
 .commercia-admin-container.admin-theme-light p[style*="color: #94A3B8"] {
+  color: #64748B !important;
+}
+
+.commercia-admin-container.admin-theme-light div[style*="color: #CBD5E1"],
+.commercia-admin-container.admin-theme-light span[style*="color: #CBD5E1"] {
   color: #475569 !important;
 }
 
-.commercia-admin-container.admin-theme-light div[style*="color: #CBD5E1"] {
-  color: #334155 !important;
+.commercia-admin-container.admin-theme-light div[style*="color: #64748B"] {
+  color: #64748B !important;
 }
 
-/* Champs de saisie, Recherche & Menus déroulants */
-.commercia-admin-container.admin-theme-light input,
-.commercia-admin-container.admin-theme-light select,
-.commercia-admin-container.admin-theme-light textarea {
-  background-color: #FFFFFF !important;
-  color: #0F172A !important;
-  border: 1px solid #CBD5E1 !important;
+/* 6. Formulaires, Champs de Saisie & Menus Déroulants */
+.commercia-admin-container input,
+.commercia-admin-container select,
+.commercia-admin-container textarea {
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-text-primary) !important;
+  border: 1px solid var(--admin-border) !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  outline: none !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.commercia-admin-container.admin-theme-light input::placeholder {
-  color: #94A3B8 !important;
+.commercia-admin-container input:focus,
+.commercia-admin-container select:focus,
+.commercia-admin-container textarea:focus {
+  border-color: var(--admin-primary) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
 }
 
-/* En-têtes de table Mode Clair */
-.commercia-admin-container.admin-theme-light table thead tr {
-  border-bottom: 1px solid #E2E8F0 !important;
-  color: #475569 !important;
+.commercia-admin-container input::placeholder {
+  color: var(--admin-text-muted) !important;
 }
 
-.commercia-admin-container.admin-theme-light table thead th {
+/* 7. Tableaux de Données Professionnels */
+.commercia-admin-container table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 13px !important;
+}
+
+.commercia-admin-container table thead tr {
+  border-bottom: 1px solid var(--admin-border) !important;
+}
+
+.commercia-admin-container table thead th {
+  background-color: var(--admin-surface-subtle) !important;
+  color: var(--admin-text-secondary) !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  padding: 10px 14px !important;
+  text-align: left !important;
+}
+
+.commercia-admin-container table tbody tr {
+  border-bottom: 1px solid var(--admin-border-subtle) !important;
+  transition: background-color 0.15s ease;
+}
+
+.commercia-admin-container table tbody td {
+  padding: 12px 14px !important;
+  color: var(--admin-text-primary) !important;
+  vertical-align: middle !important;
+}
+
+/* Survol des lignes de tableau */
+.commercia-admin-container.admin-theme-light table tbody tr:hover td {
   background-color: #F8FAFC !important;
-  color: #475569 !important;
+  color: #172033 !important;
 }
 
-.commercia-admin-container.admin-theme-light table tbody tr {
-  border-bottom: 1px solid #F1F5F9 !important;
+.commercia-admin-container.admin-theme-dark table tbody tr:hover td {
+  background-color: #1E293B !important;
+  color: #FFFFFF !important;
 }
 
-.commercia-admin-container.admin-theme-light table tbody td {
-  color: #0F172A !important;
+/* 8. Badges et Puces de Statut */
+.commercia-admin-container .admin-badge-success {
+  background-color: var(--admin-success-subtle) !important;
+  color: var(--admin-success) !important;
+  border: 1px solid var(--admin-success-border) !important;
+  border-radius: 9999px !important;
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.commercia-admin-container .admin-badge-warning {
+  background-color: var(--admin-warning-subtle) !important;
+  color: var(--admin-warning) !important;
+  border: 1px solid var(--admin-warning-border) !important;
+  border-radius: 9999px !important;
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.commercia-admin-container .admin-badge-danger {
+  background-color: var(--admin-danger-subtle) !important;
+  color: var(--admin-danger) !important;
+  border: 1px solid var(--admin-danger-border) !important;
+  border-radius: 9999px !important;
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.commercia-admin-container .admin-badge-info {
+  background-color: var(--admin-info-subtle) !important;
+  color: var(--admin-info) !important;
+  border: 1px solid var(--admin-info-border) !important;
+  border-radius: 9999px !important;
+  padding: 2px 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+/* 9. Boutons d'Action Admin */
+.commercia-admin-container .admin-btn-primary {
+  background-color: #2563EB !important;
+  color: #FFFFFF !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  padding: 7px 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: all 0.15s ease !important;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2) !important;
+}
+
+.commercia-admin-container .admin-btn-primary:hover {
+  background-color: #1D4ED8 !important;
+}
+
+.commercia-admin-container .admin-btn-secondary {
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-text-primary) !important;
+  border: 1px solid var(--admin-border) !important;
+  border-radius: 8px !important;
+  padding: 7px 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: all 0.15s ease !important;
+  box-shadow: var(--admin-shadow-sm) !important;
+}
+
+.commercia-admin-container .admin-btn-secondary:hover {
+  background-color: var(--admin-surface-hover) !important;
+}
+
+/* 10. Modales avec Overlay Flouté */
+.commercia-admin-container .admin-modal-backdrop {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: var(--admin-backdrop) !important;
+  backdrop-filter: blur(4px) !important;
+  z-index: 9999 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px !important;
+}
+
+.commercia-admin-container .admin-modal-dialog {
+  background-color: var(--admin-surface) !important;
+  border: 1px solid var(--admin-border) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--admin-shadow-dropdown) !important;
+  max-width: 600px !important;
+  width: 100% !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 11. Responsive Mobile / Tablette */
+@media (max-width: 1024px) {
+  .commercia-admin-container aside.admin-sidebar {
+    width: 72px !important;
+  }
+  .commercia-admin-container aside.admin-sidebar .admin-sidebar-category {
+    display: none !important;
+  }
+  .commercia-admin-container aside.admin-sidebar .admin-nav-item span {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .commercia-admin-container {
+    height: auto !important;
+    min-height: 100vh !important;
+  }
+  .commercia-admin-container .admin-body-layout {
+    flex-direction: column !important;
+    height: auto !important;
+  }
+  .commercia-admin-container aside.admin-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--admin-border) !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    padding: 8px !important;
+  }
+  .commercia-admin-container main.admin-workspace {
+    padding: 16px !important;
+  }
 }
 
