@@ -1183,6 +1183,70 @@ button:active {
   color: #0F172A !important;
 }
 
+/* Boutons de navigation latérale active - Visibilité maximale garantie en mode clair */
+.commercia-admin-container.admin-theme-light aside button.active,
+.commercia-admin-container.admin-theme-light aside button[data-active="true"] {
+  background-color: #2563EB !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+}
+
+.commercia-admin-container.admin-theme-light aside button.active span,
+.commercia-admin-container.admin-theme-light aside button.active svg,
+.commercia-admin-container.admin-theme-light aside button.active *,
+.commercia-admin-container.admin-theme-light aside button[data-active="true"] span,
+.commercia-admin-container.admin-theme-light aside button[data-active="true"] svg,
+.commercia-admin-container.admin-theme-light aside button[data-active="true"] * {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+.commercia-admin-container.admin-theme-light aside button.active:hover,
+.commercia-admin-container.admin-theme-light aside button[data-active="true"]:hover {
+  background-color: #1D4ED8 !important;
+  color: #FFFFFF !important;
+}
+
+/* Layout Figé de la Console Admin - Empêche tout recouvrement de la barre d'accueil */
+.commercia-admin-container {
+  height: calc(100vh - 70px) !important;
+  min-height: calc(100vh - 70px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.commercia-admin-container > header {
+  flex-shrink: 0 !important;
+  position: relative !important;
+  top: 0 !important;
+  z-index: 20 !important;
+}
+
+.commercia-admin-container .admin-body-layout {
+  display: flex !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  height: calc(100% - 65px) !important;
+  overflow: hidden !important;
+}
+
+.commercia-admin-container aside.admin-sidebar {
+  width: 270px !important;
+  flex-shrink: 0 !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+}
+
+.commercia-admin-container main.admin-workspace {
+  flex: 1 !important;
+  min-width: 0 !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  padding: 24px 28px !important;
+}
+
 /* Cartes, Blocs & Conteneurs */
 .commercia-admin-container.admin-theme-light div[style*="background: #0F172A"],
 .commercia-admin-container.admin-theme-light div[style*="background: rgb(15, 23, 42)"] {
