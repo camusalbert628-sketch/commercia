@@ -840,4 +840,82 @@ model MobileMoneyOperation {
   @@index([businessId, operationDate])
 }
 
+// ===================== MODULE SUPER ADMIN & DEVSECOPS =====================
 
+model SystemApiKey {
+  id            String    @id @default(uuid())
+  serviceName   String    @unique // cinetpay, notchpay, google_gemini, openai, anthropic, mistral, groq, deepseek, openrouter, resend, twilio, etc.
+  displayName   String
+  category      String    // payment, llm, sms, email, storage, infrastructure
+  encryptedKey  String    // AES-256-GCM encrypted
+  keyPreview    String    // e.g. "sk-...a4b2" or "AIza...9xQ"
+  apiUrl        String?
+  isActive      Boolean   @default(true)
+  lastUsedAt    DateTime?
+  lastTestedAt  DateTime?
+  testStatus    String?   // success, failed, pending
+  testLatencyMs Int?
+  lastError     String?
+  quotaDetails  String?   // JSON string with quota info if provided by provider
+  metadata      String?   // JSON string
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model SystemLlmConfig {
+  id               String    @id @default(uuid())
+  provider         String    @unique // gemini, openai, anthropic, mistral, groq, deepseek, openrouter
+  displayName      String
+  isEnabled        Boolean   @default(true)
+  isPrimary        Boolean   @default(false)
+  isFallback       Boolean   @default(false)
+  primaryModel     String
+  fallbackModel    String?
+  fastModel        String?
+  temperature      Float     @default(0.7)
+  maxTokens        Int       @default(1500)
+  totalTokensUsed  BigInt    @default(0)
+  estimatedCostUsd Float     @default(0)
+  lastLatencyMs    Int?
+  lastTestedAt     DateTime?
+  testStatus       String?   // success, failed, pending
+  testError        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model SystemAlert {
+  id          String    @id @default(uuid())
+  nature      String    // db_latency_high, db_unreachable, api_5xx_spike, storage_critical, llm_quota_exceeded, external_service_down, auth_bruteforce_detected
+  title       String
+  severity    String    @default("warning") // info, warning, critical, urgent
+  service     String    // database, api, backend, llm, payments, infrastructure
+  description String
+  status      String    @default("active") // active, acknowledged, resolved
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  history     String?   // JSON array of interventions [{ at, by, note }]
+}
+
+model PlatformGlobalConfig {
+  id                  String   @id @default("singleton")
+  platformName        String   @default("COMMERCIA")
+  tagline             String   @default("Le copilote financier & SaaS des entrepreneurs africains")
+  maintenanceMode     Boolean  @default(false)
+  allowRegistrations  Boolean  @default(true)
+  freeTrialDays       Int      @default(14)
+  freeDailySalesLimit Int      @default(15)
+  proPriceMonthly     Float    @default(4500)
+  businessPriceMonthly Float   @default(12000)
+  defaultCurrency     String   @default("XAF")
+  sessionTimeoutHours Int      @default(24)
+  announcementEnabled Boolean  @default(false)
+  announcementMessage String?
+  announcementType    String   @default("info")
+  primaryLlmProvider  String   @default("gemini")
+  fallbackLlmProvider String   @default("openai")
+  cinetpayLive        Boolean  @default(true)
+  waveLive            Boolean  @default(true)
+  updatedAt           DateTime @updatedAt
+}

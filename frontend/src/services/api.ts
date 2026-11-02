@@ -1,10 +1,8 @@
 import { handleMockRequest } from './mockBackend';
 
-const DEFAULT_API_URL = typeof window !== 'undefined' && (window.location.hostname.includes('vercel.app') || window.location.hostname !== 'localhost')
-  ? 'https://backend-phi-three-43.vercel.app/api'
-  : 'http://localhost:3001/api';
-
-const BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const DEFAULT_API_URL = isLocal ? 'http://localhost:3001/api' : 'https://backend-phi-three-43.vercel.app/api';
+const BASE_URL = isLocal ? 'http://localhost:3001/api' : (import.meta.env.VITE_API_URL || DEFAULT_API_URL);
 
 export class ApiError extends Error {
   statusCode: number;
@@ -30,7 +28,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (activeBusinessId) {
     headers['x-business-id'] = activeBusinessId;
   }
-
 
   const method = options.method || 'GET';
   const parsedBody = options.body ? (typeof options.body === 'string' ? JSON.parse(options.body) : options.body) : undefined;
@@ -64,7 +61,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
             return retryRes.json();
           }
         } catch (e) {
-          // If in cloud demo, proceed with mock
+          if (endpoint.startsWith('/admin')) {
+            throw new ApiError('Session Super Admin expirée. Veuillez vous reconnecter.', 401);
+          }
           return await handleMockRequest(endpoint, method, parsedBody);
         }
       } else {
@@ -73,37 +72,41 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
+        throw new ApiError('Non authentifié.', 401);
       }
     }
 
-    // Fallback for static cloud hosting returning 404/405/502 on API routes
+    // Pour l'espace Super Admin, aucune donnée fictive n'est tolérée
+    if (endpoint.startsWith('/admin')) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(errorData.error || `Erreur serveur (${response.status})`, response.status);
+      }
+      return response.json();
+    }
+
+    // Fallback for static cloud hosting returning 404/405/502 on normal user API routes
     if (response.status === 404 || response.status === 405 || response.status === 502) {
       return await handleMockRequest(endpoint, method, parsedBody);
     }
 
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
-      // Vercel SPA rewrites rewrite all /api routes to /index.html returning status 200 with HTML!
       return await handleMockRequest(endpoint, method, parsedBody);
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      // If logging in as Super Admin and remote server rejects or hasn't seeded yet, fall back seamlessly
-      if (endpoint.startsWith('/auth/login') && (parsedBody?.email || '').toLowerCase() === 'admin@commercia.com') {
-        return await handleMockRequest(endpoint, method, parsedBody);
-      }
-      // If admin endpoint fails on remote server (401, 404, 500, etc.), fall back to rich admin mock engine
-      if (endpoint.startsWith('/admin')) {
-        return await handleMockRequest(endpoint, method, parsedBody);
-      }
       throw new ApiError(errorData.error || `Erreur serveur (${response.status})`, response.status);
     }
 
     return response.json();
   } catch (err: any) {
     if (err instanceof ApiError) throw err;
-    // On network failure or offline, serve from smart mock backend
+    if (endpoint.startsWith('/admin')) {
+      throw new ApiError(err?.message || 'Impossible de joindre le serveur d’administration.', 500);
+    }
+    // On network failure or offline for standard user demo, serve from mock
     return await handleMockRequest(endpoint, method, parsedBody);
   }
 }

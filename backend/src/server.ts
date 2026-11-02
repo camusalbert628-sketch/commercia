@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { getAllowedOrigins, getJwtSecret } from './config/security';
+import { telemetryMiddleware } from './utils/telemetry';
 
 import { authRouter } from './modules/auth/auth.routes';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes';
@@ -41,6 +42,7 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(compression());
 app.use(morgan('dev'));
+app.use(telemetryMiddleware);
 app.use(
   cors({
     origin: getAllowedOrigins(),

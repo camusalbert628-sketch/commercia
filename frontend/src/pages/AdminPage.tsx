@@ -1,2409 +1,2306 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ShieldAlert,
   Users,
-  Store,
+  Building2,
+  TrendingUp,
   DollarSign,
   Activity,
-  CheckCircle,
-  Ban,
-  Clock,
-  AlertTriangle,
-  Download,
-  Plus,
-  RefreshCw,
-  Gift,
-  FileText,
-  Filter,
-  Search,
-  ChevronRight,
-  ShieldCheck,
-  CreditCard,
-  UserCheck,
-  UserX,
-  ExternalLink,
-  MessageSquare,
-  Sparkles,
-  Star,
-  Server,
   Database,
-  Cpu,
-  Lock,
-  Eye,
-  LogOut,
-  Send,
-  Zap,
-  Sliders,
+  Key,
+  Bot,
+  Layers,
+  Radio,
+  FileText,
   Settings,
+  Bell,
+  History,
+  Lock,
+  Unlock,
+  RefreshCw,
+  Search,
+  Filter,
+  Plus,
   Trash2,
-  Edit,
-  MapPin,
-  Globe,
-  ArrowUpDown,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  ChevronRight,
   Maximize2,
   Minimize2,
-  UserPlus,
-  Key,
-  Check,
-  AlertCircle,
-  Radio,
-  SlidersHorizontal,
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  Download,
+  Server,
+  Cpu,
+  HardDrive,
+  Globe,
+  Sliders,
+  CreditCard,
+  UserCheck,
+  Zap,
 } from 'lucide-react';
-import { api } from '../services/api';
-import { useAuthStore } from '../store/authStore';
-import { downloadCSVWithBOM } from '../utils/formatters';
+import { api, ApiError } from '../services/api';
 
-interface AdminUser {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  country?: string;
-  city?: string;
-  profileSector?: string;
-  isAdmin: boolean;
-  isActive: boolean;
-  createdAt: string;
-  lastLoginAt?: string;
-  ipAddress?: string;
-  totalSales?: number;
-  salesCount?: number;
-  businesses: {
-    id?: string;
-    name: string;
-    sector?: string;
-    profileId?: string;
-    trackingMode?: string;
-    currency?: string;
-    salesCount?: number;
-    salesVolume?: number;
-  }[];
-  plan: string;
-  planName: string;
-  status: string;
-  isPro: boolean;
-  endDate?: string | null;
-  daysRemaining: number;
+// Types stricts
+type AdminTab =
+  | 'dashboard'
+  | 'monitoring'
+  | 'database'
+  | 'llm'
+  | 'api_keys'
+  | 'users'
+  | 'roles'
+  | 'services'
+  | 'logs'
+  | 'security'
+  | 'backups'
+  | 'settings'
+  | 'subscriptions'
+  | 'notifications'
+  | 'admin_history';
+
+interface DbHealth {
+  status: 'operational' | 'degraded' | 'unreachable';
+  engine: string;
+  databaseName: string;
+  host: string;
+  version: string;
+  latencyMs: number;
+  connections: {
+    active: number;
+    poolLimit: number;
+    available: number;
+    utilizationPercent: number;
+  };
+  storage: {
+    sizeBytes: number;
+    sizePretty: string;
+  };
+  performance: {
+    executedTransactions: number;
+    failedTransactions: number;
+    errorRatePercent: number;
+    cacheHitRatioPercent: number;
+  };
+  neonConsoleUrl: string;
+  timestamp: string;
 }
 
-interface AdminBusiness {
-  id: string;
+interface DbTableSummary {
   name: string;
-  sector: string;
-  profileId?: string;
-  trackingMode: string;
-  currency: string;
-  createdAt: string;
+  estimatedRows: number;
+  sizeBytes: number;
+  sizePretty: string;
+  columnCount: number;
+}
+
+interface ApmSummary {
+  uptimeSeconds: number;
+  totalRequests: number;
+  success2xx: number;
+  redirect3xx: number;
+  errors4xx: number;
+  errors5xx: number;
+  errorRatePercent: number;
+  avgLatencyMs: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  memory: {
+    rssMb: number;
+    heapTotalMb: number;
+    heapUsedMb: number;
+    externalMb: number;
+  };
+  endpoints: Array<{
+    path: string;
+    method: string;
+    totalCalls: number;
+    avgDurationMs: number;
+    errors4xx: number;
+    errors5xx: number;
+  }>;
+  recentRequests: Array<{
+    id: string;
+    timestamp: string;
+    method: string;
+    path: string;
+    statusCode: number;
+    durationMs: number;
+    ip: string;
+  }>;
+}
+
+interface SystemApiKey {
+  id: string;
+  serviceName: string;
+  displayName: string;
+  category: string;
+  keyPreview: string;
+  apiUrl?: string;
   isActive: boolean;
-  owner?: { id: string; firstName: string; lastName: string; email: string; phone?: string; city?: string; country?: string };
-  membersCount: number;
-  salesCount: number;
-  productsCount: number;
-  customersCount: number;
-  expensesCount: number;
+  lastUsedAt?: string;
+  lastTestedAt?: string;
+  testStatus?: string;
+  testLatencyMs?: number;
+  lastError?: string;
 }
 
-interface AdminPayment {
+interface LlmConfigItem {
   id: string;
-  reference: string;
-  amount: number;
-  currency: string;
-  status: string;
   provider: string;
-  createdAt: string;
-  verifiedAt?: string;
-  user: {
-    id?: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-  };
-  plan?: {
-    name?: string;
-    displayName: string;
-  };
-}
-
-interface AuditLog {
-  id: string;
-  action: string;
-  entity: string;
-  entityId?: string;
-  details?: string;
-  createdAt: string;
-  user?: {
-    email: string;
-    firstName: string;
-    lastName: string;
-  };
-}
-
-interface PlatformConfig {
-  platformName: string;
-  tagline: string;
-  maintenanceMode: boolean;
-  allowRegistrations: boolean;
-  freeTrialDays: number;
-  freeDailySalesLimit: number;
-  proPriceMonthly: number;
-  businessPriceMonthly: number;
-  defaultCurrency: string;
-  sessionTimeoutHours: number;
-  systemAnnouncement: {
-    enabled: boolean;
-    message: string;
-    type: string;
-  };
-  cinetpayLive: boolean;
-  waveLive: boolean;
-  orangeMoneyLive: boolean;
-  mtnMoMoLive: boolean;
-  aiDefaultProvider: string;
-  auditRetentionDays: number;
+  displayName: string;
+  isEnabled: boolean;
+  isPrimary: boolean;
+  isFallback: boolean;
+  primaryModel: string;
+  fallbackModel?: string;
+  fastModel?: string;
+  temperature: number;
+  maxTokens: number;
+  totalTokensUsed: string;
+  estimatedCostUsd: number;
+  lastLatencyMs?: number;
+  lastTestedAt?: string;
+  testStatus?: string;
+  testError?: string;
 }
 
 export const AdminPage: React.FC = () => {
-  const { user, login, impersonateUser } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [isWideMode, setIsWideMode] = useState<boolean>(true);
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Données Réelles du Dashboard
   const [stats, setStats] = useState<any>(null);
-  const [usersList, setUsersList] = useState<AdminUser[]>([]);
-  const [businessesList, setBusinessesList] = useState<AdminBusiness[]>([]);
-  const [paymentsList, setPaymentsList] = useState<AdminPayment[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [feedbacksData, setFeedbacksData] = useState<{ suggestions: any[]; ratings: any[] }>({ suggestions: [], ratings: [] });
-  const [systemHealth, setSystemHealth] = useState<any>(null);
-  const [platformConfig, setPlatformConfig] = useState<PlatformConfig | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [dbHealth, setDbHealth] = useState<DbHealth | null>(null);
+  const [tablesList, setTablesList] = useState<DbTableSummary[]>([]);
+  const [apm, setApm] = useState<ApmSummary | null>(null);
+  const [apiKeys, setApiKeys] = useState<SystemApiKey[]>([]);
+  const [llmConfigs, setLlmConfigs] = useState<LlmConfigItem[]>([]);
+  const [platformConfig, setPlatformConfig] = useState<any>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
-  // Layout expansion state: default true for fluid side-to-side width
-  const [isWideMode, setIsWideMode] = useState(true);
+  // Explorateur de base de données
+  const [selectedTable, setSelectedTable] = useState<string>('User');
+  const [tableRecords, setTableRecords] = useState<any[]>([]);
+  const [tableColumns, setTableColumns] = useState<any[]>([]);
+  const [tableTotalRecords, setTableTotalRecords] = useState<number>(0);
+  const [tablePage, setTablePage] = useState<number>(1);
+  const [tableSearch, setTableSearch] = useState<string>('');
+  const [tableLoading, setTableLoading] = useState<boolean>(false);
 
-  // Tabs: overview | users | geo | businesses | payments | feedbacks | config | audit | system
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'geo' | 'businesses' | 'payments' | 'feedbacks' | 'config' | 'audit' | 'system'>('overview');
+  // Modals & Actions
+  const [showAddUserModal, setShowAddUserModal] = useState<boolean>(false);
+  const [showAddKeyModal, setShowAddKeyModal] = useState<boolean>(false);
+  const [showRevealKeyModal, setShowRevealKeyModal] = useState<boolean>(false);
+  const [keyToReveal, setKeyToReveal] = useState<SystemApiKey | null>(null);
+  const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
+  const [adminPasswordInput, setAdminPasswordInput] = useState<string>('');
+  const [revealError, setRevealError] = useState<string | null>(null);
 
-  // CRM Filters & Sorting
-  const [userFilter, setUserFilter] = useState<string>('all');
-  const [countryFilter, setCountryFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'sales_desc' | 'sales_asc' | 'date_desc' | 'date_asc' | 'name_asc'>('sales_desc');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'user' | 'record'; id: string; name: string } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
 
-  // Modals
-  const [showSubModal, setShowSubModal] = useState(false);
-  const [targetUser, setTargetUser] = useState<AdminUser | null>(null);
-  const [targetPlan, setTargetPlan] = useState<'pro' | 'business' | 'free'>('pro');
-  const [actionDays, setActionDays] = useState(30);
-  const [actionMotif, setActionMotif] = useState('');
-  const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [selectedUserProfile, setSelectedUserProfile] = useState<any | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState<string>('');
+  const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
+  const [userSortField, setUserSortField] = useState<'date' | 'name'>('date');
 
-  // User Profile Detail Modal (360° View)
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [profileUser, setProfileUser] = useState<AdminUser | null>(null);
-
-  // Create User Modal
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] = useState({
+  // Formulaire d'ajout d'utilisateur
+  const [newUserForm, setNewUserForm] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
-    password: 'Password123!',
+    password: '',
+    role: 'merchant',
+    planName: 'pro',
     businessName: '',
     sector: 'commerce',
-    country: 'Cameroun',
-    city: 'Douala',
-    currency: 'XAF',
-    planName: 'pro',
-    role: 'merchant',
-  });
-  const [createSubmitting, setCreateSubmitting] = useState(false);
-
-  // Delete User Confirmation Modal
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
-  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
-
-  // Edit User Modal
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({
-    id: '',
-    firstName: '',
-    lastName: '',
-    phone: '',
-    city: '',
-    country: '',
-    profileSector: '',
-    newPassword: '',
   });
 
-  // Config Form
-  const [configSubmitting, setConfigSubmitting] = useState(false);
-  const [configSuccessMessage, setConfigSuccessMessage] = useState('');
+  // Formulaire de nouvelle clé API
+  const [newKeyForm, setNewKeyForm] = useState({
+    serviceName: 'openai',
+    displayName: 'OpenAI GPT-4o',
+    category: 'llm',
+    apiKey: '',
+    apiUrl: '',
+  });
 
-  // Broadcast Message Modal
-  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
-  const [broadcastMessage, setBroadcastMessage] = useState('');
-  const [broadcastType, setBroadcastType] = useState('info');
+  // Test LLM en direct
+  const [llmTestStatus, setLlmTestStatus] = useState<Record<string, { testing: boolean; result?: any; error?: string }>>({});
 
-  const fetchAdminData = async () => {
+  const showToast = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(null), 4000);
+  };
+
+  // 1. Chargement des données fondamentales réelles
+  const loadCoreData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setRefreshing(true);
+    setErrorMessage(null);
     try {
-      setLoading(true);
-      const [statsRes, usersRes, bizRes, paymentsRes, auditRes, feedRes, healthRes, configRes] = await Promise.allSettled([
+      const [statsRes, dbHealthRes, apmRes, configRes, alertsRes] = await Promise.allSettled([
         api.get<any>('/admin/stats'),
-        api.get<AdminUser[]>('/admin/users'),
-        api.get<AdminBusiness[]>('/admin/businesses'),
-        api.get<AdminPayment[]>('/admin/payments'),
-        api.get<AuditLog[]>('/admin/audit-logs'),
-        api.get<any>('/admin/feedbacks'),
-        api.get<any>('/admin/system/health'),
-        api.get<PlatformConfig>('/admin/config'),
+        api.get<DbHealth>('/admin/db/health'),
+        api.get<ApmSummary>('/admin/monitoring/apm'),
+        api.get<any>('/admin/config'),
+        api.get<any>('/admin/monitoring/alerts'),
       ]);
 
       if (statsRes.status === 'fulfilled') setStats(statsRes.value);
-      if (usersRes.status === 'fulfilled') setUsersList(usersRes.value || []);
-      if (bizRes.status === 'fulfilled') setBusinessesList(bizRes.value || []);
-      if (paymentsRes.status === 'fulfilled') setPaymentsList(paymentsRes.value || []);
-      if (auditRes.status === 'fulfilled') setAuditLogs(auditRes.value || []);
-      if (feedRes.status === 'fulfilled') {
-        setFeedbacksData({
-          suggestions: feedRes.value?.suggestions || [],
-          ratings: feedRes.value?.ratings || [],
-        });
-      }
-      if (healthRes.status === 'fulfilled') setSystemHealth(healthRes.value);
+      if (dbHealthRes.status === 'fulfilled') setDbHealth(dbHealthRes.value);
+      if (apmRes.status === 'fulfilled') setApm(apmRes.value);
       if (configRes.status === 'fulfilled') setPlatformConfig(configRes.value);
-    } catch (e) {
-      console.error('Error fetching admin data:', e);
+      if (alertsRes.status === 'fulfilled') setAlerts(alertsRes.value?.alerts || []);
+
+      if (statsRes.status === 'rejected') {
+        const err = statsRes.reason as ApiError;
+        setErrorMessage(err?.message || 'Erreur lors du chargement des statistiques réelles.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Impossible de joindre le serveur d’administration.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    if (user?.isAdmin) {
-      fetchAdminData();
-    }
-  }, [user]);
-
-  // Connect as Super Admin in 1 Click for testing
-  const handleQuickMasterLogin = async () => {
+  // 2. Chargement des tables de la base de données
+  const loadDbTables = useCallback(async () => {
     try {
-      const res = await api.post<any>('/auth/login', {
-        email: 'admin@commercia.com',
-        password: 'CommerciaAdmin2026!',
-      });
-      login({ accessToken: res.accessToken, refreshToken: res.refreshToken }, res.user);
+      const res = await api.get<{ totalTables: number; tables: DbTableSummary[] }>('/admin/db/tables');
+      setTablesList(res.tables || []);
     } catch (err: any) {
-      alert(err.message || 'Erreur lors de la connexion Super Admin.');
+      console.error('Erreur chargement tables:', err);
     }
-  };
+  }, []);
 
-  // Toggle user activation
-  const handleToggleUserActive = async (u: AdminUser) => {
-    if (u.id === user?.id) {
-      alert('Action impossible : vous ne pouvez pas suspendre votre propre compte administrateur.');
-      return;
-    }
-    const confirmAction = window.confirm(`Voulez-vous vraiment ${u.isActive ? 'suspendre' : 'réactiver'} le compte de ${u.email} ?`);
-    if (!confirmAction) return;
-
+  // 3. Chargement des enregistrements d'une table
+  const loadTableRecords = useCallback(async (tableName: string, page = 1, search = '') => {
+    setTableLoading(true);
     try {
-      await api.put(`/admin/users/${u.id}/toggle`, {});
-      setUsersList(prev => prev.map(x => (x.id === u.id ? { ...x, isActive: !x.isActive } : x)));
+      const query = `/admin/db/tables/${tableName}/records?page=${page}&pageSize=15${search ? `&search=${encodeURIComponent(search)}` : ''}`;
+      const res = await api.get<any>(query);
+      setTableRecords(res.records || []);
+      setTableColumns(res.columns || []);
+      setTableTotalRecords(res.totalRecords || 0);
+      setTablePage(res.page || 1);
     } catch (err: any) {
-      alert(err.message || 'Erreur lors de la modification du statut.');
-    }
-  };
-
-  // Toggle admin rights
-  const handleToggleAdminRole = async (u: AdminUser) => {
-    if (u.id === user?.id) {
-      alert('Action impossible : vous ne pouvez pas révoquer vos propres droits master.');
-      return;
-    }
-    const newRole = !u.isAdmin;
-    const confirmAction = window.confirm(
-      newRole
-        ? `Accorder les droits Super Administrateur à ${u.firstName} ${u.lastName} (${u.email}) ?`
-        : `Rétrograder ${u.firstName} ${u.lastName} au rang d'utilisateur simple ?`
-    );
-    if (!confirmAction) return;
-
-    try {
-      await api.put(`/admin/users/${u.id}/role`, { isAdmin: newRole });
-      setUsersList(prev => prev.map(x => (x.id === u.id ? { ...x, isAdmin: newRole } : x)));
-    } catch (err: any) {
-      alert(err.message || 'Erreur lors du changement de rôle.');
-    }
-  };
-
-  // Live Impersonation
-  const handleImpersonate = async (u: AdminUser) => {
-    if (u.id === user?.id) {
-      alert('Vous êtes déjà connecté sous votre propre compte.');
-      return;
-    }
-    const ok = window.confirm(`Démarrer une session de supervision sous l'identité de ${u.firstName} ${u.lastName} (${u.email}) ?`);
-    if (!ok) return;
-
-    try {
-      const res = await api.post<any>(`/admin/users/${u.id}/impersonate`, {});
-      impersonateUser(res.user);
-      window.location.href = '/dashboard';
-    } catch (err: any) {
-      alert(err.message || "Erreur lors de l'impersonation.");
-    }
-  };
-
-  // Manual subscription grant submit
-  const handleGrantSubscription = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetUser) return;
-    if (!actionMotif.trim()) {
-      alert('Veuillez renseigner un motif pour la traçabilité de conformité.');
-      return;
-    }
-    try {
-      setActionSubmitting(true);
-      await api.put(`/admin/users/${targetUser.id}/subscription`, {
-        planName: targetPlan,
-        days: actionDays,
-        motif: actionMotif,
-      });
-      alert(`Forfait ${targetPlan.toUpperCase()} attribué avec succès à ${targetUser.email}.`);
-      setShowSubModal(false);
-      fetchAdminData();
-    } catch (err: any) {
-      alert(err.message || "Erreur lors de l'attribution du forfait.");
+      console.error('Erreur chargement enregistrements:', err);
+      setTableRecords([]);
     } finally {
-      setActionSubmitting(false);
+      setTableLoading(false);
     }
-  };
+  }, []);
 
-  // Create User Submit
+  // 4. Chargement des clés API et LLM
+  const loadApiKeysAndLlm = useCallback(async () => {
+    try {
+      const [keysRes, llmRes] = await Promise.all([
+        api.get<{ keys: SystemApiKey[] }>('/admin/api-keys'),
+        api.get<{ configs: LlmConfigItem[] }>('/admin/llm/configs'),
+      ]);
+      setApiKeys(keysRes.keys || []);
+      setLlmConfigs(llmRes.configs || []);
+    } catch (err: any) {
+      console.error('Erreur clés/LLM:', err);
+    }
+  }, []);
+
+  // 5. Chargement des journaux d'audit
+  const loadAuditLogs = useCallback(async () => {
+    try {
+      const res = await api.get<any>('/admin/audit-logs?pageSize=40');
+      setAuditLogs(res.logs || []);
+    } catch (err: any) {
+      console.error('Erreur audit logs:', err);
+    }
+  }, []);
+
+  // Cycle de vie initial
+  useEffect(() => {
+    loadCoreData();
+    loadDbTables();
+    loadApiKeysAndLlm();
+    loadAuditLogs();
+  }, [loadCoreData, loadDbTables, loadApiKeysAndLlm, loadAuditLogs]);
+
+  // Actualisation automatique toutes les 15 secondes si activée
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      loadCoreData(true);
+      if (activeTab === 'monitoring' || activeTab === 'logs') {
+        api.get<ApmSummary>('/admin/monitoring/apm').then(setApm).catch(() => {});
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, loadCoreData, activeTab]);
+
+  // Déclenchement lors du changement d'onglet
+  useEffect(() => {
+    if (activeTab === 'database') {
+      loadDbTables();
+      loadTableRecords(selectedTable, 1, tableSearch);
+    } else if (activeTab === 'api_keys' || activeTab === 'llm') {
+      loadApiKeysAndLlm();
+    } else if (activeTab === 'admin_history' || activeTab === 'security') {
+      loadAuditLogs();
+    }
+  }, [activeTab, selectedTable, loadDbTables, loadTableRecords, tableSearch, loadApiKeysAndLlm, loadAuditLogs]);
+
+  // Filtrage des utilisateurs réels
+  const filteredUsers = useMemo(() => {
+    if (!stats?.recentUsers) return [];
+    return stats.recentUsers.filter((u: any) => {
+      const fullName = `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const matchesSearch = fullName.includes(userSearchTerm.toLowerCase()) || email.includes(userSearchTerm.toLowerCase());
+      if (userRoleFilter === 'admin') return matchesSearch && u.isAdmin;
+      if (userRoleFilter === 'merchant') return matchesSearch && !u.isAdmin;
+      return matchesSearch;
+    }).sort((a: any, b: any) => {
+      if (userSortField === 'name') return (a.firstName || '').localeCompare(b.firstName || '');
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [stats?.recentUsers, userSearchTerm, userRoleFilter, userSortField]);
+
+  // Gestion des actions Super Admin
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createForm.email || !createForm.firstName) {
-      alert('Veuillez remplir au moins le prénom et l’adresse email.');
-      return;
-    }
     try {
-      setCreateSubmitting(true);
-      const res = await api.post<any>('/admin/users', createForm);
-      alert(res.message || 'Commerçant créé avec succès !');
-      setShowCreateModal(false);
-      setCreateForm({
+      await api.post('/admin/users', newUserForm);
+      showToast(`Commerçant ${newUserForm.firstName} créé avec succès !`);
+      setShowAddUserModal(false);
+      setNewUserForm({
         firstName: '',
         lastName: '',
         email: '',
         phone: '',
-        password: 'Password123!',
+        password: '',
+        role: 'merchant',
+        planName: 'pro',
         businessName: '',
         sector: 'commerce',
-        country: 'Cameroun',
-        city: 'Douala',
-        currency: 'XAF',
-        planName: 'pro',
-        role: 'merchant',
       });
-      fetchAdminData();
+      loadCoreData();
     } catch (err: any) {
-      alert(err.message || 'Erreur lors de la création du compte.');
-    } finally {
-      setCreateSubmitting(false);
+      alert(err.message || 'Erreur lors de la création');
     }
   };
 
-  // Delete User Submit
-  const handleDeleteUser = async () => {
-    if (!userToDelete) return;
-    if (deleteConfirmationText.trim().toUpperCase() !== 'SUPPRIMER') {
-      alert('Veuillez taper "SUPPRIMER" pour valider la suppression définitive.');
-      return;
-    }
-    try {
-      setDeleteSubmitting(true);
-      const res = await api.delete<any>(`/admin/users/${userToDelete.id}`);
-      alert(res.message || 'Compte supprimé définitivement.');
-      setShowDeleteModal(false);
-      setUserToDelete(null);
-      setDeleteConfirmationText('');
-      fetchAdminData();
-    } catch (err: any) {
-      alert(err.message || 'Erreur lors de la suppression.');
-    } finally {
-      setDeleteSubmitting(false);
-    }
-  };
-
-  // Edit User Submit
-  const handleEditUser = async (e: React.FormEvent) => {
+  const handleSaveApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.put(`/admin/users/${editForm.id}`, editForm);
-      alert('Informations mises à jour avec succès.');
-      setShowEditModal(false);
-      fetchAdminData();
+      await api.post('/admin/api-keys', newKeyForm);
+      showToast(`Clé API ${newKeyForm.displayName} chiffrée et enregistrée.`);
+      setShowAddKeyModal(false);
+      setNewKeyForm({ serviceName: 'openai', displayName: 'OpenAI GPT-4o', category: 'llm', apiKey: '', apiUrl: '' });
+      loadApiKeysAndLlm();
     } catch (err: any) {
-      alert(err.message || 'Erreur lors de la mise à jour.');
+      alert(err.message || 'Erreur lors de l’enregistrement de la clé');
     }
   };
 
-  // Save Platform Config Submit
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!platformConfig) return;
+  const handleRevealKey = async () => {
+    if (!keyToReveal || !adminPasswordInput) return;
+    setRevealError(null);
     try {
-      setConfigSubmitting(true);
-      await api.put('/admin/config', platformConfig);
-      setConfigSuccessMessage('✓ Paramètres de la plateforme enregistrés avec succès !');
-      setTimeout(() => setConfigSuccessMessage(''), 4000);
+      const res = await api.post<{ plainKey: string }>(`/admin/api-keys/${keyToReveal.id}/reveal`, {
+        adminPassword: adminPasswordInput,
+      });
+      setRevealedSecret(res.plainKey);
+      setAdminPasswordInput('');
     } catch (err: any) {
-      alert(err.message || 'Erreur lors de l’enregistrement de la configuration.');
-    } finally {
-      setConfigSubmitting(false);
+      setRevealError(err.message || 'Mot de passe administrateur incorrect.');
     }
   };
 
-  // Export payments CSV
-  const exportPaymentsCsv = () => {
-    if (paymentsList.length === 0) {
-      alert('Aucune transaction financière à exporter.');
-      return;
+  const handleTestKey = async (keyId: string) => {
+    setLlmTestStatus(prev => ({ ...prev, [keyId]: { testing: true } }));
+    try {
+      const res = await api.post<any>(`/admin/api-keys/${keyId}/test`);
+      setLlmTestStatus(prev => ({ ...prev, [keyId]: { testing: false, result: res } }));
+      showToast(res.success ? `Test réussi (${res.latencyMs}ms)` : `Échec : ${res.error}`);
+      loadApiKeysAndLlm();
+    } catch (err: any) {
+      setLlmTestStatus(prev => ({ ...prev, [keyId]: { testing: false, error: err.message } }));
     }
-    const headers = ['ID Référence', 'Client', 'Email', 'Montant', 'Devise', 'Statut', 'Opérateur', 'Plan', 'Date'];
-    const rows = paymentsList.map(p => [
-      p.reference,
-      `${p.user.firstName} ${p.user.lastName}`,
-      p.user.email,
-      p.amount,
-      p.currency,
-      p.status,
-      p.provider,
-      p.plan?.displayName || 'Abonnement',
-      p.createdAt,
-    ]);
-    downloadCSVWithBOM(`commercia_flux_financiers_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
   };
 
-  // Geographic statistics calculated from users list
-  const geoStats = useMemo(() => {
-    const countries: Record<string, { count: number; volume: number; cities: Record<string, number> }> = {};
-    usersList.forEach(u => {
-      const country = u.country || 'Cameroun';
-      const city = u.city || 'Douala';
-      const vol = u.totalSales || 1500000;
-      if (!countries[country]) {
-        countries[country] = { count: 0, volume: 0, cities: {} };
+  const handleTestDirectLlm = async (provider: string, model: string) => {
+    setLlmTestStatus(prev => ({ ...prev, [provider]: { testing: true } }));
+    try {
+      const res = await api.post<any>('/admin/llm/test-direct', { provider, model });
+      setLlmTestStatus(prev => ({ ...prev, [provider]: { testing: false, result: res } }));
+      if (res.success) {
+        showToast(`Connectivité ${provider} validée (${res.latencyMs}ms) : ${res.responseSample}`);
+      } else {
+        alert(`Échec test ${provider} : ${res.error}`);
       }
-      countries[country].count += 1;
-      countries[country].volume += vol;
-      countries[country].cities[city] = (countries[country].cities[city] || 0) + 1;
-    });
-    return countries;
-  }, [usersList]);
+    } catch (err: any) {
+      setLlmTestStatus(prev => ({ ...prev, [provider]: { testing: false, error: err.message } }));
+    }
+  };
 
-  // Total managed volume and metrics
-  const totalVolumeManaged = useMemo(() => {
-    return usersList.reduce((sum, u) => sum + (u.totalSales || 1500000), 0);
-  }, [usersList]);
+  const handleDeleteConfirmed = async () => {
+    if (!deleteTarget) return;
+    if (deleteConfirmText !== 'CONFIRMER') {
+      alert('Veuillez taper "CONFIRMER" pour débloquer la suppression.');
+      return;
+    }
+    try {
+      if (deleteTarget.type === 'user') {
+        await api.delete(`/admin/users/${deleteTarget.id}`);
+        showToast(`Utilisateur supprimé définitivement.`);
+        loadCoreData();
+      } else if (deleteTarget.type === 'record') {
+        await api.delete(`/admin/db/tables/${selectedTable}/records/${deleteTarget.id}`);
+        showToast(`Enregistrement supprimé de la table ${selectedTable}.`);
+        loadTableRecords(selectedTable, tablePage, tableSearch);
+      }
+      setShowDeleteModal(false);
+      setDeleteTarget(null);
+      setDeleteConfirmText('');
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression');
+    }
+  };
 
-  const totalPaymentsAmount = useMemo(() => {
-    return paymentsList.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  }, [paymentsList]);
+  const handleUpdatePlatformConfig = async (partial: any) => {
+    try {
+      const updated = { ...platformConfig, ...partial };
+      await api.put('/admin/config', updated);
+      setPlatformConfig(updated);
+      showToast('Configuration plateforme enregistrée en base réelle.');
+    } catch (err: any) {
+      alert(err.message || 'Erreur enregistrement config');
+    }
+  };
 
-  // Filtered & Sorted Users List
-  const filteredUsers = useMemo(() => {
-    return usersList
-      .filter(u => {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesQuery =
-          !q ||
-          u.email.toLowerCase().includes(q) ||
-          u.firstName.toLowerCase().includes(q) ||
-          u.lastName.toLowerCase().includes(q) ||
-          (u.phone && u.phone.includes(q)) ||
-          (u.city && u.city.toLowerCase().includes(q)) ||
-          (u.businesses && u.businesses.some(b => b.name.toLowerCase().includes(q)));
-
-        if (!matchesQuery) return false;
-
-        // Plan/Role Filter
-        if (userFilter === 'pro' && !u.isPro) return false;
-        if (userFilter === 'business' && u.planName !== 'business') return false;
-        if (userFilter === 'free' && (u.isPro || u.planName !== 'free')) return false;
-        if (userFilter === 'suspended' && u.isActive) return false;
-        if (userFilter === 'admin' && !u.isAdmin) return false;
-
-        // Country Filter
-        if (countryFilter !== 'all' && u.country !== countryFilter) return false;
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === 'sales_desc') return (b.totalSales || 0) - (a.totalSales || 0);
-        if (sortBy === 'sales_asc') return (a.totalSales || 0) - (b.totalSales || 0);
-        if (sortBy === 'date_desc') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        if (sortBy === 'date_asc') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        if (sortBy === 'name_asc') return a.firstName.localeCompare(b.firstName);
-        return 0;
-      });
-  }, [usersList, searchQuery, userFilter, countryFilter, sortBy]);
+  const exportTableAsJson = () => {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(tableRecords, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', `${selectedTable}_export_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
 
   return (
-    <div
-      className="page-wrapper"
-      style={{
-        maxWidth: isWideMode ? '100%' : '1440px',
-        margin: '0 auto',
-        padding: isWideMode ? '20px 28px' : '24px 20px',
-        transition: 'all 0.25s ease',
-      }}
-    >
-      {/* 1. TOP EXECUTIVE HEADER — CRISP HIGH CONTRAST & EXPANDABLE */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, #070D18 0%, #0D1B2E 50%, #152844 100%)',
-          borderRadius: '24px',
-          padding: '28px 32px',
+    <div style={{ minHeight: '100vh', background: '#090D16', color: '#F1F5F9', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {/* Toast Notification */}
+      {successToast && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          zIndex: 9999,
+          background: '#10B981',
           color: '#FFFFFF',
-          marginBottom: '26px',
-          boxShadow: '0 12px 30px rgba(0, 0, 0, 0.25)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+          padding: '12px 20px',
+          borderRadius: '8px',
+          fontWeight: 600,
+          boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <CheckCircle size={18} />
+          {successToast}
+        </div>
+      )}
+
+      {/* HEADER SUPÉRIEUR SUPER ADMIN */}
+      <header style={{
+        background: '#0B132B',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        padding: '14px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{
+            background: '#2563EB',
+            color: '#FFFFFF',
+            padding: '8px 12px',
+            borderRadius: '8px',
+            fontWeight: 800,
+            letterSpacing: '1px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <ShieldAlert size={18} />
+            COMMERCIA SUPER ADMIN
+          </div>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-              <span
-                style={{
-                  background: 'rgba(0, 98, 255, 0.35)',
-                  border: '1px solid rgba(96, 165, 250, 0.7)',
-                  color: '#93C5FD',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
-                  letterSpacing: '0.06em',
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  textTransform: 'uppercase',
-                }}
-              >
-                👑 Master Root Control Center
-              </span>
-              <span
-                style={{
-                  background: 'rgba(16, 185, 129, 0.25)',
-                  border: '1px solid rgba(52, 211, 153, 0.6)',
-                  color: '#6EE7B7',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
-                Système 100% Opérationnel
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>Orchestration Infrastructure & Sécurité</span>
+              <span style={{
+                background: dbHealth?.status === 'operational' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                color: dbHealth?.status === 'operational' ? '#34D399' : '#F87171',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontWeight: 700,
+              }}>
+                {dbHealth?.status === 'operational' ? '● BASE POSTGRESQL CONNECTÉE' : '● CONNEXION DÉGRADÉE'}
               </span>
             </div>
-
-            {/* Title with bright crisp white contrast */}
-            <h1 style={{ fontSize: '2.1rem', fontWeight: 800, margin: '0 0 8px 0', letterSpacing: '-0.02em', color: '#FFFFFF' }}>
-              Orchestration Générale — COMMERC<span style={{ color: '#FF7A00' }}>IA</span>
-            </h1>
-            <p style={{ margin: 0, color: '#E2E8F0', fontSize: '0.96rem', fontWeight: 500, lineHeight: 1.5 }}>
-              Cockpit Exécutif de Supervision : CRM Marchands, Multi-Boutiques, Répartition Géographique & Sécurité Zero-Trust
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {/* Width Expand Toggle Button */}
-            <button
-              type="button"
-              onClick={() => setIsWideMode(!isWideMode)}
-              style={{
-                background: isWideMode ? 'rgba(0, 98, 255, 0.25)' : 'rgba(255, 255, 255, 0.08)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '12px',
-                padding: '11px 16px',
-                fontSize: '0.86rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              title={isWideMode ? 'Réduire la largeur' : 'Étendre sur toute la largeur de l’écran'}
-            >
-              {isWideMode ? <Minimize2 size={16} color="#93C5FD" /> : <Maximize2 size={16} color="#93C5FD" />}
-              <span>{isWideMode ? 'Vue Élargie Active ✓' : 'Élargir la vue ⤢'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={fetchAdminData}
-              disabled={loading}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '12px',
-                padding: '11px 16px',
-                fontSize: '0.86rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-              }}
-            >
-              <RefreshCw size={15} className={loading ? 'spin' : ''} />
-              <span>Actualiser</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={exportPaymentsCsv}
-              style={{
-                background: '#0062FF',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '12px',
-                padding: '11px 18px',
-                fontSize: '0.86rem',
-                fontWeight: 800,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-              }}
-            >
-              <Download size={15} />
-              <span>Export CSV</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. EXECUTIVE METRICS BAROMETER (Full network aggregated data) */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '16px',
-          marginBottom: '26px',
-        }}
-      >
-        {/* MRR */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '18px', padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Revenu Récurrent (MRR)</span>
-            <span style={{ background: '#ECFDF5', color: '#059669', padding: '3px 8px', borderRadius: '8px', fontSize: '0.74rem', fontWeight: 800 }}>+18.4%</span>
-          </div>
-          <div style={{ fontSize: '1.7rem', fontWeight: 800, color: '#059669', letterSpacing: '-0.02em' }}>
-            {(stats?.metrics?.estimatedMRR || 48000).toLocaleString('fr-FR')} <span style={{ fontSize: '0.9rem', color: '#64748B' }}>FCFA</span>
-          </div>
-          <div style={{ fontSize: '0.78rem', color: '#94A3B8', marginTop: '6px' }}>
-            ARR estimé : {((stats?.metrics?.estimatedMRR || 48000) * 12).toLocaleString('fr-FR')} FCFA
+            <div style={{ fontSize: '11px', color: '#94A3B8' }}>
+              Hôte : {dbHealth?.host || 'ep-bitter-hill-b59ja17y-pooler (Neon)'} • Latence : {dbHealth?.latencyMs ? `${dbHealth.latencyMs}ms` : 'Mesure...'}
+            </div>
           </div>
         </div>
 
-        {/* GMV TOTAL VENTES GÉRÉES */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '18px', padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Volume Ventes (GMV Réseau)</span>
-            <span style={{ background: '#EFF6FF', color: '#0062FF', padding: '3px 8px', borderRadius: '8px', fontSize: '0.74rem', fontWeight: 800 }}>Transactions</span>
-          </div>
-          <div style={{ fontSize: '1.7rem', fontWeight: 800, color: '#0062FF', letterSpacing: '-0.02em' }}>
-            {totalVolumeManaged.toLocaleString('fr-FR')} <span style={{ fontSize: '0.9rem', color: '#64748B' }}>FCFA</span>
-          </div>
-          <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '6px' }}>
-            Somme gérée sur l'ensemble des boutiques
-          </div>
-        </div>
-
-        {/* NOMBRE MARCHANDS & FORFAITS */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '18px', padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Commerçants Inscrits</span>
-            <Users size={16} color="#0062FF" />
-          </div>
-          <div style={{ fontSize: '1.7rem', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-            {usersList.length}
-          </div>
-          <div style={{ fontSize: '0.78rem', color: '#059669', marginTop: '6px', fontWeight: 600 }}>
-            {usersList.filter(u => u.isPro).length} Abonnés Pro & Business actifs
-          </div>
-        </div>
-
-        {/* FLUX PAIEMENTS ENCAISSÉS */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '18px', padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Paiements Traités</span>
-            <CreditCard size={16} color="#FF6B00" />
-          </div>
-          <div style={{ fontSize: '1.7rem', fontWeight: 800, color: '#FF6B00', letterSpacing: '-0.02em' }}>
-            {paymentsList.length || 48} <span style={{ fontSize: '0.88rem', color: '#64748B' }}>tx</span>
-          </div>
-          <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '6px' }}>
-            Total Mobile Money : {totalPaymentsAmount ? totalPaymentsAmount.toLocaleString('fr-FR') : '61 500'} FCFA
-          </div>
-        </div>
-
-        {/* FEEDBACKS & NOTES */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '18px', padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Avis & Suggestions</span>
-            <Star size={16} color="#D97706" />
-          </div>
-          <div style={{ fontSize: '1.7rem', fontWeight: 800, color: '#D97706', letterSpacing: '-0.02em' }}>
-            {feedbacksData.suggestions.length + feedbacksData.ratings.length}
-          </div>
-          <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: '6px' }}>
-            {feedbacksData.suggestions.length} Idées • {feedbacksData.ratings.length} Avis certifiés
-          </div>
-        </div>
-      </div>
-
-      {/* 3. MULTI-POLE NAVIGATION TABS */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '8px',
-          overflowX: 'auto',
-          borderBottom: '2px solid #E2E8F0',
-          paddingBottom: '12px',
-          marginBottom: '24px',
-        }}
-      >
-        {[
-          { id: 'overview', label: 'Vue Stratégique', icon: Activity },
-          { id: 'users', label: `Commerçants (${filteredUsers.length}/${usersList.length})`, icon: Users },
-          { id: 'geo', label: 'Répartition Géographique', icon: Globe },
-          { id: 'businesses', label: `Boutiques (${businessesList.length})`, icon: Store },
-          { id: 'payments', label: `Paiements (${paymentsList.length})`, icon: DollarSign },
-          { id: 'feedbacks', label: `Idées & Avis (${feedbacksData.suggestions.length + feedbacksData.ratings.length})`, icon: MessageSquare },
-          { id: 'config', label: 'Configuration Plateforme', icon: Sliders },
-          { id: 'audit', label: `Journal d'Audit (${auditLogs.length})`, icon: FileText },
-          { id: 'system', label: 'Santé Infrastructure', icon: Server },
-        ].map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id as any)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 18px',
-                borderRadius: '12px',
-                fontWeight: 700,
-                fontSize: '0.88rem',
-                border: 'none',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                background: isActive ? '#0062FF' : '#F1F5F9',
-                color: isActive ? '#FFFFFF' : '#475569',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <Icon size={16} color={isActive ? '#FFFFFF' : '#64748B'} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ========================================================================= */}
-      {/* TAB 1: OVERVIEW & STRATEGIC COCKPIT */}
-      {/* ========================================================================= */}
-      {activeTab === 'overview' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Quick Actions Bar */}
-          <div
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Commutateur Plein Écran / Vue Normale */}
+          <button
+            onClick={() => setIsWideMode(!isWideMode)}
             style={{
-              background: '#FFFFFF',
-              borderRadius: '20px',
-              border: '1px solid #E2E8F0',
-              padding: '22px',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#CBD5E1',
+              padding: '8px 14px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '16px',
+              gap: '6px',
             }}
           >
-            <div>
-              <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Zap size={18} color="#FF6B00" />
-                <span>Actions d'Orchestration Rapides</span>
-              </div>
-              <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: '#64748B' }}>
-                Gestion centralisée des comptes marchands, configuration système et diffusion de messages.
-              </p>
+            {isWideMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            {isWideMode ? 'Vue Normale' : 'Plein Écran Fluide ⤢'}
+          </button>
+
+          {/* Actualisation automatique */}
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            style={{
+              background: autoRefresh ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.06)',
+              border: `1px solid ${autoRefresh ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.1)'}`,
+              color: autoRefresh ? '#34D399' : '#94A3B8',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <Radio size={14} />
+            {autoRefresh ? 'Live 15s (Actif)' : 'Live Suspendu'}
+          </button>
+
+          {/* Bouton d'actualisation manuelle */}
+          <button
+            onClick={() => loadCoreData(false)}
+            disabled={refreshing}
+            style={{
+              background: '#2563EB',
+              color: '#FFFFFF',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            {refreshing ? 'Synchronisation...' : 'Actualiser les Flux'}
+          </button>
+        </div>
+      </header>
+
+      {/* Message d'erreur s'il y a lieu */}
+      {errorMessage && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.15)',
+          borderLeft: '4px solid #EF4444',
+          color: '#FCA5A5',
+          padding: '12px 24px',
+          fontSize: '13px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+        }}>
+          <AlertTriangle size={16} />
+          <span><strong>Incident détecté :</strong> {errorMessage}</span>
+        </div>
+      )}
+
+      {/* CONTENEUR PRINCIPAL AVEC MENU LATÉRAL ET ESPACE DE TRAVAIL */}
+      <div style={{
+        display: 'flex',
+        minHeight: 'calc(100vh - 65px)',
+        maxWidth: isWideMode ? '100%' : '1440px',
+        margin: '0 auto',
+        padding: isWideMode ? '0 16px 32px 16px' : '0 24px 32px 24px',
+        gap: '20px',
+      }}>
+        {/* MENU LATÉRAL STRUCTURÉ (15 RUBRIQUES OBLIGATOIRES) */}
+        <aside style={{
+          width: '260px',
+          flexShrink: 0,
+          background: '#0F172A',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
+          padding: '20px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+        }}>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748B', letterSpacing: '1px', marginBottom: '8px', paddingLeft: '8px' }}>
+              SUPERVISION & MONITORING
             </div>
-
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(true)}
-                style={{
-                  background: '#0062FF',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '9px 16px',
-                  fontSize: '0.86rem',
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                }}
-              >
-                <UserPlus size={16} />
-                <span>+ Ajouter un Marchand</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowBroadcastModal(true)}
-                style={{
-                  background: '#0F172A',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '9px 16px',
-                  fontSize: '0.86rem',
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                }}
-              >
-                <Radio size={16} color="#FF7A00" />
-                <span>Diffuser une Annonce</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('config')}
-                style={{
-                  background: '#F1F5F9',
-                  color: '#334155',
-                  border: '1px solid #CBD5E1',
-                  borderRadius: '10px',
-                  padding: '9px 16px',
-                  fontSize: '0.86rem',
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  cursor: 'pointer',
-                }}
-              >
-                <Sliders size={16} color="#0062FF" />
-                <span>Paramètres Globaux</span>
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {[
+                { id: 'dashboard', label: '1. Dashboard Général', icon: Activity },
+                { id: 'monitoring', label: '2. Monitoring & APM', icon: Cpu },
+                { id: 'services', label: '3. Services & Dépendances', icon: Server },
+                { id: 'logs', label: '4. Logs Système HTTP', icon: FileText },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as AdminTab)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: activeTab === item.id ? '#2563EB' : 'transparent',
+                    color: activeTab === item.id ? '#FFFFFF' : '#94A3B8',
+                    fontWeight: activeTab === item.id ? 700 : 500,
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <item.icon size={15} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Regional Summary Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
-            {/* Top Merchants by Sales */}
-            <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A' }}>
-                  🏆 Top Marchands par Volume d'Affaires
-                </div>
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748B', letterSpacing: '1px', marginBottom: '8px', paddingLeft: '8px' }}>
+              INFRASTRUCTURE & DONNÉES
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {[
+                { id: 'database', label: '5. Base de Données (43 tables)', icon: Database },
+                { id: 'backups', label: '6. Sauvegardes & Migrations', icon: HardDrive },
+              ].map(item => (
                 <button
-                  type="button"
-                  onClick={() => setActiveTab('users')}
-                  style={{ background: 'transparent', border: 'none', color: '#0062FF', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as AdminTab)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: activeTab === item.id ? '#2563EB' : 'transparent',
+                    color: activeTab === item.id ? '#FFFFFF' : '#94A3B8',
+                    fontWeight: activeTab === item.id ? 700 : 500,
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
                 >
-                  Voir tous →
+                  <item.icon size={15} />
+                  <span>{item.label}</span>
                 </button>
-              </div>
+              ))}
+            </div>
+          </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {usersList
-                  .slice()
-                  .sort((a, b) => (b.totalSales || 0) - (a.totalSales || 0))
-                  .slice(0, 5)
-                  .map((u, idx) => (
-                    <div
-                      key={u.id}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748B', letterSpacing: '1px', marginBottom: '8px', paddingLeft: '8px' }}>
+              INTELLIGENCE & CONNECTEURS
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {[
+                { id: 'llm', label: '7. Configuration IA & LLM', icon: Bot },
+                { id: 'api_keys', label: '8. Gestion Clés API (AES-256)', icon: Key },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as AdminTab)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: activeTab === item.id ? '#2563EB' : 'transparent',
+                    color: activeTab === item.id ? '#FFFFFF' : '#94A3B8',
+                    fontWeight: activeTab === item.id ? 700 : 500,
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <item.icon size={15} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748B', letterSpacing: '1px', marginBottom: '8px', paddingLeft: '8px' }}>
+              COMMERCE & COMPTES RÉELS
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {[
+                { id: 'users', label: '9. Utilisateurs & Marchands', icon: Users },
+                { id: 'roles', label: '10. Rôles & Permissions', icon: Lock },
+                { id: 'subscriptions', label: '11. Abonnements & Revenus', icon: CreditCard },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as AdminTab)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: activeTab === item.id ? '#2563EB' : 'transparent',
+                    color: activeTab === item.id ? '#FFFFFF' : '#94A3B8',
+                    fontWeight: activeTab === item.id ? 700 : 500,
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <item.icon size={15} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 800, color: '#64748B', letterSpacing: '1px', marginBottom: '8px', paddingLeft: '8px' }}>
+              SÉCURITÉ & GOUVERNANCE
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              {[
+                { id: 'security', label: '12. Sécurité Zero-Trust', icon: ShieldAlert },
+                { id: 'notifications', label: '13. Annonces & Diffusion', icon: Bell },
+                { id: 'settings', label: '14. Paramètres Plateforme', icon: Settings },
+                { id: 'admin_history', label: '15. Historique Opérations', icon: History },
+              ].map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as AdminTab)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: activeTab === item.id ? '#2563EB' : 'transparent',
+                    color: activeTab === item.id ? '#FFFFFF' : '#94A3B8',
+                    fontWeight: activeTab === item.id ? 700 : 500,
+                    fontSize: '12.5px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <item.icon size={15} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        {/* ESPACE DE TRAVAIL CENTRAL */}
+        <main style={{ flex: 1, paddingTop: '20px', minWidth: 0 }}>
+          {/* =========================================================================
+              ONGLET 1 : DASHBOARD GÉNÉRAL
+             ========================================================================= */}
+          {activeTab === 'dashboard' && (
+            <div>
+              {/* Carte Bannière Sombre à Contraste Élevé */}
+              <div style={{
+                background: 'linear-gradient(135deg, #0B132B 0%, #1E293B 100%)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '12px',
+                padding: '24px 28px',
+                marginBottom: '24px',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                      <span style={{
+                        background: '#2563EB',
+                        color: '#FFFFFF',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        letterSpacing: '0.5px',
+                      }}>
+                        SUPER ADMIN COCKPIT
+                      </span>
+                      <span style={{
+                        background: 'rgba(16, 185, 129, 0.2)',
+                        color: '#34D399',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                      }}>
+                        DONNÉES 100% RÉELLES DE PRODUCTION
+                      </span>
+                    </div>
+                    <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', margin: 0, letterSpacing: '-0.5px' }}>
+                      Orchestration Centrale — COMMERCIA
+                    </h1>
+                    <p style={{ color: '#E2E8F0', fontSize: '13px', margin: '6px 0 0 0', maxWidth: '800px', lineHeight: 1.5 }}>
+                      Supervision connectée aux infrastructures Neon PostgreSQL, moteur IA, métriques de paiement et gestion des commerçants sans simulation.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      onClick={() => setShowAddUserModal(true)}
                       style={{
+                        background: '#2563EB',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '10px 16px',
+                        borderRadius: '6px',
+                        fontWeight: 600,
+                        fontSize: '13px',
+                        cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '12px',
-                        background: '#F8FAFC',
-                        borderRadius: '12px',
-                        border: '1px solid #E2E8F0',
+                        gap: '8px',
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ width: '24px', fontWeight: 800, color: idx === 0 ? '#FF6B00' : '#64748B', fontSize: '0.9rem' }}>
-                          #{idx + 1}
-                        </span>
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A' }}>
-                            {u.firstName} {u.lastName}
-                          </div>
-                          <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                            {u.city || 'Douala'} • {u.businesses?.[0]?.name || 'Boutique'}
-                          </div>
-                        </div>
-                      </div>
+                      <Plus size={16} />
+                      Créer un Marchand
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 800, fontSize: '0.94rem', color: '#0062FF' }}>
-                          {(u.totalSales || 0).toLocaleString('fr-FR')} FCFA
-                        </div>
-                        <span
-                          style={{
-                            fontSize: '0.7rem',
-                            fontWeight: 700,
-                            padding: '2px 8px',
-                            borderRadius: '10px',
-                            background: u.isPro ? '#ECFDF5' : '#F1F5F9',
-                            color: u.isPro ? '#059669' : '#64748B',
-                          }}
-                        >
-                          {u.plan}
-                        </span>
-                      </div>
+              {/* CARTES STATISTIQUES RÉELLES FONDAMENTALES */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '16px',
+                marginBottom: '24px',
+              }}>
+                <div style={{ background: '#0F172A', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '18px 20px' }}>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 600 }}>UTILISATEURS ENREGISTRÉS</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#FFFFFF', marginTop: '6px' }}>
+                    {stats?.metrics?.totalUsers ?? '...'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+                    Comptes réels stockés dans Neon
+                  </div>
+                </div>
+
+                <div style={{ background: '#0F172A', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '18px 20px' }}>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 600 }}>BOUTIQUES & ÉTABLISSEMENTS</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#FFFFFF', marginTop: '6px' }}>
+                    {stats?.metrics?.totalBusinesses ?? '...'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+                    Points de vente actifs créés
+                  </div>
+                </div>
+
+                <div style={{ background: '#0F172A', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '18px 20px' }}>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 600 }}>VOLUME RÉEL TRANSITɠ(GMV)</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#10B981', marginTop: '6px' }}>
+                    {(stats?.metrics?.gmv || 0).toLocaleString('fr-FR')} FCFA
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+                    {stats?.metrics?.totalTransactions || 0} transaction(s) de vente
+                  </div>
+                </div>
+
+                <div style={{ background: '#0F172A', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '18px 20px' }}>
+                  <div style={{ fontSize: '12px', color: '#94A3B8', fontWeight: 600 }}>REVENU RÉCURRENT (MRR)</div>
+                  <div style={{ fontSize: '28px', fontWeight: 800, color: '#38BDF8', marginTop: '6px' }}>
+                    {(stats?.metrics?.mrr || 0).toLocaleString('fr-FR')} FCFA
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+                    {stats?.metrics?.activePaidSubsCount || 0} abonnement(s) payant(s)
+                  </div>
+                </div>
+              </div>
+
+              {/* VUE SYNTHÉTIQUE : SANTÉ SYSTÈME & DERNIÈRES OPÉRATIONS */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+                {/* Diagnostics Rapides Base & APM */}
+                <div style={{ background: '#0F172A', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Database size={16} color="#38BDF8" />
+                      État Live Neon PostgreSQL
                     </div>
-                  ))}
+                    <button
+                      onClick={() => setActiveTab('monitoring')}
+                      style={{ background: 'transparent', border: 'none', color: '#38BDF8', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      Détails APM →
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                      <span style={{ color: '#94A3B8' }}>Statut de connexion :</span>
+                      <span style={{ color: dbHealth?.status === 'operational' ? '#34D399' : '#F87171', fontWeight: 700 }}>
+                        {dbHealth?.status === 'operational' ? 'Opérationnel' : 'Dégradé / Hors ligne'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                      <span style={{ color: '#94A3B8' }}>Temps de réponse (Ping SQL) :</span>
+                      <span style={{ fontWeight: 700, color: '#FFFFFF' }}>{dbHealth?.latencyMs ? `${dbHealth.latencyMs} ms` : '...'}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                      <span style={{ color: '#94A3B8' }}>Connexions actives / Pool :</span>
+                      <span style={{ fontWeight: 700, color: '#FFFFFF' }}>
+                        {dbHealth?.connections?.active || 1} / {dbHealth?.connections?.poolLimit || 100} ({dbHealth?.connections?.utilizationPercent || 1}%)
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                      <span style={{ color: '#94A3B8' }}>Taille réelle de la base :</span>
+                      <span style={{ fontWeight: 700, color: '#34D399' }}>{dbHealth?.storage?.sizePretty || 'Calcul...'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Derniers Journaux d'Audit */}
+                <div style={{ background: '#0F172A', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '10px', padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <History size={16} color="#A78BFA" />
+                      Journal des Actions Récentes
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('admin_history')}
+                      style={{ background: 'transparent', border: 'none', color: '#A78BFA', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      Voir tout ({auditLogs.length}) →
+                    </button>
+                  </div>
+
+                  {auditLogs.length === 0 ? (
+                    <div style={{ color: '#64748B', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
+                      Aucune action d'audit consignée pour le moment.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {auditLogs.slice(0, 5).map((log: any) => (
+                        <div key={log.id} style={{
+                          padding: '10px 12px',
+                          background: 'rgba(255,255,255,0.02)',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <div>
+                            <div style={{ fontWeight: 700, color: '#E2E8F0' }}>{log.action}</div>
+                            <div style={{ color: '#94A3B8', fontSize: '11px' }}>
+                              Entité : {log.entity} {log.entityId ? `(#${log.entityId.slice(0, 8)})` : ''}
+                            </div>
+                          </div>
+                          <div style={{ color: '#64748B', fontSize: '11px' }}>
+                            {new Date(log.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Geographical Summary */}
-            <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A' }}>
-                  🌍 Répartition Régionale des Utilisateurs
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('geo')}
-                  style={{ background: 'transparent', border: 'none', color: '#0062FF', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Carte complète →
-                </button>
+          {/* =========================================================================
+              ONGLET 2 : MONITORING TECHNIQUE & APM
+             ========================================================================= */}
+          {activeTab === 'monitoring' && (
+            <div>
+              <div style={{ marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+                  Monitoring & Supervision Technique
+                </h2>
+                <p style={{ color: '#94A3B8', fontSize: '13px', marginTop: '4px' }}>
+                  Métriques d'infrastructure, latence réseau, consommation mémoire et alertes techniques en temps réel.
+                </p>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {Object.entries(geoStats).map(([country, data]) => {
-                  const percent = Math.round((data.count / (usersList.length || 1)) * 100);
+              {/* Jauges Système */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ background: '#0F172A', padding: '16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700 }}>REQUÊTES HTTP TOTALES</div>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF', marginTop: '6px' }}>
+                    {apm?.totalRequests ?? 0}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#10B981', marginTop: '2px' }}>
+                    {apm?.success2xx ?? 0} réussies (2xx)
+                  </div>
+                </div>
+
+                <div style={{ background: '#0F172A', padding: '16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700 }}>TAUX D'ERREUR GLOBAL</div>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: (apm?.errorRatePercent || 0) > 5 ? '#EF4444' : '#10B981', marginTop: '6px' }}>
+                    {apm?.errorRatePercent ?? 0}%
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#EF4444', marginTop: '2px' }}>
+                    {apm?.errors4xx ?? 0} err 4xx • {apm?.errors5xx ?? 0} err 5xx
+                  </div>
+                </div>
+
+                <div style={{ background: '#0F172A', padding: '16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700 }}>LATENCE MOYENNE (AVG)</div>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#38BDF8', marginTop: '6px' }}>
+                    {apm?.avgLatencyMs ?? 0} ms
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                    p50: {apm?.p50LatencyMs ?? 0}ms • p95: {apm?.p95LatencyMs ?? 0}ms
+                  </div>
+                </div>
+
+                <div style={{ background: '#0F172A', padding: '16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 700 }}>MÉMOIRE HEAP UTILISÉE</div>
+                  <div style={{ fontSize: '24px', fontWeight: 800, color: '#A78BFA', marginTop: '6px' }}>
+                    {apm?.memory?.heapUsedMb ?? 0} Mo
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                    RSS: {apm?.memory?.rssMb ?? 0} Mo • Total: {apm?.memory?.heapTotalMb ?? 0} Mo
+                  </div>
+                </div>
+              </div>
+
+              {/* Endpoints les plus sollicités */}
+              <div style={{ background: '#0F172A', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)', padding: '20px', marginBottom: '24px' }}>
+                <div style={{ fontWeight: 700, fontSize: '15px', color: '#FFFFFF', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={16} color="#38BDF8" />
+                  Performance par Point d'Accès API (Endpoints)
+                </div>
+
+                {(!apm?.endpoints || apm.endpoints.length === 0) ? (
+                  <div style={{ color: '#64748B', fontSize: '13px', padding: '16px', textAlign: 'center' }}>
+                    Aucune télémétrie HTTP collectée pour l'instant.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#94A3B8' }}>
+                          <th style={{ padding: '8px 12px' }}>Méthode</th>
+                          <th style={{ padding: '8px 12px' }}>Chemin Endpoint</th>
+                          <th style={{ padding: '8px 12px' }}>Appels</th>
+                          <th style={{ padding: '8px 12px' }}>Latence Moyenne</th>
+                          <th style={{ padding: '8px 12px' }}>Erreurs (4xx / 5xx)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {apm.endpoints.map((ep, i) => (
+                          <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                            <td style={{ padding: '8px 12px' }}>
+                              <span style={{
+                                background: ep.method === 'GET' ? 'rgba(56, 189, 248, 0.2)' : ep.method === 'POST' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(234, 179, 8, 0.2)',
+                                color: ep.method === 'GET' ? '#38BDF8' : ep.method === 'POST' ? '#34D399' : '#FBBF24',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 700,
+                              }}>
+                                {ep.method}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px 12px', fontFamily: 'monospace', color: '#E2E8F0' }}>{ep.path}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 600 }}>{ep.totalCalls}</td>
+                            <td style={{ padding: '8px 12px', color: ep.avgDurationMs > 500 ? '#F87171' : '#34D399', fontWeight: 700 }}>
+                              {ep.avgDurationMs} ms
+                            </td>
+                            <td style={{ padding: '8px 12px', color: (ep.errors4xx + ep.errors5xx) > 0 ? '#F87171' : '#94A3B8' }}>
+                              {ep.errors4xx} / {ep.errors5xx}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Alertes Techniques Réelles */}
+              <div style={{ background: '#0F172A', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)', padding: '20px' }}>
+                <div style={{ fontWeight: 700, fontSize: '15px', color: '#FFFFFF', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertTriangle size={16} color="#FBBF24" />
+                  Système d'Alertes Techniques ({alerts.length})
+                </div>
+
+                {alerts.length === 0 ? (
+                  <div style={{ color: '#10B981', fontSize: '13px', padding: '16px', textAlign: 'center', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '6px' }}>
+                    ✓ Aucun incident ni dépassement de seuil critique détecté sur la plateforme.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {alerts.map((al: any) => (
+                      <div key={al.id} style={{
+                        padding: '12px 16px',
+                        background: 'rgba(255,255,255,0.02)',
+                        borderRadius: '8px',
+                        borderLeft: `4px solid ${al.severity === 'urgent' ? '#EF4444' : al.severity === 'critical' ? '#F97316' : '#FBBF24'}`,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 700, color: '#FFFFFF', fontSize: '13px' }}>{al.title}</div>
+                          <div style={{ color: '#94A3B8', fontSize: '12px', marginTop: '2px' }}>{al.description}</div>
+                          <div style={{ color: '#64748B', fontSize: '11px', marginTop: '4px' }}>
+                            Service : {al.service} • Date : {new Date(al.createdAt).toLocaleString('fr-FR')} • Statut : {al.status}
+                          </div>
+                        </div>
+
+                        {al.status !== 'resolved' && (
+                          <button
+                            onClick={async () => {
+                              await api.put(`/admin/monitoring/alerts/${al.id}/resolve`, { note: 'Résolu par Super Admin' });
+                              showToast('Alerte résolue.');
+                              loadCoreData();
+                            }}
+                            style={{
+                              background: 'rgba(16, 185, 129, 0.2)',
+                              color: '#34D399',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              padding: '6px 12px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Marquer Résolu
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              ONGLET 5 : BASE DE DONNÉES (43 TABLES NEON POSTGRESQL)
+             ========================================================================= */}
+          {activeTab === 'database' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Database size={20} color="#38BDF8" />
+                    Explorateur Réel de Base de Données (Neon PostgreSQL)
+                  </h2>
+                  <p style={{ color: '#94A3B8', fontSize: '13px', marginTop: '4px' }}>
+                    Accès direct aux {tablesList.length} tables réelles de l'application sans simulation.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <a
+                    href="https://console.neon.tech"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38BDF8',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      padding: '8px 14px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <ExternalLink size={14} />
+                    Console Neon Web
+                  </a>
+
+                  <button
+                    onClick={exportTableAsJson}
+                    disabled={tableRecords.length === 0}
+                    style={{
+                      background: '#0F172A',
+                      color: '#FFFFFF',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      padding: '8px 14px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Download size={14} />
+                    Exporter JSON
+                  </button>
+                </div>
+              </div>
+
+              {/* Grille sélectrice de tables */}
+              <div style={{
+                background: '#0F172A',
+                borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.06)',
+                padding: '14px',
+                marginBottom: '20px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px',
+                maxHeight: '140px',
+                overflowY: 'auto',
+              }}>
+                {tablesList.map(t => (
+                  <button
+                    key={t.name}
+                    onClick={() => {
+                      setSelectedTable(t.name);
+                      setTablePage(1);
+                      loadTableRecords(t.name, 1, tableSearch);
+                    }}
+                    style={{
+                      background: selectedTable === t.name ? '#2563EB' : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${selectedTable === t.name ? '#3B82F6' : 'rgba(255,255,255,0.08)'}`,
+                      color: selectedTable === t.name ? '#FFFFFF' : '#CBD5E1',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '11.5px',
+                      fontWeight: selectedTable === t.name ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>{t.name}</span>
+                    <span style={{ fontSize: '10px', opacity: 0.7 }}>({t.estimatedRows})</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Barre de recherche et pagination pour la table sélectionnée */}
+              <div style={{
+                background: '#0F172A',
+                borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.06)',
+                padding: '20px',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ fontWeight: 800, fontSize: '16px', color: '#FFFFFF' }}>
+                      Table : <span style={{ color: '#38BDF8' }}>{selectedTable}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: '#94A3B8' }}>
+                      {tableTotalRecords} enregistrement(s) trouvé(s)
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ position: 'relative' }}>
+                      <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#64748B' }} />
+                      <input
+                        type="text"
+                        placeholder="Recherche dans la table..."
+                        value={tableSearch}
+                        onChange={(e) => {
+                          setTableSearch(e.target.value);
+                          loadTableRecords(selectedTable, 1, e.target.value);
+                        }}
+                        style={{
+                          background: '#090D16',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: '6px',
+                          color: '#FFFFFF',
+                          padding: '7px 12px 7px 32px',
+                          fontSize: '12px',
+                          width: '220px',
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      onClick={() => loadTableRecords(selectedTable, tablePage, tableSearch)}
+                      style={{
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#CBD5E1',
+                        padding: '7px 12px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <RefreshCw size={13} className={tableLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tableau de visualisation des données */}
+                {tableLoading ? (
+                  <div style={{ padding: '40px', textAlign: 'center', color: '#94A3B8', fontSize: '13px' }}>
+                    Interrogation réelle de PostgreSQL...
+                  </div>
+                ) : tableRecords.length === 0 ? (
+                  <div style={{ padding: '40px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                    Aucun enregistrement dans la table <strong>{selectedTable}</strong> pour ces critères.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#94A3B8' }}>
+                          {tableColumns.slice(0, 7).map(col => (
+                            <th key={col.column_name} style={{ padding: '8px 12px', fontWeight: 600 }}>
+                              {col.column_name}
+                            </th>
+                          ))}
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tableRecords.map((row, i) => (
+                          <tr key={row.id || i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                            {tableColumns.slice(0, 7).map(col => {
+                              const val = row[col.column_name];
+                              let displayVal = val;
+                              if (val === null || val === undefined) displayVal = <span style={{ color: '#475569' }}>null</span>;
+                              else if (typeof val === 'boolean') displayVal = val ? 'true' : 'false';
+                              else if (typeof val === 'object') displayVal = JSON.stringify(val).slice(0, 40) + '...';
+                              else displayVal = String(val).slice(0, 50);
+
+                              return (
+                                <td key={col.column_name} style={{ padding: '8px 12px', color: '#E2E8F0', fontFamily: col.column_name.includes('id') || col.column_name.includes('At') ? 'monospace' : 'inherit' }}>
+                                  {displayVal}
+                                </td>
+                              );
+                            })}
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => {
+                                  setDeleteTarget({ type: 'record', id: row.id, name: `${selectedTable} #${row.id}` });
+                                  setShowDeleteModal(true);
+                                }}
+                                style={{
+                                  background: 'rgba(239, 68, 68, 0.1)',
+                                  color: '#F87171',
+                                  border: 'none',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '11px',
+                                }}
+                              >
+                                Supprimer
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              ONGLET 7 : CONFIGURATION DES FOURNISSEURS LLM (MULTI-IA)
+             ========================================================================= */}
+          {activeTab === 'llm' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Bot size={20} color="#38BDF8" />
+                    Configuration des Fournisseurs d'Intelligence Artificielle (LLM)
+                  </h2>
+                  <p style={{ color: '#94A3B8', fontSize: '13px', marginTop: '4px' }}>
+                    Gestion des modèles primaire et de secours (fallback), tests de connectivité en direct et consommation de tokens.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+                {llmConfigs.map((cfg) => {
+                  const testState = llmTestStatus[cfg.provider] || {};
                   return (
-                    <div key={country}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', fontWeight: 700, marginBottom: '4px' }}>
-                        <span style={{ color: '#0F172A' }}>{country}</span>
-                        <span style={{ color: '#0062FF' }}>
-                          {data.count} commerçant{data.count > 1 ? 's' : ''} ({percent}%)
-                        </span>
+                    <div key={cfg.id} style={{
+                      background: '#0F172A',
+                      borderRadius: '10px',
+                      border: `1px solid ${cfg.isPrimary ? '#2563EB' : 'rgba(255,255,255,0.06)'}`,
+                      padding: '20px',
+                      position: 'relative',
+                    }}>
+                      {cfg.isPrimary && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '16px',
+                          right: '16px',
+                          background: '#2563EB',
+                          color: '#FFFFFF',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          letterSpacing: '0.5px',
+                        }}>
+                          MOTEUR PRIMAIRE
+                        </div>
+                      )}
+
+                      <div style={{ fontWeight: 800, fontSize: '16px', color: '#FFFFFF', marginBottom: '6px' }}>
+                        {cfg.displayName}
                       </div>
-                      <div style={{ width: '100%', height: '8px', background: '#E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
-                        <div style={{ width: `${percent}%`, height: '100%', background: '#0062FF', borderRadius: '10px' }} />
+                      <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '16px' }}>
+                        Identifiant : <code>{cfg.provider}</code>
                       </div>
-                      <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: '3px' }}>
-                        Volume total : {data.volume.toLocaleString('fr-FR')} FCFA
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#94A3B8' }}>Modèle principal :</span>
+                          <span style={{ fontWeight: 700, color: '#FFFFFF' }}>{cfg.primaryModel}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#94A3B8' }}>Modèle fallback :</span>
+                          <span style={{ color: '#CBD5E1' }}>{cfg.fallbackModel || 'Non configuré'}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#94A3B8' }}>Température :</span>
+                          <span style={{ color: '#CBD5E1' }}>{cfg.temperature}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#94A3B8' }}>Max Tokens :</span>
+                          <span style={{ color: '#CBD5E1' }}>{cfg.maxTokens}</span>
+                        </div>
                       </div>
+
+                      <div style={{ marginTop: '18px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '10px' }}>
+                        <button
+                          onClick={() => handleTestDirectLlm(cfg.provider, cfg.primaryModel)}
+                          disabled={testState.testing}
+                          style={{
+                            flex: 1,
+                            background: 'rgba(56, 189, 248, 0.1)',
+                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                            color: '#38BDF8',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                          }}
+                        >
+                          <Zap size={14} className={testState.testing ? 'animate-spin' : ''} />
+                          {testState.testing ? 'Test en cours...' : 'Tester la Connectivité'}
+                        </button>
+
+                        {!cfg.isPrimary && (
+                          <button
+                            onClick={async () => {
+                              await api.put(`/admin/llm/configs/${cfg.id}`, { isPrimary: true });
+                              showToast(`${cfg.displayName} défini comme moteur primaire.`);
+                              loadApiKeysAndLlm();
+                            }}
+                            style={{
+                              background: 'rgba(255,255,255,0.06)',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              color: '#CBD5E1',
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Activer par défaut
+                          </button>
+                        )}
+                      </div>
+
+                      {testState.result && (
+                        <div style={{
+                          marginTop: '10px',
+                          padding: '8px 12px',
+                          background: testState.result.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          color: testState.result.success ? '#34D399' : '#F87171',
+                        }}>
+                          {testState.result.success
+                            ? `✓ Connecté en ${testState.result.latencyMs}ms (Réponse : "${testState.result.responseSample}")`
+                            : `✗ Échec : ${testState.result.error}`}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* ========================================================================= */}
-      {/* TAB 2: CRM COMMERÇANTS & ACCÈS (AVEC AJOUT, SUPPRESSION, TRIS & PROFILS) */}
-      {/* ========================================================================= */}
-      {activeTab === 'users' && (
-        <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-          {/* Header Action & Search Row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
+          {/* =========================================================================
+              ONGLET 8 : GESTION DES CLÉS API (SÉCURISÉ AES-256)
+             ========================================================================= */}
+          {activeTab === 'api_keys' && (
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>
-                Répertoire Central des Commerçants ({filteredUsers.length})
-              </h2>
-              <p style={{ margin: 0, fontSize: '0.86rem', color: '#64748B' }}>
-                Création de comptes, suppression définitive, fiches profils détaillées et accès support direct.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowCreateModal(true)}
-              style={{
-                background: '#0062FF',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '12px',
-                padding: '10px 18px',
-                fontSize: '0.88rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-              }}
-            >
-              <UserPlus size={16} />
-              <span>+ Créer un Nouveau Marchand</span>
-            </button>
-          </div>
-
-          {/* Search, Filter & Sort Controls Bar */}
-          <div
-            style={{
-              background: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-              borderRadius: '16px',
-              padding: '14px 18px',
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '12px',
-              alignItems: 'center',
-              marginBottom: '20px',
-            }}
-          >
-            {/* Search Input */}
-            <div style={{ position: 'relative', flex: '1 1 240px', minWidth: '220px' }}>
-              <Search size={16} color="#64748B" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                placeholder="Rechercher nom, email, téléphone, ville, boutique..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '9px 12px 9px 36px',
-                  borderRadius: '10px',
-                  border: '1px solid #CBD5E1',
-                  fontSize: '0.86rem',
-                  background: '#FFFFFF',
-                }}
-              />
-            </div>
-
-            {/* Country Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Globe size={15} color="#64748B" />
-              <select
-                value={countryFilter}
-                onChange={e => setCountryFilter(e.target.value)}
-                style={{
-                  padding: '8px 30px 8px 10px',
-                  borderRadius: '10px',
-                  border: '1px solid #CBD5E1',
-                  background: '#FFFFFF',
-                  fontSize: '0.84rem',
-                  fontWeight: 600,
-                }}
-              >
-                <option value="all">🌍 Tous les Pays</option>
-                <option value="Cameroun">🇨🇲 Cameroun</option>
-                <option value="Côte d’Ivoire">🇨🇮 Côte d’Ivoire</option>
-                <option value="Sénégal">🇸🇳 Sénégal</option>
-                <option value="Bénin">🇧🇯 Bénin</option>
-                <option value="Mali">🇲🇱 Mali</option>
-                <option value="Gabon">🇬🇦 Gabon</option>
-              </select>
-            </div>
-
-            {/* Plan / Status Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Filter size={15} color="#64748B" />
-              <select
-                value={userFilter}
-                onChange={e => setUserFilter(e.target.value)}
-                style={{
-                  padding: '8px 30px 8px 10px',
-                  borderRadius: '10px',
-                  border: '1px solid #CBD5E1',
-                  background: '#FFFFFF',
-                  fontSize: '0.84rem',
-                  fontWeight: 600,
-                }}
-              >
-                <option value="all">Tous les Statuts</option>
-                <option value="pro">Plan Pro</option>
-                <option value="business">Plan Business</option>
-                <option value="free">Plan Gratuit</option>
-                <option value="suspended">Comptes Suspendus</option>
-                <option value="admin">Administrateurs</option>
-              </select>
-            </div>
-
-            {/* Sorting */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ArrowUpDown size={15} color="#64748B" />
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value as any)}
-                style={{
-                  padding: '8px 30px 8px 10px',
-                  borderRadius: '10px',
-                  border: '1px solid #CBD5E1',
-                  background: '#FFFFFF',
-                  fontSize: '0.84rem',
-                  fontWeight: 600,
-                }}
-              >
-                <option value="sales_desc">Chiffre d’Affaires (Décroissant)</option>
-                <option value="sales_asc">Chiffre d’Affaires (Croissant)</option>
-                <option value="date_desc">Inscription (Plus récente)</option>
-                <option value="date_asc">Inscription (Plus ancienne)</option>
-                <option value="name_asc">Nom alphabétique (A-Z)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Users Table */}
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Marchand</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Localisation & Secteur</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Boutiques Rattachées</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Forfait Actuel</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Volume Traité</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569', textAlign: 'right' }}>Actions DevSecOps</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ padding: '36px', textAlign: 'center', color: '#64748B' }}>
-                      Aucun commerçant trouvé correspondant à ces critères de recherche.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredUsers.map(u => (
-                    <tr key={u.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      {/* Marchand Identity */}
-                      <td style={{ padding: '14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div
-                            style={{
-                              width: '38px',
-                              height: '38px',
-                              borderRadius: '50%',
-                              background: u.isAdmin ? '#0F172A' : '#EFF6FF',
-                              color: u.isAdmin ? '#FFFFFF' : '#0062FF',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 800,
-                              fontSize: '0.92rem',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {u.firstName.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span>
-                                {u.firstName} {u.lastName}
-                              </span>
-                              {u.isAdmin && (
-                                <span style={{ background: '#0F172A', color: '#60A5FA', fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                                  ADMIN
-                                </span>
-                              )}
-                              {!u.isActive && (
-                                <span style={{ background: '#FEE2E2', color: '#DC2626', fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
-                                  SUSPENDU
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: '0.78rem', color: '#64748B' }}>{u.email}</div>
-                            {u.phone && <div style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 600 }}>{u.phone}</div>}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Localisation & Secteur */}
-                      <td style={{ padding: '14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700, color: '#0F172A' }}>
-                          <MapPin size={13} color="#0062FF" />
-                          <span>{u.city || 'Douala'}</span>
-                        </div>
-                        <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '2px' }}>
-                          {u.country || 'Cameroun'} • {u.profileSector || 'Commerce'}
-                        </div>
-                      </td>
-
-                      {/* Boutiques */}
-                      <td style={{ padding: '14px' }}>
-                        {(u.businesses || []).map((b, idx) => (
-                          <div key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#F8FAFC', padding: '3px 8px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, border: '1px solid #E2E8F0', marginBottom: '3px' }}>
-                            <Store size={12} color="#0062FF" />
-                            <span>{b.name}</span>
-                          </div>
-                        ))}
-                      </td>
-
-                      {/* Forfait */}
-                      <td style={{ padding: '14px' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '4px 10px',
-                            borderRadius: '12px',
-                            fontSize: '0.78rem',
-                            fontWeight: 800,
-                            background: u.planName === 'business' ? '#FDF4FF' : u.isPro ? '#ECFDF5' : '#F1F5F9',
-                            color: u.planName === 'business' ? '#A21CAF' : u.isPro ? '#059669' : '#64748B',
-                          }}
-                        >
-                          {u.plan}
-                        </span>
-                        {u.isPro && u.daysRemaining !== undefined && (
-                          <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '3px' }}>
-                            Expire dans {u.daysRemaining} j
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Volume Traité */}
-                      <td style={{ padding: '14px' }}>
-                        <div style={{ fontWeight: 800, color: '#0F172A' }}>
-                          {(u.totalSales || 0).toLocaleString('fr-FR')} FCFA
-                        </div>
-                        <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                          {u.salesCount || 0} vente(s) enregistrée(s)
-                        </div>
-                      </td>
-
-                      {/* Actions */}
-                      <td style={{ padding: '14px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                          {/* Fiche Profil */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setProfileUser(u);
-                              setShowProfileModal(true);
-                            }}
-                            style={{
-                              background: '#EFF6FF',
-                              border: '1px solid #BFDBFE',
-                              color: '#0062FF',
-                              borderRadius: '8px',
-                              padding: '5px 10px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                            title="Voir la fiche profil complète du marchand"
-                          >
-                            <Eye size={13} />
-                            <span>Profil</span>
-                          </button>
-
-                          {/* Impersonation */}
-                          <button
-                            type="button"
-                            onClick={() => handleImpersonate(u)}
-                            style={{
-                              background: '#F5F3FF',
-                              border: '1px solid #DDD6FE',
-                              color: '#7C3AED',
-                              borderRadius: '8px',
-                              padding: '5px 10px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                            title="Superviser la boutique de ce client en direct"
-                          >
-                            <ExternalLink size={13} />
-                            <span>Superviser</span>
-                          </button>
-
-                          {/* Attribuer Forfait */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTargetUser(u);
-                              setTargetPlan(u.planName === 'business' ? 'business' : 'pro');
-                              setShowSubModal(true);
-                            }}
-                            style={{
-                              background: '#FFF7ED',
-                              border: '1px solid #FED7AA',
-                              color: '#C2410C',
-                              borderRadius: '8px',
-                              padding: '5px 8px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                            title="Attribuer un abonnement manuellement"
-                          >
-                            <Gift size={13} />
-                          </button>
-
-                          {/* Suspendre / Activer */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleUserActive(u)}
-                            style={{
-                              background: u.isActive ? '#FEF2F2' : '#F0FDF4',
-                              border: `1px solid ${u.isActive ? '#FECACA' : '#BBF7D0'}`,
-                              color: u.isActive ? '#DC2626' : '#16A34A',
-                              borderRadius: '8px',
-                              padding: '5px 8px',
-                              fontSize: '0.78rem',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                            }}
-                            title={u.isActive ? 'Suspendre ce compte' : 'Réactiver ce compte'}
-                          >
-                            {u.isActive ? <Ban size={13} /> : <CheckCircle size={13} />}
-                          </button>
-
-                          {/* Supprimer définitivement */}
-                          {u.email !== 'admin@commercia.com' && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setUserToDelete(u);
-                                setDeleteConfirmationText('');
-                                setShowDeleteModal(true);
-                              }}
-                              style={{
-                                background: '#FEF2F2',
-                                border: '1px solid #FECACA',
-                                color: '#DC2626',
-                                borderRadius: '8px',
-                                padding: '5px 8px',
-                                fontSize: '0.78rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                              title="Supprimer définitivement ce compte"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 3: RÉPARTITION GÉOGRAPHIQUE (AFRIQUE DE L'OUEST & CENTRALE) */}
-      {/* ========================================================================= */}
-      {activeTab === 'geo' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>
-              Cartographie & Répartition Géographique du Réseau COMMERCIA
-            </h2>
-            <p style={{ margin: '0 0 24px', fontSize: '0.86rem', color: '#64748B' }}>
-              Analyse territoriale des marchands actifs, volumes d'affaires générés et pénétration par pays africain.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-              {Object.entries(geoStats).map(([country, data]) => {
-                const percent = Math.round((data.count / (usersList.length || 1)) * 100);
-                return (
-                  <div
-                    key={country}
-                    style={{
-                      background: '#F8FAFC',
-                      borderRadius: '16px',
-                      border: '1.5px solid #E2E8F0',
-                      padding: '20px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#0F172A' }}>{country}</span>
-                        <span style={{ background: '#EFF6FF', color: '#0062FF', padding: '3px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 800 }}>
-                          {percent}% des marchands
-                        </span>
-                      </div>
-
-                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0062FF', margin: '8px 0' }}>
-                        {data.volume.toLocaleString('fr-FR')} <span style={{ fontSize: '0.82rem', color: '#64748B' }}>FCFA</span>
-                      </div>
-
-                      <div style={{ fontSize: '0.82rem', color: '#475569', marginBottom: '12px' }}>
-                        <strong>{data.count}</strong> compte(s) marchand(s) enregistré(s)
-                      </div>
-                    </div>
-
-                    <div>
-                      <div style={{ fontSize: '0.76rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', marginBottom: '6px' }}>
-                        Villes & Pôles Commerciaux
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {Object.entries(data.cities).map(([city, count]) => (
-                          <span
-                            key={city}
-                            style={{
-                              background: '#FFFFFF',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: '8px',
-                              padding: '2px 8px',
-                              fontSize: '0.76rem',
-                              fontWeight: 600,
-                              color: '#334155',
-                            }}
-                          >
-                            📍 {city} ({count})
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 4: BOUTIQUES & POINTS DE VENTE MULTI-TENANT */}
-      {/* ========================================================================= */}
-      {activeTab === 'businesses' && (
-        <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>
-                Cartographie des Boutiques & Points de Vente ({businessesList.length})
-              </h2>
-              <p style={{ margin: 0, fontSize: '0.86rem', color: '#64748B' }}>
-                Surveillance des établissements commerciaux, secteurs d'activité, catalogues et modes de valorisation.
-              </p>
-            </div>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Boutique</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Propriétaire</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Secteur & Devise</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Gestion Stock</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Activité</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569', textAlign: 'right' }}>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {businessesList.map(b => (
-                  <tr key={b.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                    <td style={{ padding: '14px', fontWeight: 800, color: '#0F172A' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Store size={16} color="#0062FF" />
-                        <span>{b.name}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '14px' }}>
-                      <div style={{ fontWeight: 700, color: '#0F172A' }}>
-                        {b.owner?.firstName} {b.owner?.lastName}
-                      </div>
-                      <div style={{ fontSize: '0.78rem', color: '#64748B' }}>{b.owner?.email}</div>
-                    </td>
-                    <td style={{ padding: '14px' }}>
-                      <span style={{ fontWeight: 700, color: '#334155' }}>{b.sector}</span>
-                      <span style={{ color: '#0062FF', marginLeft: '6px', fontWeight: 800, fontSize: '0.75rem' }}>({b.currency})</span>
-                    </td>
-                    <td style={{ padding: '14px' }}>
-                      <span style={{ background: '#F1F5F9', padding: '3px 8px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>
-                        {b.trackingMode === 'complet' ? '📦 Stock Complet (FIFO/FEFO)' : '⚡ Simplifié'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px', fontSize: '0.8rem', color: '#64748B' }}>
-                      {b.salesCount || 0} ventes • {b.productsCount || 0} articles
-                    </td>
-                    <td style={{ padding: '14px', textAlign: 'right' }}>
-                      <span style={{ background: '#ECFDF5', color: '#059669', padding: '3px 8px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800 }}>
-                        Opérationnel
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 5: PAIEMENTS MOBILE MONEY & SOMMES GÉRÉES */}
-      {/* ========================================================================= */}
-      {activeTab === 'payments' && (
-        <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '20px' }}>
-            <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>
-                Flux Financiers & Passerelle Mobile Money ({paymentsList.length})
-              </h2>
-              <p style={{ margin: 0, fontSize: '0.86rem', color: '#64748B' }}>
-                Traçabilité des encaissements d'abonnements via Wave, Orange Money, MTN MoMo, Moov et Cartes.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={exportPaymentsCsv}
-              style={{
-                background: '#0F172A',
-                color: '#FFFFFF',
-                border: 'none',
-                borderRadius: '10px',
-                padding: '9px 16px',
-                fontSize: '0.86rem',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer',
-              }}
-            >
-              <Download size={15} />
-              <span>Télécharger le Relevé CSV</span>
-            </button>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Réf. Transaction</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Client & Email</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Opérateur Passerelle</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Formule Choisie</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569' }}>Montant</th>
-                  <th style={{ padding: '12px 14px', fontWeight: 800, color: '#475569', textAlign: 'right' }}>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentsList.map(p => (
-                  <tr key={p.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                    <td style={{ padding: '14px', fontWeight: 800, color: '#0F172A' }}>{p.reference}</td>
-                    <td style={{ padding: '14px' }}>
-                      <div style={{ fontWeight: 700, color: '#0F172A' }}>
-                        {p.user.firstName} {p.user.lastName}
-                      </div>
-                      <div style={{ fontSize: '0.78rem', color: '#64748B' }}>{p.user.email}</div>
-                    </td>
-                    <td style={{ padding: '14px', fontWeight: 600, color: '#334155' }}>{p.provider}</td>
-                    <td style={{ padding: '14px', fontWeight: 700, color: '#0062FF' }}>{p.plan?.displayName || 'Plan Pro'}</td>
-                    <td style={{ padding: '14px', fontWeight: 800, color: '#059669', fontSize: '0.98rem' }}>
-                      {p.amount.toLocaleString('fr-FR')} {p.currency}
-                    </td>
-                    <td style={{ padding: '14px', textAlign: 'right' }}>
-                      <span
-                        style={{
-                          background: p.status === 'completed' ? '#ECFDF5' : '#FEF3C7',
-                          color: p.status === 'completed' ? '#059669' : '#D97706',
-                          padding: '3px 8px',
-                          borderRadius: '8px',
-                          fontSize: '0.75rem',
-                          fontWeight: 800,
-                        }}
-                      >
-                        {p.status === 'completed' ? 'Validé ✓' : 'En attente'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 6: AVIS & BOÎTE À IDÉES (FEEDBACK MARCHANDS) */}
-      {/* ========================================================================= */}
-      {activeTab === 'feedbacks' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Suggestions Roadmap */}
-          <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>
-              Boîte à Idées & Suggestions d'Évolution ({feedbacksData.suggestions.length})
-            </h2>
-            <p style={{ margin: '0 0 20px', fontSize: '0.86rem', color: '#64748B' }}>
-              Remarques et demandes formulées par les commerçants depuis le bouton dédié du Dashboard.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {feedbacksData.suggestions.length === 0 ? (
-                <div style={{ padding: '32px', textAlign: 'center', color: '#64748B', background: '#F8FAFC', borderRadius: '14px' }}>
-                  Aucune suggestion enregistrée pour le moment.
-                </div>
-              ) : (
-                feedbacksData.suggestions.map((s, idx) => (
-                  <div key={idx} style={{ padding: '18px', background: '#F8FAFC', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.98rem' }}>{s.title}</span>
-                      <span style={{ background: '#EFF6FF', color: '#0062FF', padding: '3px 8px', borderRadius: '6px', fontSize: '0.74rem', fontWeight: 800 }}>
-                        {s.module}
-                      </span>
-                    </div>
-                    <p style={{ margin: 0, fontSize: '0.86rem', color: '#475569', lineHeight: 1.5 }}>{s.description}</p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', fontSize: '0.76rem', color: '#64748B' }}>
-                      <span>Par : {s.user || 'Marchand'} ({s.business || 'Boutique'})</span>
-                      <span>Reçu le : {new Date(s.createdAt).toLocaleDateString('fr-FR')}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Evaluations /5 NPS */}
-          <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>
-              Baromètre de Satisfaction & Évaluations Étoiles ({feedbacksData.ratings.length})
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '16px' }}>
-              {feedbacksData.ratings.length === 0 ? (
-                <div style={{ padding: '32px', textAlign: 'center', color: '#64748B', background: '#F8FAFC', borderRadius: '14px' }}>
-                  Aucune note soumise pour le moment.
-                </div>
-              ) : (
-                feedbacksData.ratings.map((r, idx) => (
-                  <div key={idx} style={{ padding: '16px', background: '#F8FAFC', borderRadius: '14px', border: '1px solid #E2E8F0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                      <div style={{ display: 'flex', gap: '2px' }}>
-                        {[1, 2, 3, 4, 5].map(st => (
-                          <Star key={st} size={16} fill={st <= (r.stars || 5) ? '#F59E0B' : 'transparent'} color="#F59E0B" />
-                        ))}
-                      </div>
-                      <span style={{ fontWeight: 800, color: '#0F172A' }}>{r.stars || 5}/5 Étoiles</span>
-                    </div>
-                    {r.testimonial && <p style={{ margin: '6px 0', fontSize: '0.86rem', color: '#475569' }}>"{r.testimonial}"</p>}
-                    <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
-                      {r.user} ({r.business}) • {new Date(r.createdAt).toLocaleDateString('fr-FR')}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 7: CONFIGURATION GLOBALE DE LA PLATEFORME (CONTRÔLE TOTAL SUPER ADMIN) */}
-      {/* ========================================================================= */}
-      {activeTab === 'config' && (
-        <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '28px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '24px' }}>
-            <div>
-              <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sliders size={20} color="#0062FF" />
-                <span>Configurations Générales & Paramètres Plateforme</span>
-              </h2>
-              <p style={{ margin: 0, fontSize: '0.88rem', color: '#64748B' }}>
-                Pilotez les règles métier, la passerelle Mobile Money, les quotas et la sécurité globale de COMMERCIA.
-              </p>
-            </div>
-
-            {configSuccessMessage && (
-              <span style={{ background: '#ECFDF5', color: '#059669', padding: '6px 14px', borderRadius: '10px', fontSize: '0.84rem', fontWeight: 800 }}>
-                {configSuccessMessage}
-              </span>
-            )}
-          </div>
-
-          {platformConfig && (
-            <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Section 1: Paramètres Généraux */}
-              <div style={{ background: '#F8FAFC', borderRadius: '16px', padding: '20px', border: '1px solid #E2E8F0' }}>
-                <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#0F172A', marginBottom: '14px' }}>
-                  1. Identité & Mode de Fonctionnement
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Key size={20} color="#FBBF24" />
+                    Gestion Centralisée des Clés API & Passerelles (AES-256-GCM)
+                  </h2>
+                  <p style={{ color: '#94A3B8', fontSize: '13px', marginTop: '4px' }}>
+                    Toutes les clés sont chiffrées au repos côté serveur. Aucun secret n'est jamais transmis en clair aux navigateurs ou aux utilisateurs.
+                  </p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Nom de la Plateforme
-                    </label>
-                    <input
-                      type="text"
-                      value={platformConfig.platformName}
-                      onChange={e => setPlatformConfig({ ...platformConfig, platformName: e.target.value })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Devise Principale du Système
-                    </label>
-                    <select
-                      value={platformConfig.defaultCurrency}
-                      onChange={e => setPlatformConfig({ ...platformConfig, defaultCurrency: e.target.value })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    >
-                      <option value="XAF">FCFA (Afrique Centrale - XAF)</option>
-                      <option value="XOF">FCFA (Afrique de l'Ouest - XOF)</option>
-                      <option value="EUR">Euros (€ - EUR)</option>
-                      <option value="USD">Dollars ($ - USD)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Mode Maintenance Plateforme
-                    </label>
-                    <select
-                      value={platformConfig.maintenanceMode ? 'true' : 'false'}
-                      onChange={e => setPlatformConfig({ ...platformConfig, maintenanceMode: e.target.value === 'true' })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    >
-                      <option value="false">🟢 En Ligne (Service Actif)</option>
-                      <option value="true">🔴 Maintenance Activée (Accès restreint)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Autoriser les Inscriptions Publiques
-                    </label>
-                    <select
-                      value={platformConfig.allowRegistrations ? 'true' : 'false'}
-                      onChange={e => setPlatformConfig({ ...platformConfig, allowRegistrations: e.target.value === 'true' })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    >
-                      <option value="true">✓ Ouvertes à Tous les Commerçants</option>
-                      <option value="false">🔒 Sur Invitation / Contrôle Admin</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 2: Forfaits & Tarifs SaaS */}
-              <div style={{ background: '#F8FAFC', borderRadius: '16px', padding: '20px', border: '1px solid #E2E8F0' }}>
-                <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#0F172A', marginBottom: '14px' }}>
-                  2. Tarification des Forfaits & Quotas Commerciaux
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Prix Mensuel Plan Pro (FCFA)
-                    </label>
-                    <input
-                      type="number"
-                      value={platformConfig.proPriceMonthly}
-                      onChange={e => setPlatformConfig({ ...platformConfig, proPriceMonthly: Number(e.target.value) })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Prix Mensuel Plan Business (FCFA)
-                    </label>
-                    <input
-                      type="number"
-                      value={platformConfig.businessPriceMonthly}
-                      onChange={e => setPlatformConfig({ ...platformConfig, businessPriceMonthly: Number(e.target.value) })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Durée Essai Gratuit Initial (Jours)
-                    </label>
-                    <input
-                      type="number"
-                      value={platformConfig.freeTrialDays}
-                      onChange={e => setPlatformConfig({ ...platformConfig, freeTrialDays: Number(e.target.value) })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Plafond Max Ventes/Jour Plan Gratuit
-                    </label>
-                    <input
-                      type="number"
-                      value={platformConfig.freeDailySalesLimit}
-                      onChange={e => setPlatformConfig({ ...platformConfig, freeDailySalesLimit: Number(e.target.value) })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 3: Moteur Copilote IA & Passerelles */}
-              <div style={{ background: '#F8FAFC', borderRadius: '16px', padding: '20px', border: '1px solid #E2E8F0' }}>
-                <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#0F172A', marginBottom: '14px' }}>
-                  3. Intelligence Artificielle & Passerelles de Paiement
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Fournisseur LLM IA par Défaut
-                    </label>
-                    <select
-                      value={platformConfig.aiDefaultProvider}
-                      onChange={e => setPlatformConfig({ ...platformConfig, aiDefaultProvider: e.target.value })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    >
-                      <option value="gemini">Google Gemini 2.5 Flash (Recommandé)</option>
-                      <option value="claude">Anthropic Claude 3.5 Sonnet</option>
-                      <option value="openai">OpenAI GPT-4o Mini</option>
-                      <option value="offline">Moteur Hors-Ligne Hybride</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Passerelle CinetPay (Orange/MTN/Moov)
-                    </label>
-                    <select
-                      value={platformConfig.cinetpayLive ? 'live' : 'sandbox'}
-                      onChange={e => setPlatformConfig({ ...platformConfig, cinetpayLive: e.target.value === 'live' })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    >
-                      <option value="live">⚡ Production En Direct</option>
-                      <option value="sandbox">🧪 Mode Test (Sandbox)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Passerelle Wave Sénégal / Côte d'Ivoire
-                    </label>
-                    <select
-                      value={platformConfig.waveLive ? 'live' : 'sandbox'}
-                      onChange={e => setPlatformConfig({ ...platformConfig, waveLive: e.target.value === 'live' })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    >
-                      <option value="live">⚡ Production En Direct</option>
-                      <option value="sandbox">🧪 Mode Test (Sandbox)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                      Durée Rétention Audit DevSecOps (Jours)
-                    </label>
-                    <input
-                      type="number"
-                      value={platformConfig.auditRetentionDays}
-                      onChange={e => setPlatformConfig({ ...platformConfig, auditRetentionDays: Number(e.target.value) })}
-                      style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', width: '100%' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button
-                  type="submit"
-                  disabled={configSubmitting}
+                  onClick={() => setShowAddKeyModal(true)}
                   style={{
-                    background: '#0062FF',
+                    background: '#2563EB',
                     color: '#FFFFFF',
                     border: 'none',
-                    borderRadius: '12px',
-                    padding: '12px 24px',
-                    fontSize: '0.92rem',
-                    fontWeight: 800,
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 600,
                     cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <Check size={18} />
-                  <span>{configSubmitting ? 'Sauvegarde...' : 'Enregistrer les Configurations Plateforme'}</span>
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 8: JOURNAL D'AUDIT IMMUABLE (DEVSECOPS TRAIL) */}
-      {/* ========================================================================= */}
-      {activeTab === 'audit' && (
-        <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>
-            Journal d'Audit Immuable DevSecOps ({auditLogs.length})
-          </h2>
-          <p style={{ margin: '0 0 20px', fontSize: '0.86rem', color: '#64748B' }}>
-            Enregistrement cryptographique, non-répudiation et traçabilité de toutes les interventions administratives.
-          </p>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0', textAlign: 'left' }}>
-                  <th style={{ padding: '12px', fontWeight: 800, color: '#475569' }}>Horodatage ISO</th>
-                  <th style={{ padding: '12px', fontWeight: 800, color: '#475569' }}>Opérateur</th>
-                  <th style={{ padding: '12px', fontWeight: 800, color: '#475569' }}>Action de Sécurité</th>
-                  <th style={{ padding: '12px', fontWeight: 800, color: '#475569' }}>Entité</th>
-                  <th style={{ padding: '12px', fontWeight: 800, color: '#475569' }}>Preuve & Métadonnées</th>
-                </tr>
-              </thead>
-              <tbody>
-                {auditLogs.map(log => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                    <td style={{ padding: '12px', color: '#64748B' }}>{new Date(log.createdAt).toLocaleString('fr-FR')}</td>
-                    <td style={{ padding: '12px', fontWeight: 700, color: '#0F172A' }}>
-                      {log.user?.email || 'Superviseur Master'}
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      <span style={{ background: '#F1F5F9', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '0.78rem', color: '#0062FF' }}>
-                        {log.action}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px', color: '#475569' }}>{log.entity}</td>
-                    <td style={{ padding: '12px', color: '#64748B', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <code>{log.details || '{}'}</code>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 9: SANTÉ INFRASTRUCTURE & TÉLÉMÉTRIE DEVOPS */}
-      {/* ========================================================================= */}
-      {activeTab === 'system' && (
-        <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E2E8F0', padding: '24px' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 4px' }}>
-            Télémétrie DevOps & Surveillance des Micro-Services
-          </h2>
-          <p style={{ margin: '0 0 24px', fontSize: '0.86rem', color: '#64748B' }}>
-            Diagnostic en direct de la base de données PostgreSQL, de l'empreinte RAM Node.js et du réseau.
-          </p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-            <div style={{ background: '#F8FAFC', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                <Database size={20} color="#0062FF" />
-                <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A' }}>Base de Données PostgreSQL</span>
-              </div>
-              <div style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.6 }}>
-                <div>Statut : <strong style={{ color: '#059669' }}>Connecté & Sain ✓</strong></div>
-                <div>Latence de requête : <strong>{systemHealth?.database?.latencyMs || 7} ms</strong></div>
-                <div>Fournisseur : {systemHealth?.database?.provider || 'PostgreSQL'}</div>
-              </div>
-            </div>
-
-            <div style={{ background: '#F8FAFC', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                <Cpu size={20} color="#FF6B00" />
-                <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A' }}>Moteur Node.js & Mémoire</span>
-              </div>
-              <div style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.6 }}>
-                <div>RAM Heap Utilisée : <strong>{systemHealth?.memory?.heapUsedMb || 68} Mo</strong></div>
-                <div>Mémoire Totale RSS : {systemHealth?.memory?.rssMb || 114} Mo</div>
-                <div>Version Node : {systemHealth?.nodeVersion || 'v20.x'}</div>
-              </div>
-            </div>
-
-            <div style={{ background: '#F8FAFC', borderRadius: '16px', border: '1px solid #E2E8F0', padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                <Server size={20} color="#059669" />
-                <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A' }}>Disponibilité des Services</span>
-              </div>
-              <div style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.6 }}>
-                <div>Authentification JWT : <strong style={{ color: '#059669' }}>Opérationnel ✓</strong></div>
-                <div>Moteur Passerelle CinetPay : <strong style={{ color: '#059669' }}>Opérationnel ✓</strong></div>
-                <div>Moteur Copilote IA : <strong style={{ color: '#059669' }}>Opérationnel ✓</strong></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 1: FICHE PROFIL MARCHAND 360° */}
-      {/* ========================================================================= */}
-      {showProfileModal && profileUser && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(8, 22, 43, 0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              background: '#FFFFFF',
-              borderRadius: '24px',
-              maxWidth: '640px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '28px',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div
-                  style={{
-                    width: '54px',
-                    height: '54px',
-                    borderRadius: '50%',
-                    background: profileUser.isAdmin ? '#0F172A' : '#EFF6FF',
-                    color: profileUser.isAdmin ? '#FFFFFF' : '#0062FF',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    fontWeight: 800,
-                    fontSize: '1.3rem',
+                    gap: '6px',
                   }}
                 >
-                  {profileUser.firstName.charAt(0).toUpperCase()}
+                  <Plus size={14} />
+                  Ajouter une Clé API
+                </button>
+              </div>
+
+              {apiKeys.length === 0 ? (
+                <div style={{
+                  background: '#0F172A',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  padding: '40px',
+                  textAlign: 'center',
+                  color: '#94A3B8',
+                  fontSize: '13px',
+                }}>
+                  <Key size={36} color="#64748B" style={{ marginBottom: '12px' }} />
+                  <div>Aucune clé API externe enregistrée pour le moment.</div>
+                  <div style={{ color: '#64748B', fontSize: '11px', marginTop: '6px' }}>
+                    Ajoutez vos clés CinetPay, OpenAI, Gemini ou SMS pour les chiffrer et les piloter en toute sécurité.
+                  </div>
                 </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '16px' }}>
+                  {apiKeys.map((k) => (
+                    <div key={k.id} style={{
+                      background: '#0F172A',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      padding: '18px 20px',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#FFFFFF' }}>{k.displayName}</div>
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>Service : {k.serviceName} • {k.category}</div>
+                        </div>
+
+                        <span style={{
+                          background: k.isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                          color: k.isActive ? '#34D399' : '#F87171',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                        }}>
+                          {k.isActive ? 'Active' : 'Désactivée'}
+                        </span>
+                      </div>
+
+                      {/* Aperçu Masqué */}
+                      <div style={{
+                        background: '#090D16',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        fontFamily: 'monospace',
+                        color: '#94A3B8',
+                        fontSize: '13px',
+                        letterSpacing: '1px',
+                        marginBottom: '14px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}>
+                        <span>{k.keyPreview || '••••••••'}</span>
+                        <span style={{ fontSize: '10px', color: '#64748B' }}>AES-256</span>
+                      </div>
+
+                      <div style={{ fontSize: '11px', color: '#94A3B8', marginBottom: '14px' }}>
+                        Dernier test : {k.lastTestedAt ? new Date(k.lastTestedAt).toLocaleString('fr-FR') : 'Jamais testée'}
+                        {k.testStatus && (
+                          <span style={{ marginLeft: '6px', color: k.testStatus === 'success' ? '#34D399' : '#F87171', fontWeight: 700 }}>
+                            ({k.testStatus === 'success' ? `Opérationnel ${k.testLatencyMs}ms` : 'Échec'})
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => handleTestKey(k.id)}
+                          style={{
+                            flex: 1,
+                            background: 'rgba(56, 189, 248, 0.1)',
+                            border: '1px solid rgba(56, 189, 248, 0.3)',
+                            color: '#38BDF8',
+                            padding: '6px 10px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Tester
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setKeyToReveal(k);
+                            setRevealedSecret(null);
+                            setRevealError(null);
+                            setShowRevealKeyModal(true);
+                          }}
+                          style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#CBD5E1',
+                            padding: '6px 10px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Révéler
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            if (confirm(`Supprimer la clé API ${k.displayName} ?`)) {
+                              await api.delete(`/admin/api-keys/${k.id}`);
+                              showToast('Clé API supprimée.');
+                              loadApiKeysAndLlm();
+                            }
+                          }}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                            color: '#F87171',
+                            padding: '6px 10px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =========================================================================
+              ONGLET 9 : GESTION DES UTILISATEURS & MARCHANDS RÉELS
+             ========================================================================= */}
+          {activeTab === 'users' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <div>
-                  <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    {profileUser.firstName} {profileUser.lastName}
-                  </h3>
-                  <div style={{ color: '#64748B', fontSize: '0.86rem' }}>{profileUser.email}</div>
-                  <div style={{ color: '#059669', fontSize: '0.82rem', fontWeight: 700 }}>{profileUser.phone}</div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Users size={20} color="#38BDF8" />
+                    Utilisateurs & Marchands Réels ({filteredUsers.length})
+                  </h2>
+                  <p style={{ color: '#94A3B8', fontSize: '13px', marginTop: '4px' }}>
+                    Comptes effectifs inscrits dans la base de données de production.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowAddUserModal(true)}
+                  style={{
+                    background: '#2563EB',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <Plus size={14} />
+                  Nouveau Marchand
+                </button>
+              </div>
+
+              {/* Filtres & Recherche */}
+              <div style={{
+                background: '#0F172A',
+                borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.06)',
+                padding: '14px 20px',
+                marginBottom: '16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '12px',
+                flexWrap: 'wrap',
+              }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#64748B' }} />
+                  <input
+                    type="text"
+                    placeholder="Filtrer par nom ou email..."
+                    value={userSearchTerm}
+                    onChange={(e) => setUserSearchTerm(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: '#090D16',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '6px',
+                      color: '#FFFFFF',
+                      padding: '7px 12px 7px 32px',
+                      fontSize: '12px',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <select
+                    value={userRoleFilter}
+                    onChange={(e) => setUserRoleFilter(e.target.value)}
+                    style={{
+                      background: '#090D16',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '6px',
+                      color: '#CBD5E1',
+                      padding: '7px 12px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <option value="all">Tous les rôles</option>
+                    <option value="admin">Super Administrateurs</option>
+                    <option value="merchant">Commerçants</option>
+                  </select>
+
+                  <select
+                    value={userSortField}
+                    onChange={(e) => setUserSortField(e.target.value as any)}
+                    style={{
+                      background: '#090D16',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '6px',
+                      color: '#CBD5E1',
+                      padding: '7px 12px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <option value="date">Tri : Inscription récente</option>
+                    <option value="name">Tri : Ordre alphabétique</option>
+                  </select>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowProfileModal(false)}
-                style={{ background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 800 }}
-              >
-                ✕
-              </button>
+              {/* Liste des Utilisateurs Réels */}
+              <div style={{ background: '#0F172A', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: '#94A3B8' }}>
+                      <th style={{ padding: '12px 16px' }}>Utilisateur / Marchand</th>
+                      <th style={{ padding: '12px 16px' }}>Boutique(s) Associée(s)</th>
+                      <th style={{ padding: '12px 16px' }}>Rôle</th>
+                      <th style={{ padding: '12px 16px' }}>Date d'Inscription</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((u: any) => {
+                      const bizName = u.businesses?.[0]?.business?.name || 'Aucune boutique';
+                      const sector = u.businesses?.[0]?.business?.sector || '-';
+
+                      return (
+                        <tr key={u.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ fontWeight: 700, color: '#FFFFFF' }}>{u.firstName} {u.lastName}</div>
+                            <div style={{ color: '#94A3B8', fontSize: '11px' }}>{u.email}</div>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ color: '#E2E8F0', fontWeight: 600 }}>{bizName}</div>
+                            <div style={{ color: '#64748B', fontSize: '11px' }}>Secteur : {sector}</div>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <span style={{
+                              background: u.isAdmin ? 'rgba(234, 179, 8, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+                              color: u.isAdmin ? '#FBBF24' : '#38BDF8',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                            }}>
+                              {u.isAdmin ? 'SUPER ADMIN' : 'COMMERÇANT'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', color: '#94A3B8', fontSize: '12px' }}>
+                            {new Date(u.createdAt).toLocaleDateString('fr-FR')}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={() => setSelectedUserProfile(u)}
+                                style={{
+                                  background: 'rgba(56, 189, 248, 0.1)',
+                                  color: '#38BDF8',
+                                  border: '1px solid rgba(56, 189, 248, 0.2)',
+                                  padding: '5px 10px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Dossier 360°
+                              </button>
+
+                              {!u.isAdmin && (
+                                <button
+                                  onClick={() => {
+                                    setDeleteTarget({ type: 'user', id: u.id, name: `${u.firstName} ${u.lastName} (${u.email})` });
+                                    setShowDeleteModal(true);
+                                  }}
+                                  style={{
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    color: '#F87171',
+                                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                                    padding: '5px 10px',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  Supprimer
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
+          )}
 
-            {/* Profile Metrics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-              <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '12px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
-                <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Chiffre d’Affaires</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0062FF', marginTop: '2px' }}>
-                  {(profileUser.totalSales || 0).toLocaleString('fr-FR')} FCFA
-                </div>
+          {/* =========================================================================
+              ONGLET 14 : PARAMÈTRES GÉNÉRAUX DE LA PLATEFORME
+             ========================================================================= */}
+          {activeTab === 'settings' && (
+            <div>
+              <div style={{ marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Settings size={20} color="#38BDF8" />
+                  Paramètres Généraux de la Plateforme COMMERCIA
+                </h2>
+                <p style={{ color: '#94A3B8', fontSize: '13px', marginTop: '4px' }}>
+                  Ces paramètres sont persistés dans la table <code>PlatformGlobalConfig</code> en base de données réelle.
+                </p>
               </div>
-              <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '12px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
-                <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Total Ventes</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#059669', marginTop: '2px' }}>
-                  {profileUser.salesCount || 0}
-                </div>
-              </div>
-              <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '12px', textAlign: 'center', border: '1px solid #E2E8F0' }}>
-                <div style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 700 }}>Forfait</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#7C3AED', marginTop: '2px' }}>
-                  {profileUser.plan}
+
+              <div style={{ background: '#0F172A', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)', padding: '24px', maxWidth: '700px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#FFFFFF', fontSize: '14px' }}>Mode Maintenance</div>
+                      <div style={{ color: '#94A3B8', fontSize: '12px' }}>Verrouille l'accès aux commerçants standards pour travaux</div>
+                    </div>
+                    <button
+                      onClick={() => handleUpdatePlatformConfig({ maintenanceMode: !platformConfig?.maintenanceMode })}
+                      style={{
+                        background: platformConfig?.maintenanceMode ? '#EF4444' : '#10B981',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {platformConfig?.maintenanceMode ? 'ACTIF (FERMÉ)' : 'INACTIF (OUVERT)'}
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#FFFFFF', fontSize: '14px' }}>Inscriptions Publiques</div>
+                      <div style={{ color: '#94A3B8', fontSize: '12px' }}>Autoriser les nouveaux utilisateurs à créer un compte</div>
+                    </div>
+                    <button
+                      onClick={() => handleUpdatePlatformConfig({ allowRegistrations: !platformConfig?.allowRegistrations })}
+                      style={{
+                        background: platformConfig?.allowRegistrations ? '#10B981' : '#64748B',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {platformConfig?.allowRegistrations ? 'AUTORISÉES' : 'CLÔTURÉES'}
+                    </button>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', color: '#94A3B8', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                      Tarif Mensuel Forfait Pro (FCFA)
+                    </label>
+                    <input
+                      type="number"
+                      value={platformConfig?.proPriceMonthly || 4500}
+                      onChange={(e) => setPlatformConfig({ ...platformConfig, proPriceMonthly: parseFloat(e.target.value) || 0 })}
+                      style={{
+                        width: '100%',
+                        background: '#090D16',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '6px',
+                        color: '#FFFFFF',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', color: '#94A3B8', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                      Tarif Mensuel Forfait Business (FCFA)
+                    </label>
+                    <input
+                      type="number"
+                      value={platformConfig?.businessPriceMonthly || 12000}
+                      onChange={(e) => setPlatformConfig({ ...platformConfig, businessPriceMonthly: parseFloat(e.target.value) || 0 })}
+                      style={{
+                        width: '100%',
+                        background: '#090D16',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '6px',
+                        color: '#FFFFFF',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <button
+                      onClick={() => handleUpdatePlatformConfig({
+                        proPriceMonthly: platformConfig?.proPriceMonthly,
+                        businessPriceMonthly: platformConfig?.businessPriceMonthly,
+                      })}
+                      style={{
+                        background: '#2563EB',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        padding: '10px 18px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Enregistrer les Paramètres
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Geographic & Technical details */}
-            <div style={{ background: '#F8FAFC', padding: '16px', borderRadius: '14px', border: '1px solid #E2E8F0', marginBottom: '20px', fontSize: '0.86rem', lineHeight: 1.6 }}>
-              <div>📍 <strong>Localisation :</strong> {profileUser.city || 'Douala'}, {profileUser.country || 'Cameroun'}</div>
-              <div>🏷️ <strong>Secteur d'activité :</strong> {profileUser.profileSector || 'Commerce Général'}</div>
-              <div>🌐 <strong>Adresse IP dernière session :</strong> <code>{profileUser.ipAddress || '154.72.164.21'}</code></div>
-              <div>📅 <strong>Membre depuis :</strong> {new Date(profileUser.createdAt).toLocaleDateString('fr-FR')}</div>
-              <div>⏱️ <strong>Échéance Forfait :</strong> {profileUser.endDate ? new Date(profileUser.endDate).toLocaleDateString('fr-FR') : 'Illimité / Permanent'}</div>
-            </div>
-
-            {/* Boutiques */}
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0F172A', marginBottom: '8px' }}>
-                Établissements & Boutiques Détenues ({profileUser.businesses?.length || 0})
+          {/* =========================================================================
+              AUTRES ONGLETS (SERVICES, LOGS, SÉCURITÉ, HISTORIQUE, ETC.)
+             ========================================================================= */}
+          {activeTab === 'logs' && (
+            <div>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: '0 0 16px 0' }}>
+                Télémétrie en Direct & Journal des Requêtes HTTP
+              </h2>
+              <div style={{ background: '#0F172A', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)', padding: '20px' }}>
+                {(!apm?.recentRequests || apm.recentRequests.length === 0) ? (
+                  <div style={{ color: '#64748B', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+                    Aucune requête consignée dans le tampon récent.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontFamily: 'monospace', fontSize: '12px' }}>
+                    {apm.recentRequests.map(r => (
+                      <div key={r.id} style={{
+                        padding: '8px 12px',
+                        background: 'rgba(255,255,255,0.02)',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                      }}>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <span style={{ color: r.statusCode < 400 ? '#34D399' : '#F87171', fontWeight: 700 }}>{r.statusCode}</span>
+                          <span style={{ color: '#38BDF8', fontWeight: 700 }}>{r.method}</span>
+                          <span style={{ color: '#CBD5E1' }}>{r.path}</span>
+                        </div>
+                        <div style={{ color: '#64748B' }}>
+                          {r.durationMs}ms • {new Date(r.timestamp).toLocaleTimeString('fr-FR')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {(profileUser.businesses || []).map((b, idx) => (
-                  <div key={idx} style={{ padding: '10px 14px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{b.name}</div>
-                    <span style={{ fontSize: '0.76rem', background: '#EFF6FF', color: '#0062FF', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                      {b.sector || 'commerce'}
-                    </span>
+            </div>
+          )}
+
+          {activeTab === 'services' && (
+            <div>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: '0 0 16px 0' }}>
+                État Opérationnel des Microservices & Dépendances
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                {[
+                  { name: 'Neon PostgreSQL', status: dbHealth?.status === 'operational' ? 'Opérationnel' : 'Dégradé', color: '#10B981', details: `Latence: ${dbHealth?.latencyMs || 0}ms` },
+                  { name: 'CinetPay Mobile Money', status: platformConfig?.cinetpayLive ? 'Actif' : 'Non configuré', color: platformConfig?.cinetpayLive ? '#10B981' : '#64748B', details: 'Passerelle Afrique' },
+                  { name: 'Google Gemini 1.5 / 2.0', status: 'Actif', color: '#10B981', details: 'Fournisseur LLM' },
+                  { name: 'OpenAI GPT-4o', status: 'Actif', color: '#10B981', details: 'Fournisseur LLM' },
+                  { name: 'Node.js Backend Engine', status: 'Opérationnel', color: '#10B981', details: `Uptime: ${apm?.uptimeSeconds || 0}s` },
+                ].map((s, i) => (
+                  <div key={i} style={{ background: '#0F172A', padding: '16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ fontWeight: 700, color: '#FFFFFF', fontSize: '14px' }}>{s.name}</div>
+                    <div style={{ color: s.color, fontWeight: 700, fontSize: '12px', marginTop: '4px' }}>● {s.status}</div>
+                    <div style={{ color: '#64748B', fontSize: '11px', marginTop: '2px' }}>{s.details}</div>
                   </div>
                 ))}
               </div>
             </div>
+          )}
 
-            {/* Quick Super Admin Actions */}
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowProfileModal(false);
-                  handleImpersonate(profileUser);
-                }}
-                style={{
-                  flex: 1,
-                  background: '#7C3AED',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '11px',
-                  fontSize: '0.86rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                }}
-              >
-                <ExternalLink size={15} />
-                <span>Superviser sa Boutique</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowProfileModal(false);
-                  setTargetUser(profileUser);
-                  setTargetPlan(profileUser.planName === 'business' ? 'business' : 'pro');
-                  setShowSubModal(true);
-                }}
-                style={{
-                  background: '#FF6B00',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '11px 16px',
-                  fontSize: '0.86rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Prolonger Forfait
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 2: CRÉATION D'UN MARCHAND PAR LE SUPER ADMIN */}
-      {/* ========================================================================= */}
-      {showCreateModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(8, 22, 43, 0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              background: '#FFFFFF',
-              borderRadius: '24px',
-              maxWidth: '560px',
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '28px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <UserPlus size={20} color="#0062FF" />
-                <span>Créer un Compte Marchand (Admin Provisioning)</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                style={{ background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontWeight: 800 }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Prénom *</label>
-                  <input
-                    type="text"
-                    required
-                    value={createForm.firstName}
-                    onChange={e => setCreateForm({ ...createForm, firstName: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  />
+          {activeTab === 'security' && (
+            <div>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: '0 0 16px 0' }}>
+                Poste de Sécurité Zero-Trust & Audit
+              </h2>
+              <div style={{ background: '#0F172A', padding: '20px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize: '13px', color: '#CBD5E1', lineHeight: 1.6 }}>
+                  <p>✓ <strong>Chiffrement AES-256-GCM :</strong> Toutes les clés API sont chiffrées au repos côté serveur.</p>
+                  <p>✓ <strong>Protection CSRF & Helmet :</strong> En-têtes HTTP de sécurité stricts appliqués.</p>
+                  <p>✓ <strong>Rate-Limiting Actif :</strong> Protection anti-bruteforce (100 requêtes / 15 minutes par IP).</p>
+                  <p>✓ <strong>Isolation des Rôles :</strong> Les routes d'administration vérifient les privilèges en base réelle.</p>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Nom</label>
-                  <input
-                    type="text"
-                    value={createForm.lastName}
-                    onChange={e => setCreateForm({ ...createForm, lastName: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'admin_history' && (
+            <div>
+              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF', margin: '0 0 16px 0' }}>
+                Historique des Opérations Administratives
+              </h2>
+              <div style={{ background: '#0F172A', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)', padding: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {auditLogs.map((log: any) => (
+                    <div key={log.id} style={{
+                      padding: '12px 14px',
+                      background: 'rgba(255,255,255,0.02)',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '12px'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 700, color: '#FFFFFF' }}>{log.action}</div>
+                        <div style={{ color: '#94A3B8', fontSize: '11px' }}>
+                          Par : {log.user?.email || 'Système'} • Entité : {log.entity} #{log.entityId}
+                        </div>
+                      </div>
+                      <div style={{ color: '#64748B' }}>
+                        {new Date(log.createdAt).toLocaleString('fr-FR')}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* MODAL 1 : CRÉATION D'UN MARCHAND */}
+      {showAddUserModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#0F172A',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '12px',
+            width: '480px',
+            maxWidth: '90%',
+            padding: '24px',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#FFFFFF', margin: '0 0 16px 0' }}>
+              Créer un Nouveau Compte Marchand
+            </h3>
+
+            <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>Prénom *</label>
+                <input
+                  type="text"
+                  required
+                  value={newUserForm.firstName}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, firstName: e.target.value })}
+                  style={{ width: '100%', background: '#090D16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#FFFFFF', padding: '8px' }}
+                />
               </div>
 
               <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Email Marchand *</label>
+                <label style={{ fontSize: '11px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>Nom</label>
+                <input
+                  type="text"
+                  value={newUserForm.lastName}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, lastName: e.target.value })}
+                  style={{ width: '100%', background: '#090D16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#FFFFFF', padding: '8px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>Email Professionnel *</label>
                 <input
                   type="email"
                   required
-                  value={createForm.email}
-                  onChange={e => setCreateForm({ ...createForm, email: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                  style={{ width: '100%', background: '#090D16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#FFFFFF', padding: '8px' }}
                 />
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Téléphone WhatsApp</label>
-                  <input
-                    type="text"
-                    placeholder="+237 6XX XX XX XX"
-                    value={createForm.phone}
-                    onChange={e => setCreateForm({ ...createForm, phone: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Mot de Passe Initial</label>
-                  <input
-                    type="text"
-                    value={createForm.password}
-                    onChange={e => setCreateForm({ ...createForm, password: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Pays</label>
-                  <select
-                    value={createForm.country}
-                    onChange={e => setCreateForm({ ...createForm, country: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  >
-                    <option value="Cameroun">🇨🇲 Cameroun</option>
-                    <option value="Côte d’Ivoire">🇨🇮 Côte d’Ivoire</option>
-                    <option value="Sénégal">🇸🇳 Sénégal</option>
-                    <option value="Bénin">🇧🇯 Bénin</option>
-                    <option value="Mali">🇲🇱 Mali</option>
-                    <option value="Gabon">🇬🇦 Gabon</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Ville</label>
-                  <input
-                    type="text"
-                    value={createForm.city}
-                    onChange={e => setCreateForm({ ...createForm, city: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  />
-                </div>
               </div>
 
               <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Nom de la Boutique Initiale</label>
+                <label style={{ fontSize: '11px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>Nom de sa Boutique</label>
                 <input
                   type="text"
-                  placeholder="Ex: Épicerie Moderne du Littoral"
-                  value={createForm.businessName}
-                  onChange={e => setCreateForm({ ...createForm, businessName: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
+                  value={newUserForm.businessName}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, businessName: e.target.value })}
+                  placeholder="Ex: Boutique Élégance"
+                  style={{ width: '100%', background: '#090D16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#FFFFFF', padding: '8px' }}
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Forfait Initial</label>
-                  <select
-                    value={createForm.planName}
-                    onChange={e => setCreateForm({ ...createForm, planName: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  >
-                    <option value="pro">Plan Pro (30 jours)</option>
-                    <option value="business">Plan Business (30 jours)</option>
-                    <option value="free">Plan Gratuit (Sans expiration)</option>
-                  </select>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Rôle</label>
-                  <select
-                    value={createForm.role}
-                    onChange={e => setCreateForm({ ...createForm, role: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                  >
-                    <option value="merchant">Commerçant Simple</option>
-                    <option value="admin">Administrateur Délégué</option>
-                  </select>
-                </div>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>Forfait Initial</label>
+                <select
+                  value={newUserForm.planName}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, planName: e.target.value })}
+                  style={{ width: '100%', background: '#090D16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#FFFFFF', padding: '8px' }}
+                >
+                  <option value="pro">Pro (4 500 FCFA / mois)</option>
+                  <option value="business">Business (12 000 FCFA / mois)</option>
+                  <option value="free">Gratuit</option>
+                </select>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #CBD5E1', background: '#FFFFFF', cursor: 'pointer', fontWeight: 700 }}
+                  onClick={() => setShowAddUserModal(false)}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: 'none', color: '#CBD5E1', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  disabled={createSubmitting}
-                  style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#0062FF', color: '#FFFFFF', cursor: 'pointer', fontWeight: 800 }}
+                  style={{ flex: 1, background: '#2563EB', border: 'none', color: '#FFFFFF', padding: '10px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
                 >
-                  {createSubmitting ? 'Création en cours...' : 'Créer le Compte Marchand'}
+                  Créer le Compte
                 </button>
               </div>
             </form>
@@ -2411,294 +2308,357 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 3: SUPPRESSION DÉFINITIVE D'UN COMPTE (DEVSECOPS SAFETY LOCK) */}
-      {/* ========================================================================= */}
-      {showDeleteModal && userToDelete && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(8, 22, 43, 0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              background: '#FFFFFF',
-              borderRadius: '24px',
-              maxWidth: '480px',
-              width: '100%',
-              padding: '28px',
-              border: '2px solid #FCA5A5',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#DC2626', marginBottom: '14px' }}>
-              <AlertTriangle size={24} />
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
-                Suppression Définitive de Compte
-              </h3>
-            </div>
+      {/* MODAL 2 : AJOUTER UNE CLÉ API (AES-256) */}
+      {showAddKeyModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#0F172A',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '12px',
+            width: '460px',
+            maxWidth: '90%',
+            padding: '24px',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#FFFFFF', margin: '0 0 16px 0' }}>
+              Enregistrer une Nouvelle Clé API
+            </h3>
 
-            <p style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.5, margin: '0 0 16px' }}>
-              Vous êtes sur le point de supprimer irrévocablement le compte de{' '}
-              <strong style={{ color: '#0F172A' }}>{userToDelete.firstName} {userToDelete.lastName}</strong> ({userToDelete.email}).
-              Toutes ses boutiques, articles en stock et données associées seront effacés.
+            <form onSubmit={handleSaveApiKey} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>Fournisseur / Service</label>
+                <select
+                  value={newKeyForm.serviceName}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    let disp = val;
+                    if (val === 'openai') disp = 'OpenAI GPT';
+                    else if (val === 'gemini') disp = 'Google Gemini';
+                    else if (val === 'cinetpay') disp = 'CinetPay Mobile Money';
+                    else if (val === 'groq') disp = 'Groq Cloud';
+                    setNewKeyForm({ ...newKeyForm, serviceName: val, displayName: disp });
+                  }}
+                  style={{ width: '100%', background: '#090D16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#FFFFFF', padding: '8px' }}
+                >
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="anthropic">Anthropic Claude</option>
+                  <option value="groq">Groq</option>
+                  <option value="mistral">Mistral AI</option>
+                  <option value="cinetpay">CinetPay</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>Nom d'affichage</label>
+                <input
+                  type="text"
+                  required
+                  value={newKeyForm.displayName}
+                  onChange={(e) => setNewKeyForm({ ...newKeyForm, displayName: e.target.value })}
+                  style={{ width: '100%', background: '#090D16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#FFFFFF', padding: '8px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '11px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>Clé Secrète (Sera chiffrée AES-256)</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="sk-... ou AIza..."
+                  value={newKeyForm.apiKey}
+                  onChange={(e) => setNewKeyForm({ ...newKeyForm, apiKey: e.target.value })}
+                  style={{ width: '100%', background: '#090D16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#FFFFFF', padding: '8px', fontFamily: 'monospace' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddKeyModal(false)}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: 'none', color: '#CBD5E1', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  style={{ flex: 1, background: '#2563EB', border: 'none', color: '#FFFFFF', padding: '10px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Chiffrer et Sauvegarder
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3 : RÉVÉLATION SÉCURISÉE DE CLÉ PAR MOT DE PASSE */}
+      {showRevealKeyModal && keyToReveal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#0F172A',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '12px',
+            width: '440px',
+            maxWidth: '90%',
+            padding: '24px',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#FFFFFF', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Lock size={18} color="#FBBF24" />
+              Vérification d'Accès Sécurisé
+            </h3>
+            <p style={{ color: '#94A3B8', fontSize: '12px', marginBottom: '16px' }}>
+              Pour déchiffrer temporairement la clé de <strong>{keyToReveal.displayName}</strong>, confirmez votre mot de passe Super Admin.
             </p>
 
-            <div style={{ background: '#FEF2F2', padding: '12px 16px', borderRadius: '12px', border: '1px solid #FECACA', marginBottom: '18px' }}>
-              <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#B91C1C', display: 'block', marginBottom: '6px' }}>
-                Tapez "SUPPRIMER" pour valider la suppression :
-              </label>
-              <input
-                type="text"
-                placeholder="SUPPRIMER"
-                value={deleteConfirmationText}
-                onChange={e => setDeleteConfirmationText(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: '8px',
-                  border: '1.5px solid #F87171',
-                  fontWeight: 800,
-                  fontSize: '0.92rem',
-                }}
-              />
+            {revealedSecret ? (
+              <div>
+                <div style={{ fontSize: '11px', color: '#34D399', fontWeight: 700, marginBottom: '6px' }}>
+                  CLÉ DÉCHIFFRÉE TEMPORAIREMENT :
+                </div>
+                <div style={{
+                  background: '#090D16',
+                  padding: '12px',
+                  borderRadius: '6px',
+                  fontFamily: 'monospace',
+                  fontSize: '13px',
+                  wordBreak: 'break-all',
+                  color: '#FFFFFF',
+                  border: '1px solid #10B981',
+                }}>
+                  {revealedSecret}
+                </div>
+                <button
+                  onClick={() => setShowRevealKeyModal(false)}
+                  style={{
+                    width: '100%',
+                    marginTop: '16px',
+                    background: '#2563EB',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Fermer
+                </button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  type="password"
+                  placeholder="Mot de passe Super Admin..."
+                  value={adminPasswordInput}
+                  onChange={(e) => setAdminPasswordInput(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: '#090D16',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '6px',
+                    color: '#FFFFFF',
+                    padding: '10px 12px',
+                    fontSize: '13px',
+                    marginBottom: '10px',
+                  }}
+                />
+
+                {revealError && (
+                  <div style={{ color: '#F87171', fontSize: '12px', marginBottom: '10px' }}>
+                    {revealError}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+                  <button
+                    onClick={() => setShowRevealKeyModal(false)}
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: 'none', color: '#CBD5E1', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleRevealKey}
+                    style={{ flex: 1, background: '#2563EB', border: 'none', color: '#FFFFFF', padding: '10px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Déchiffrer
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4 : SUPPRESSION DÉFINITIVE AVEC VERROU TEXTUEL */}
+      {showDeleteModal && deleteTarget && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#0F172A',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            borderRadius: '12px',
+            width: '460px',
+            maxWidth: '90%',
+            padding: '24px',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#EF4444', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertTriangle size={20} />
+              Confirmation de Suppression Définitive
+            </h3>
+
+            <p style={{ color: '#CBD5E1', fontSize: '13px', lineHeight: 1.5 }}>
+              Vous êtes sur le point de supprimer définitivement :<br />
+              <strong style={{ color: '#FFFFFF' }}>{deleteTarget.name}</strong>
+            </p>
+
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              padding: '12px',
+              borderRadius: '6px',
+              color: '#FCA5A5',
+              fontSize: '12px',
+              margin: '14px 0',
+            }}>
+              Cette opération est irréversible et supprimera en cascade les données associées dans PostgreSQL. Tapez <strong>CONFIRMER</strong> pour valider :
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <input
+              type="text"
+              placeholder="Tapez CONFIRMER"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              style={{
+                width: '100%',
+                background: '#090D16',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '6px',
+                color: '#FFFFFF',
+                padding: '10px 12px',
+                fontSize: '13px',
+                fontWeight: 700,
+                textAlign: 'center',
+                letterSpacing: '1px',
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
               <button
-                type="button"
                 onClick={() => setShowDeleteModal(false)}
-                style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #CBD5E1', background: '#FFFFFF', cursor: 'pointer', fontWeight: 700 }}
+                style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: 'none', color: '#CBD5E1', padding: '10px', borderRadius: '6px', cursor: 'pointer' }}
               >
                 Annuler
               </button>
               <button
-                type="button"
-                onClick={handleDeleteUser}
-                disabled={deleteSubmitting || deleteConfirmationText.trim().toUpperCase() !== 'SUPPRIMER'}
+                onClick={handleDeleteConfirmed}
+                disabled={deleteConfirmText !== 'CONFIRMER'}
                 style={{
-                  padding: '10px 20px',
-                  borderRadius: '10px',
+                  flex: 1,
+                  background: deleteConfirmText === 'CONFIRMER' ? '#EF4444' : 'rgba(239, 68, 68, 0.3)',
                   border: 'none',
-                  background: deleteConfirmationText.trim().toUpperCase() === 'SUPPRIMER' ? '#DC2626' : '#94A3B8',
                   color: '#FFFFFF',
-                  cursor: deleteConfirmationText.trim().toUpperCase() === 'SUPPRIMER' ? 'pointer' : 'not-allowed',
-                  fontWeight: 800,
+                  padding: '10px',
+                  borderRadius: '6px',
+                  fontWeight: 700,
+                  cursor: deleteConfirmText === 'CONFIRMER' ? 'pointer' : 'not-allowed',
                 }}
               >
-                {deleteSubmitting ? 'Suppression...' : 'Supprimer Définitivement'}
+                Supprimer Définitivement
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 4: ATTRIBUTION MANUELLE DE FORFAIT */}
-      {/* ========================================================================= */}
-      {showSubModal && targetUser && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(8, 22, 43, 0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              background: '#FFFFFF',
-              borderRadius: '24px',
-              maxWidth: '480px',
-              width: '100%',
-              padding: '28px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Attribution Manuelle de Forfait
-              </h3>
+      {/* MODAL 5 : DOSSIER MARCHAND 360° */}
+      {selectedUserProfile && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#0F172A',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '12px',
+            width: '560px',
+            maxWidth: '90%',
+            padding: '24px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+                  Dossier Marchand 360°
+                </h3>
+                <div style={{ color: '#94A3B8', fontSize: '12px', marginTop: '2px' }}>
+                  Identifiant UUID : <code>{selectedUserProfile.id}</code>
+                </div>
+              </div>
               <button
-                type="button"
-                onClick={() => setShowSubModal(false)}
-                style={{ background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', fontWeight: 800 }}
+                onClick={() => setSelectedUserProfile(null)}
+                style={{ background: 'transparent', border: 'none', color: '#94A3B8', fontSize: '18px', cursor: 'pointer' }}
               >
                 ✕
               </button>
             </div>
 
-            <p style={{ fontSize: '0.86rem', color: '#64748B', margin: '0 0 16px' }}>
-              Attribuer un abonnement pour <strong style={{ color: '#0F172A' }}>{targetUser.firstName} {targetUser.lastName}</strong> ({targetUser.email}).
-            </p>
-
-            <form onSubmit={handleGrantSubscription} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Plan</label>
-                <select
-                  value={targetPlan}
-                  onChange={e => setTargetPlan(e.target.value as any)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontWeight: 700 }}
-                >
-                  <option value="pro">Plan Pro (Croissance)</option>
-                  <option value="business">Plan Business (Multi-Boutiques)</option>
-                  <option value="free">Plan Gratuit</option>
-                </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                <span style={{ color: '#94A3B8' }}>Nom & Prénom :</span>
+                <span style={{ fontWeight: 700, color: '#FFFFFF' }}>{selectedUserProfile.firstName} {selectedUserProfile.lastName}</span>
               </div>
 
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Validité (Jours)</label>
-                <input
-                  type="number"
-                  value={actionDays}
-                  onChange={e => setActionDays(Number(e.target.value))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                />
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                <span style={{ color: '#94A3B8' }}>Email :</span>
+                <span style={{ fontWeight: 600, color: '#38BDF8' }}>{selectedUserProfile.email}</span>
               </div>
 
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Motif d'Audit Obligatoire *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Paiement en espèces reçu, VIP Pilote..."
-                  value={actionMotif}
-                  onChange={e => setActionMotif(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                />
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                <span style={{ color: '#94A3B8' }}>Boutiques rattachées :</span>
+                <span style={{ fontWeight: 600, color: '#FFFFFF' }}>
+                  {selectedUserProfile.businesses?.map((b: any) => b.business.name).join(', ') || 'Aucune'}
+                </span>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSubModal(false)}
-                  style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #CBD5E1', background: '#FFFFFF', cursor: 'pointer', fontWeight: 700 }}
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionSubmitting}
-                  style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#0062FF', color: '#FFFFFF', cursor: 'pointer', fontWeight: 800 }}
-                >
-                  {actionSubmitting ? 'Attribution...' : 'Confirmer'}
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px' }}>
+                <span style={{ color: '#94A3B8' }}>Date de création :</span>
+                <span style={{ color: '#E2E8F0' }}>{new Date(selectedUserProfile.createdAt).toLocaleString('fr-FR')}</span>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL 5: DIFFUSION D'ANNONCE GLOBALE */}
-      {/* ========================================================================= */}
-      {showBroadcastModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(8, 22, 43, 0.7)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              background: '#FFFFFF',
-              borderRadius: '24px',
-              maxWidth: '520px',
-              width: '100%',
-              padding: '28px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Radio size={20} color="#FF6B00" />
-                <span>Diffuser une Annonce à Tous les Commerçants</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowBroadcastModal(false)}
-                style={{ background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', fontWeight: 800 }}
-              >
-                ✕
-              </button>
             </div>
 
-            <p style={{ fontSize: '0.86rem', color: '#64748B', margin: '0 0 16px' }}>
-              Ce message apparaîtra immédiatement en bandeau d'alerte sur le tableau de bord de tous les marchands connectés.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Type d'Annonce</label>
-                <select
-                  value={broadcastType}
-                  onChange={e => setBroadcastType(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}
-                >
-                  <option value="info">ℹ️ Information Générale (Mise à jour)</option>
-                  <option value="promo">🎉 Promotionnelle (Offres Spéciales)</option>
-                  <option value="warning">⚠️ Alerte Technique (Maintenance)</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Message Diffusé</label>
-                <textarea
-                  rows={3}
-                  placeholder="Ex: Chers commerçants, une maintenance des serveurs aura lieu ce soir de 23h à minuit..."
-                  value={broadcastMessage}
-                  onChange={e => setBroadcastMessage(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '0.88rem' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowBroadcastModal(false)}
-                  style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #CBD5E1', background: '#FFFFFF', cursor: 'pointer', fontWeight: 700 }}
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!broadcastMessage.trim()) return;
-                    if (platformConfig) {
-                      await api.put('/admin/config', {
-                        ...platformConfig,
-                        systemAnnouncement: {
-                          enabled: true,
-                          message: broadcastMessage,
-                          type: broadcastType,
-                        },
-                      });
-                    }
-                    alert('Annonce diffusée avec succès à l’ensemble du réseau commercial !');
-                    setShowBroadcastModal(false);
-                  }}
-                  style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#FF6B00', color: '#FFFFFF', cursor: 'pointer', fontWeight: 800 }}
-                >
-                  Diffuser l'Annonce
-                </button>
-              </div>
+            <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setSelectedUserProfile(null)}
+                style={{ flex: 1, background: '#2563EB', color: '#FFFFFF', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Fermer
+              </button>
             </div>
           </div>
         </div>
@@ -2706,3 +2666,4 @@ export const AdminPage: React.FC = () => {
     </div>
   );
 };
+export default AdminPage;
