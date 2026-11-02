@@ -133,7 +133,10 @@ router.post(['/:id/payments', '/:id/payment'], async (req: AuthRequest, res, nex
     });
 
     if (data.debtId) {
-      const debt = await req.prisma.customerDebt.findUnique({ where: { id: data.debtId } });
+      // Protection anti-IDOR : la créance doit obligatoirement appartenir à ce client
+      const debt = await req.prisma.customerDebt.findFirst({
+        where: { id: data.debtId, customerId: customer.id },
+      });
       if (debt) {
         const totalPaidOnDebt = await req.prisma.customerPayment.aggregate({
           where: { debtId: debt.id },

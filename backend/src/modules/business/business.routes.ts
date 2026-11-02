@@ -290,7 +290,7 @@ router.get('/trade-dashboard', authenticate, async (req: AuthRequest, res: Respo
     // 5. Métriques Commerce Général / Stock & Crédits
     const [lowStockCount, totalDebtors, pendingDebtsSum] = await Promise.all([
       req.prisma.product.count({
-        where: { businessId, stockQuantity: { lte: 5 } },
+        where: { businessId, quantity: { lte: 5 } },
       }),
       req.prisma.customer.count({
         where: { businessId, totalOwed: { gt: 0 } },

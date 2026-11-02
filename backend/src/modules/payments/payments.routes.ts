@@ -284,10 +284,15 @@ router.post('/confirm-sandbox', authenticate, async (req: AuthRequest, res: Resp
       throw new AppError('Paiement introuvable pour cette référence.', 404);
     }
 
-    // Vérification de possession : l'utilisateur doit être le propriétaire ou admin
+    // RÈGLE SÉCURITÉ ABSOLUE : Ce point d'accès de simulation est strictement interdit en environnement de production
+    if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_SANDBOX_TESTS) {
+      throw new AppError('Opération interdite en environnement de production. Seuls les webhooks signés cryptographiquement valident les paiements réels.', 403);
+    }
+
+    // Seul un Super Administrateur peut déclencher une confirmation sandbox manuelle pour des tests
     const user = await req.prisma.user.findUnique({ where: { id: req.userId } });
-    if (payment.userId !== req.userId && !user?.isAdmin) {
-      throw new AppError('Accès non autorisé à cette transaction.', 403);
+    if (!user || !user.isAdmin) {
+      throw new AppError('Accès strictement réservé aux Super Administrateurs pour les tests de validation.', 403);
     }
 
     // Idempotence : si déjà complété et qu'on redemande success, pas de double activation

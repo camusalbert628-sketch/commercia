@@ -710,12 +710,21 @@ router.get('/llm/configs', async (req: AuthRequest, res, next) => {
         await req.prisma.systemLlmConfig.create({ data: d });
       }
 
+      const fresh = await req.prisma.systemLlmConfig.findMany();
       return res.json({
-        configs: await req.prisma.systemLlmConfig.findMany(),
+        configs: fresh.map((c: any) => ({
+          ...c,
+          totalTokensUsed: c.totalTokensUsed ? c.totalTokensUsed.toString() : '0',
+        })),
       });
     }
 
-    res.json({ configs });
+    const safeConfigs = configs.map((c: any) => ({
+      ...c,
+      totalTokensUsed: c.totalTokensUsed ? c.totalTokensUsed.toString() : '0',
+    }));
+
+    res.json({ configs: safeConfigs });
   } catch (error) {
     next(error);
   }

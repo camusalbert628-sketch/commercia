@@ -38,8 +38,32 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3001;
 
-// Global middleware
-app.use(helmet());
+// Global middleware avec hardening de sécurité
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+        connectSrc: ["'self'", 'https:', 'http://localhost:3001', 'ws:', 'wss:'],
+        frameAncestors: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+      },
+    },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+    frameguard: { action: 'deny' },
+    noSniff: true,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  })
+);
 app.use(compression());
 app.use(morgan('dev'));
 app.use(telemetryMiddleware);
@@ -49,8 +73,8 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // Rate limiting
 const limiter = rateLimit({

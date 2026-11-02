@@ -6,22 +6,32 @@ import { AuthRequest, authenticate } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 import { getUserSubscriptionDetails } from '../../utils/subscriptionUtils';
 import { getJwtSecret, getJwtRefreshSecret, verifyGoogleIdToken } from '../../config/security';
+import { bruteForceProtector, loginBruteForceMiddleware } from '../../utils/bruteForceProtection';
+import { encryptSecret, decryptSecret } from '../../utils/crypto';
+import { generateTotpSecret, verifyTotpCode, generateRecoveryCodes } from '../../utils/mfa';
 
 const router = Router();
 
-// Validation schemas
+// Validation schemas conformes OWASP ASVS V2.1
 const registerSchema = z.object({
-  email: z.string().email('Email invalide'),
-  password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
-  firstName: z.string().min(1, 'Prénom requis'),
-  lastName: z.string().min(1, 'Nom requis'),
-  phone: z.string().optional(),
-  avatarUrl: z.string().min(1, 'La photo de profil est obligatoire pour la création du compte'),
+  email: z.string().email('Format email invalide').max(100),
+  password: z
+    .string()
+    .min(8, 'Le mot de passe doit contenir au moins 8 caractères')
+    .regex(/[A-Z]/, 'Le mot de passe doit contenir au moins une lettre majuscule')
+    .regex(/[a-z]/, 'Le mot de passe doit contenir au moins une lettre minuscule')
+    .regex(/[0-9]/, 'Le mot de passe doit contenir au moins un chiffre')
+    .regex(/[^A-Za-z0-9]/, 'Le mot de passe doit contenir au moins un caractère spécial (!@#$%^&*...)'),
+  firstName: z.string().min(1, 'Prénom requis').max(50),
+  lastName: z.string().min(1, 'Nom requis').max(50),
+  phone: z.string().max(25).optional(),
+  avatarUrl: z.string().optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().email('Email invalide'),
+  email: z.string().email('Format email invalide').max(100),
   password: z.string().min(1, 'Mot de passe requis'),
+  totpCode: z.string().optional(),
 });
 
 const generateTokens = (userId: string) => {
@@ -44,7 +54,7 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
     const data = registerSchema.parse(req.body);
     
     const existing = await req.prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email: data.email.toLowerCase().trim() },
     });
     if (existing) {
       throw new AppError('Un compte avec cet email existe déjà.', 409);
@@ -54,10 +64,10 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
     
     const user = await req.prisma.user.create({
       data: {
-        email: data.email,
+        email: data.email.toLowerCase().trim(),
         passwordHash,
-        firstName: data.firstName,
-        lastName: data.lastName,
+        firstName: data.firstName.trim(),
+        lastName: data.lastName.trim(),
         phone: data.phone || null,
         avatarUrl: data.avatarUrl || null,
       },
@@ -113,6 +123,7 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
         locale: user.locale,
         currency: user.currency,
         isAdmin: user.isAdmin,
+        mfaEnabled: user.mfaEnabled,
         businesses: [],
         subscription: {
           planName: 'free',
@@ -132,13 +143,17 @@ router.post('/register', async (req: AuthRequest, res: Response, next: NextFunct
   }
 });
 
-// POST /api/auth/login
-router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction) => {
+// POST /api/auth/login — Authentification renforcée avec protection anti-bruteforce et MFA
+router.post('/login', loginBruteForceMiddleware, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const data = loginSchema.parse(req.body);
-    
-    let user = await req.prisma.user.findUnique({
-      where: { email: data.email },
+    const emailLower = data.email.toLowerCase().trim();
+
+    // Vérifier les tentatives infructueuses préalables
+    bruteForceProtector.check(req, emailLower);
+
+    const user = await req.prisma.user.findUnique({
+      where: { email: emailLower },
       include: {
         businesses: {
           include: { business: true },
@@ -150,40 +165,38 @@ router.post('/login', async (req: AuthRequest, res: Response, next: NextFunction
       },
     });
 
-    const isMasterAdminLogin = data.email.toLowerCase() === 'admin@commercia.com' && data.password === 'CommerciaAdmin2026!';
-
-    if (!user && isMasterAdminLogin) {
-      const passwordHash = await bcrypt.hash(data.password, 10);
-      user = await req.prisma.user.create({
-        data: {
-          email: 'admin@commercia.com',
-          passwordHash,
-          firstName: 'Alexandre',
-          lastName: 'Dumas (Superviseur)',
-          phone: '+237 690 000 000',
-          isAdmin: true,
-          isActive: true,
-        },
-        include: {
-          businesses: {
-            include: { business: true },
-            where: { isActive: true },
-          },
-          subscription: {
-            include: { plan: true },
-          },
-        },
-      });
-    }
-
     if (!user || !user.isActive) {
+      bruteForceProtector.recordFailure(req, emailLower);
       throw new AppError('Email ou mot de passe incorrect.', 401);
     }
 
-    const validPassword = isMasterAdminLogin ? true : await bcrypt.compare(data.password, user.passwordHash);
+    // Vérification rigoureuse du hash par bcrypt (ZÉRO MOT DE PASSE EN CLAIR NI BYPASS)
+    const validPassword = await bcrypt.compare(data.password, user.passwordHash);
     if (!validPassword) {
+      bruteForceProtector.recordFailure(req, emailLower);
       throw new AppError('Email ou mot de passe incorrect.', 401);
     }
+
+    // Vérification MFA / TOTP si activé sur le compte
+    if (user.mfaEnabled) {
+      if (!data.totpCode) {
+        return res.status(200).json({
+          requiresMfa: true,
+          message: 'Vérification multifacteur requise. Veuillez saisir le code TOTP à 6 chiffres.',
+        });
+      }
+
+      const decryptedSecret = decryptSecret(user.mfaSecret || '');
+      const isMfaValid = verifyTotpCode(data.totpCode, decryptedSecret);
+
+      if (!isMfaValid) {
+        bruteForceProtector.recordFailure(req, emailLower);
+        throw new AppError('Code de sécurité TOTP invalide ou expiré.', 401);
+      }
+    }
+
+    // Réinitialisation des tentatives après succès
+    bruteForceProtector.recordSuccess(req, emailLower);
 
     const tokens = generateTokens(user.id);
     
@@ -642,4 +655,157 @@ router.post('/business', authenticate, async (req: AuthRequest, res: Response, n
   }
 });
 
+// ===================== MFA / TOTP ENDPOINTS =====================
+
+// POST /api/auth/mfa/generate — Générer un nouveau secret TOTP pour l'utilisateur connecté
+router.post('/mfa/generate', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { secret, otpauthUrl } = generateTotpSecret();
+    const { plainCodes, hashedCodes } = generateRecoveryCodes();
+
+    // Stocker temporairement le secret chiffré AES-256 en attente de vérification
+    await req.prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        mfaSecret: encryptSecret(secret),
+        mfaRecoveryCodes: JSON.stringify(hashedCodes),
+      },
+    });
+
+    res.json({
+      secret,
+      otpauthUrl,
+      recoveryCodes: plainCodes,
+      message: 'Scannez le QR Code ou saisissez la clé secrète dans votre application TOTP (Google Authenticator, Authy, etc.).',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/mfa/enable — Confirmer le premier code TOTP et activer définitivement le MFA
+router.post('/mfa/enable', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { code } = req.body || {};
+    if (!code || !/^\d{6}$/.test(code)) {
+      throw new AppError('Code TOTP à 6 chiffres obligatoire.', 400);
+    }
+
+    const user = await req.prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user || !user.mfaSecret) {
+      throw new AppError('Configuration MFA non initialisée.', 400);
+    }
+
+    const plainSecret = decryptSecret(user.mfaSecret);
+    const isValid = verifyTotpCode(code, plainSecret);
+
+    if (!isValid) {
+      throw new AppError('Code de validation incorrect. Assurez-vous que l’horloge de votre appareil est synchronisée.', 400);
+    }
+
+    await req.prisma.user.update({
+      where: { id: req.userId },
+      data: { mfaEnabled: true },
+    });
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId!,
+        action: 'MFA_ENABLED',
+        entity: 'User',
+        entityId: req.userId,
+      },
+    });
+
+    res.json({ message: 'Authentification multifacteur (MFA) activée avec succès sur votre compte ! 🛡️' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/mfa/disable — Désactiver le MFA (exige confirmation du mot de passe actuel)
+router.post('/mfa/disable', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { password } = req.body || {};
+    if (!password) {
+      throw new AppError('Mot de passe requis pour désactiver le MFA.', 400);
+    }
+
+    const user = await req.prisma.user.findUnique({ where: { id: req.userId } });
+    const isPasswordValid = await bcrypt.compare(password, user?.passwordHash || '');
+    if (!isPasswordValid) {
+      throw new AppError('Mot de passe incorrect. Action refusée.', 403);
+    }
+
+    await req.prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        mfaEnabled: false,
+        mfaSecret: null,
+        mfaRecoveryCodes: null,
+      },
+    });
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId!,
+        action: 'MFA_DISABLED',
+        entity: 'User',
+        entityId: req.userId,
+      },
+    });
+
+    res.json({ message: 'MFA désactivé sur votre compte.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ===================== GESTION DES SESSIONS ET DÉCONNEXION MULTI-APPAREILS =====================
+
+// POST /api/auth/logout-all — Révoquer toutes les sessions actives et déconnecter tous les appareils
+router.post('/logout-all', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    await req.prisma.refreshToken.deleteMany({
+      where: { userId: req.userId },
+    });
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId!,
+        action: 'LOGOUT_ALL_SESSIONS',
+        entity: 'User',
+        entityId: req.userId,
+      },
+    });
+
+    res.json({ message: 'Toutes les sessions actives ont été révoquées avec succès.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/auth/sessions — Consulter la liste des sessions actives
+router.get('/sessions', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const sessions = await req.prisma.refreshToken.findMany({
+      where: { userId: req.userId },
+      select: {
+        id: true,
+        createdAt: true,
+        expiresAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({
+      totalSessions: sessions.length,
+      sessions,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export { router as authRouter };
+

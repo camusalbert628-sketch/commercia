@@ -28,11 +28,11 @@ export const errorHandler = (
 
   // Erreurs de validation Zod
   if (err instanceof ZodError || (err as any).name === 'ZodError') {
-    const zodErr = err as ZodError;
-    const firstMessage = zodErr.errors?.[0]?.message || 'Données du formulaire invalides.';
+    const issues = (err as any).issues || (err as any).errors || [];
+    const firstMessage = issues?.[0]?.message || 'Données du formulaire invalides.';
     return res.status(400).json({
       error: firstMessage,
-      details: zodErr.errors,
+      details: issues,
       statusCode: 400,
     });
   }
