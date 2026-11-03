@@ -75,92 +75,25 @@ export const AuthPage: React.FC = () => {
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
-  // Initialize Google Identity Services if client ID is configured
-  useEffect(() => {
-    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '210731042943-aaap4r2isg8upmn22qapoifnd15703tn.apps.googleusercontent.com';
-    if (googleClientId && (window as any).google?.accounts?.id) {
-      try {
-        (window as any).google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: handleGoogleCredentialResponse,
-          auto_select: false,
-          cancel_on_tap_outside: true,
-        });
-
-        // Also render the official Google button if target div is present
-        const googleBtnDiv = document.getElementById('googleSignInDiv');
-        if (googleBtnDiv) {
-          (window as any).google.accounts.id.renderButton(googleBtnDiv, {
-            theme: 'outline',
-            size: 'large',
-            width: '100%',
-            text: 'continue_with',
-            shape: 'rectangular',
-            logo_alignment: 'left',
-          });
-        }
-      } catch (err) {
-        console.warn('Google GSI init notice:', err);
-      }
-    }
-  }, []);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '210731042943-aaap4r2isg8upmn22qapoifnd15703tn.apps.googleusercontent.com';
 
   const handleGoogleCredentialResponse = async (response: any) => {
-    try {
-      setLoading(true);
-      setError('');
-      // Decode JWT payload
-      const base64Url = response.credential.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const profile = JSON.parse(jsonPayload);
-
-      const res = await api.post<any>('/auth/google', {
-        credential: response.credential,
-        email: profile.email,
-        firstName: profile.given_name || profile.name?.split(' ')[0] || 'Commerçant',
-        lastName: profile.family_name || profile.name?.split(' ').slice(1).join(' ') || '',
-        avatarUrl: profile.picture,
-      });
-
-      login({ accessToken: res.accessToken, refreshToken: res.refreshToken }, res.user);
-      if (!res.user.businesses || res.user.businesses.length === 0) {
-        navigate('/onboarding');
-      } else {
-        navigate('/dashboard');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Erreur lors de la connexion Google.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const executeGoogleLogin = async (emailStr: string, nameStr?: string) => {
-    setGoogleError('');
-    const trimmedEmail = emailStr.trim().toLowerCase();
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
-      setGoogleError('Veuillez entrer une adresse Google valide (ex: votre-nom@gmail.com).');
+    if (!response || !response.credential) {
+      const msg = 'Authentification Google incomplète : aucun jeton cryptographique (credential) n’a été reçu.';
+      setGoogleError(msg);
+      setError(msg);
       return;
     }
 
-    setGoogleLoading(true);
     try {
-      const parts = (nameStr || '').trim().split(' ');
-      const gFirstName = parts[0] || trimmedEmail.split('@')[0];
-      const gLastName = parts.slice(1).join(' ') || '';
+      setGoogleLoading(true);
+      setLoading(true);
+      setGoogleError('');
+      setError('');
 
+      // Envoi du véritable credential cryptographique Google au backend HTTPS
       const res = await api.post<any>('/auth/google', {
-        email: trimmedEmail,
-        firstName: gFirstName,
-        lastName: gLastName,
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(trimmedEmail)}&backgroundColor=0062FF`,
+        credential: response.credential,
       });
 
       setShowGoogleModal(false);
@@ -172,25 +105,147 @@ export const AuthPage: React.FC = () => {
         navigate('/dashboard');
       }
     } catch (err: any) {
-      setGoogleError(err.message || 'Erreur lors de la connexion avec votre compte Google.');
+      const errMsg = err.message || 'Échec de vérification cryptographique du jeton Google par le serveur.';
+      setGoogleError(errMsg);
+      setError(errMsg);
     } finally {
       setGoogleLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const renderGoogleButtons = () => {
+    if (typeof window === 'undefined') return false;
+    const google = (window as any).google;
+    if (!google?.accounts?.id) return false;
+
+    try {
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+
+      // Bouton officiel sur la page principale
+      const mainBtnDiv = document.getElementById('googleMainGsiButton');
+      if (mainBtnDiv) {
+        mainBtnDiv.innerHTML = '';
+        google.accounts.id.renderButton(mainBtnDiv, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          width: 416,
+          text: isLogin ? 'signin_with' : 'signup_with',
+          shape: 'rectangular',
+          logo_alignment: 'left',
+        });
+      }
+
+      // Bouton officiel dans la modal Google
+      const modalBtnDiv = document.getElementById('googleModalGsiButton');
+      if (modalBtnDiv) {
+        modalBtnDiv.innerHTML = '';
+        google.accounts.id.renderButton(modalBtnDiv, {
+          type: 'standard',
+          theme: 'filled_blue',
+          size: 'large',
+          width: 380,
+          text: 'continue_with',
+          shape: 'rectangular',
+          logo_alignment: 'left',
+        });
+      }
+
+      return true;
+    } catch (err) {
+      console.warn('GSI render notice:', err);
+      return false;
+    }
+  };
+
+  // Chargement et initialisation robuste du SDK Google Identity Services
+  useEffect(() => {
+    if (renderGoogleButtons()) return;
+
+    const interval = setInterval(() => {
+      if (renderGoogleButtons()) {
+        clearInterval(interval);
+      }
+    }, 250);
+
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+    }, 6000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [isLogin, showGoogleModal]);
+
+  const triggerGoogleAuthWithHint = (hintEmail?: string) => {
+    setGoogleError('');
+    setError('');
+    const google = (window as any).google;
+
+    if (!google?.accounts?.id) {
+      setGoogleError('Le SDK Google officiel est en cours de chargement. Veuillez patienter un instant ou rafraîchir la page.');
+      return;
+    }
+
+    try {
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleCredentialResponse,
+        login_hint: hintEmail ? hintEmail.trim().toLowerCase() : undefined,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+
+      google.accounts.id.prompt((notification: any) => {
+        if (notification.isNotDisplayed()) {
+          const reason = notification.getNotDisplayedReason?.() || 'non_affiche';
+          console.warn('Google prompt not displayed:', reason);
+          if (reason === 'opt_out_or_no_session') {
+            setGoogleError('Aucune session Google active trouvée dans votre navigateur. Veuillez cliquer directement sur le bouton officiel Google ci-dessus pour vous identifier.');
+          } else if (reason === 'origin_mismatch') {
+            setGoogleError('Origine non autorisée : Assurez-vous que https://mycommercia.vercel.app est ajouté dans les Origines JavaScript autorisées de votre console Google Cloud.');
+          } else {
+            setGoogleError('Veuillez cliquer directement sur le bouton officiel Google ci-dessus pour vous connecter.');
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error('Erreur déclenchement Google prompt:', err);
+      setGoogleError(err.message || 'Impossible d’initialiser l’authentification Google.');
     }
   };
 
   const handleGoogleSignInClick = () => {
     setError('');
-    // Direct modal auth to bypass Google Cloud origin_mismatch restrictions on Vercel
+    setGoogleError('');
     if (!googleEmailInput) {
-      setGoogleEmailInput('michelbutor6@gmail.com');
-      setGoogleNameInput('Michel Butor');
+      setGoogleEmailInput('camusalbert628@gmail.com');
+      setGoogleNameInput('Super Administrateur');
     }
     setShowGoogleModal(true);
+    setTimeout(() => {
+      renderGoogleButtons();
+    }, 100);
   };
 
-  const handleConfirmGoogleAuth = async (e: React.FormEvent) => {
+  const handleConfirmGoogleAuth = (e: React.FormEvent) => {
     e.preventDefault();
-    await executeGoogleLogin(googleEmailInput, googleNameInput);
+    const trimmed = googleEmailInput.trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!trimmed || !emailRegex.test(trimmed)) {
+      setGoogleError('Veuillez entrer une adresse Google valide (ex: camusalbert628@gmail.com).');
+      return;
+    }
+
+    // Déclenche l'authentification Google réelle avec cet email comme hint (ZÉRO BYPASS SANS JETON CRYPTOGRAPHIQUE)
+    triggerGoogleAuthWithHint(trimmed);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -337,39 +392,43 @@ export const AuthPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Official Google Sign-In Button */}
-          <button
-            type="button"
-            onClick={handleGoogleSignInClick}
-            disabled={loading}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '12px',
-              padding: '12px 16px',
-              borderRadius: '12px',
-              border: '1.5px solid #E2E8F0',
-              background: '#FFFFFF',
-              color: '#1E293B',
-              fontWeight: 700,
-              fontSize: '0.94rem',
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
-              transition: 'all 0.2s ease',
-              marginBottom: '18px',
-            }}
-          >
-            {/* Google Logo SVG */}
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"/>
-              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
-              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.97 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
-              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
-            </svg>
-            <span>{isLogin ? 'Continuer avec Google' : "S'inscrire avec Google"}</span>
-          </button>
+          {/* Official Google Sign-In Container */}
+          <div style={{ marginBottom: '18px' }}>
+            <div id="googleMainGsiButton" style={{ width: '100%', minHeight: '44px', display: 'flex', justifyContent: 'center' }}></div>
+            
+            <button
+              type="button"
+              onClick={handleGoogleSignInClick}
+              disabled={loading}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                border: '1.5px solid #E2E8F0',
+                background: '#FFFFFF',
+                color: '#1E293B',
+                fontWeight: 700,
+                fontSize: '0.94rem',
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+                transition: 'all 0.2s ease',
+                marginTop: '8px',
+              }}
+            >
+              {/* Google Logo SVG */}
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.14z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.17 0 9.97 0 12s.45 3.83 1.25 5.42l4.03-3.15z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+              </svg>
+              <span>{isLogin ? 'Sélectionner un compte Google' : "S'inscrire avec Google"}</span>
+            </button>
+          </div>
 
           {/* Divider */}
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '18px', gap: '12px' }}>
@@ -767,21 +826,24 @@ export const AuthPage: React.FC = () => {
                     fontSize: '1rem',
                   }}
                 >
-                  MB
+                  CA
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.94rem' }}>
-                    Michel Butor
+                    Compte Super Admin Officiel
                   </div>
                   <div style={{ color: '#059669', fontSize: '0.82rem', fontWeight: 600 }}>
-                    michelbutor6@gmail.com
+                    camusalbert628@gmail.com
                   </div>
                 </div>
               </div>
 
+              {/* Bouton officiel Google Identity Services dans la modal */}
+              <div id="googleModalGsiButton" style={{ width: '100%', minHeight: '44px', display: 'flex', justifyContent: 'center' }}></div>
+
               <button
                 type="button"
-                onClick={() => executeGoogleLogin('michelbutor6@gmail.com', 'Michel Butor')}
+                onClick={() => triggerGoogleAuthWithHint('camusalbert628@gmail.com')}
                 disabled={googleLoading}
                 style={{
                   width: '100%',
@@ -800,7 +862,7 @@ export const AuthPage: React.FC = () => {
                   boxShadow: 'none',
                 }}
               >
-                {googleLoading ? 'Connexion en cours...' : '⚡ Continuer en tant que Michel Butor'}
+                {googleLoading ? 'Connexion en cours...' : '⚡ Continuer avec camusalbert628@gmail.com'}
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -854,7 +916,7 @@ export const AuthPage: React.FC = () => {
               >
                 <ShieldCheck size={18} color="#0062FF" style={{ flexShrink: 0 }} />
                 <span>
-                  Votre identité Google sera automatiquement vérifiée et synchronisée avec vos boutiques COMMERCIA.
+                  La saisie de cet email sélectionne votre compte. Google ouvrira son interface officielle pour valider cryptographiquement votre identité.
                 </span>
               </div>
 

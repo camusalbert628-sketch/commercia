@@ -279,6 +279,15 @@ const googleAuthSchema = z.object({
 router.post('/google', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const data = googleAuthSchema.parse(req.body);
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
+    // En production, le jeton cryptographique Google (credential) est STRICTEMENT OBLIGATOIRE
+    if (isProduction && !data.credential) {
+      throw new AppError(
+        'Authentification Google non sécurisée : le jeton cryptographique Google (credential) est obligatoire en production.',
+        401
+      );
+    }
     
     // Vérification cryptographique stricte du jeton Google
     const verifiedUser = await verifyGoogleIdToken(data.credential, {
@@ -289,6 +298,7 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
     });
 
     const email = verifiedUser.email;
+    const googleSub = verifiedUser.sub;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
     const userAgent = (req.headers['user-agent'] as string) || 'unknown';
 
@@ -309,7 +319,7 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
     });
 
     if (isSuperAdminGoogle) {
-      // Rechercher le compte Super Admin existant dans la base
+      // Rechercher le compte Super Admin existant dans la base (préservation stricte du compte racine 882d1b99-c074-4084-9533-a2a48ff88556)
       const existingSuperAdmin = await req.prisma.user.findFirst({
         where: { isAdmin: true },
         include: {
@@ -319,10 +329,11 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
       });
 
       if (existingSuperAdmin) {
-        // Lier l'identité Google vérifiée au compte Super Admin existant (préservation stricte du compte racine)
+        // Lier l'identité Google vérifiée (Google Sub + Email) au compte Super Admin existant
         await req.prisma.user.update({
           where: { id: existingSuperAdmin.id },
           data: {
+            googleId: googleSub,
             adminGoogleEmail: email,
             emailVerified: true,
             avatarUrl: verifiedUser.avatarUrl || existingSuperAdmin.avatarUrl,
@@ -339,6 +350,22 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
           },
         });
       }
+    } else if (user) {
+      // Utilisateur existant (non-admin) : synchroniser son identifiant immuable Google
+      if (!user.googleId) {
+        await req.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId: googleSub,
+            avatarUrl: verifiedUser.avatarUrl || user.avatarUrl,
+            emailVerified: true,
+            lastLoginAt: new Date(),
+            loginCount: { increment: 1 },
+          },
+        }).catch((err: any) => {
+          console.warn('Notice: googleId update skipped', err?.message);
+        });
+      }
     }
 
     if (!user) {
@@ -346,13 +373,14 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
       const created = await req.prisma.user.create({
         data: {
           email,
+          googleId: googleSub,
           passwordHash: dummyPassword,
           firstName: verifiedUser.firstName,
           lastName: verifiedUser.lastName,
           avatarUrl: verifiedUser.avatarUrl || null,
           emailVerified: verifiedUser.emailVerified,
-          isAdmin: isSuperAdminGoogle, // Ne confère isAdmin que si Google email est formellement autorisé
-          adminGoogleEmail: isSuperAdminGoogle ? email : null,
+          isAdmin: false, // JAMAIS de nouveau compte créé avec privilèges admin
+          adminGoogleEmail: null,
         },
       });
 
@@ -409,7 +437,12 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
         step: 'oauth',
         ipAddress: clientIp,
         userAgent,
-        metadata: JSON.stringify({ isSuperAdmin: user.isAdmin }),
+        metadata: JSON.stringify({
+          isSuperAdmin: user.isAdmin,
+          googleSub,
+          emailVerified: verifiedUser.emailVerified,
+          verifiedAt: new Date().toISOString(),
+        }),
       },
     }).catch(() => {});
 

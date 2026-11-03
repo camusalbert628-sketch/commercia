@@ -2,10 +2,6 @@ import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { AppError } from '../middleware/errorHandler';
 
-// Google OAuth Client
-const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
-const googleOAuthClient = new OAuth2Client(googleClientId);
-
 // Cache for runtime-generated secure secret (in dev only)
 let runtimeDevSecret: string | null = null;
 let runtimeDevRefreshSecret: string | null = null;
@@ -87,7 +83,16 @@ export const getAllowedOrigins = (): (string | RegExp)[] => {
   ];
 };
 
+// Google OAuth Client & Allowed Audiences
+const googleClientId = process.env.GOOGLE_CLIENT_ID || '210731042943-aaap4r2isg8upmn22qapoifnd15703tn.apps.googleusercontent.com';
+const allowedGoogleClientIds = Array.from(new Set([
+  googleClientId,
+  '210731042943-aaap4r2isg8upmn22qapoifnd15703tn.apps.googleusercontent.com',
+].filter(Boolean)));
+const googleOAuthClient = new OAuth2Client(googleClientId);
+
 export interface VerifiedGoogleUser {
+  sub: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -96,8 +101,8 @@ export interface VerifiedGoogleUser {
 }
 
 /**
- * Valide un jeton d'authentification Google émis par l'OAuth2 Google.
- * Vérifie la signature cryptographique auprès des serveurs Google et l'audience.
+ * Valide rigoureusement un jeton cryptographique Google ID Token.
+ * Vérifie : signature auprès des serveurs Google, émetteur (iss), audience (aud), expiration (exp), email vérifié, et sub.
  */
 export const verifyGoogleIdToken = async (
   credential?: string,
@@ -109,19 +114,48 @@ export const verifyGoogleIdToken = async (
     try {
       const ticket = await googleOAuthClient.verifyIdToken({
         idToken: credential,
-        audience: googleClientId || undefined,
+        audience: allowedGoogleClientIds.length > 0 ? allowedGoogleClientIds : undefined,
       });
 
       const payload = ticket.getPayload();
-      if (!payload || !payload.email) {
+      if (!payload) {
         throw new AppError('Jeton Google invalide : données utilisateur introuvables.', 401);
       }
 
+      // 1. Vérification stricte de l'émetteur (iss)
+      const validIssuers = ['accounts.google.com', 'https://accounts.google.com'];
+      if (!payload.iss || !validIssuers.includes(payload.iss)) {
+        throw new AppError(`Émetteur du jeton Google invalide (${payload.iss}).`, 401);
+      }
+
+      // 2. Vérification de l'audience (aud)
+      if (allowedGoogleClientIds.length > 0 && !allowedGoogleClientIds.includes(payload.aud as string)) {
+        throw new AppError(`Audience du jeton Google non reconnue (${payload.aud}).`, 401);
+      }
+
+      // 3. Vérification de la validité temporelle / expiration (exp)
+      const nowInSeconds = Math.floor(Date.now() / 1000);
+      if (!payload.exp || payload.exp < nowInSeconds) {
+        throw new AppError('Le jeton d’authentification Google a expiré.', 401);
+      }
+
+      // 4. Vérification de l'adresse email
+      if (!payload.email) {
+        throw new AppError('Adresse email Google introuvable dans le jeton.', 401);
+      }
+
+      // 5. Vérification de la validation par Google (email_verified)
       if (!payload.email_verified) {
         throw new AppError('Cette adresse email Google n’a pas été vérifiée par Google.', 403);
       }
 
+      // 6. Vérification du Google Subject ID (sub) immuable
+      if (!payload.sub || typeof payload.sub !== 'string') {
+        throw new AppError('Identifiant Google immuable (sub) manquant dans le jeton.', 401);
+      }
+
       return {
+        sub: payload.sub,
         email: payload.email.toLowerCase().trim(),
         firstName: payload.given_name || payload.name?.split(' ')[0] || 'Commerçant',
         lastName: payload.family_name || payload.name?.split(' ').slice(1).join(' ') || '',
@@ -130,13 +164,13 @@ export const verifyGoogleIdToken = async (
       };
     } catch (err: any) {
       if (err instanceof AppError) throw err;
-      console.error('❌ Échec de vérification du jeton Google OAuth:', err?.message || err);
-      throw new AppError('Jeton d’authentification Google invalide ou expiré.', 401);
+      console.error('❌ Échec de vérification cryptographique du jeton Google OAuth:', err?.message || err);
+      throw new AppError(`Jeton d’authentification Google invalide ou rejeté : ${err?.message || 'Erreur cryptographique'}`, 401);
     }
   }
 
   // Si pas de credential (jeton cryptographique) :
-  // En production, il est STRICTEMENT INTERDIT de faire confiance à un email non signé.
+  // En production, il est STRICTEMENT INTERDIT de faire confiance à des données non signées.
   if (isProduction) {
     throw new AppError(
       'Authentification Google non sécurisée : le jeton cryptographique Google (credential) est obligatoire en production.',
@@ -144,10 +178,11 @@ export const verifyGoogleIdToken = async (
     );
   }
 
-  // En environnement de développement local uniquement :
+  // En environnement de développement local uniquement (pour tests internes déconnectés) :
   if (fallbackData?.email) {
     console.warn(`⚠️ [DEV AUTH WARNING] Connexion Google émulée sans jeton cryptographique pour ${fallbackData.email} (Autorisé uniquement hors production).`);
     return {
+      sub: `dev_sub_${Buffer.from(fallbackData.email).toString('hex').slice(0, 16)}`,
       email: fallbackData.email.toLowerCase().trim(),
       firstName: fallbackData.firstName || 'Commerçant',
       lastName: fallbackData.lastName || '',
