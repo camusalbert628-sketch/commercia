@@ -50,6 +50,7 @@ import {
   Cloud,
   ShieldCheck,
   CheckCircle2,
+  Tag,
   Award,
 } from 'lucide-react';
 import { useNavigate, Navigate } from 'react-router-dom';
@@ -355,6 +356,34 @@ export const AdminPage: React.FC = () => {
   // 11. Abonnements & Revenus
   const [subscriptionsOverview, setSubscriptionsOverview] = useState<any>(null);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
+  const [paymentSubTab, setPaymentSubTab] = useState<'kpi' | 'providers' | 'transactions' | 'promos'>('kpi');
+  const [paymentProviders, setPaymentProviders] = useState<any[]>([]);
+  const [loadingProviders, setLoadingProviders] = useState(false);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [providerTestResults, setProviderTestResults] = useState<Record<string, any>>({});
+  const [adminTransactions, setAdminTransactions] = useState<any[]>([]);
+  const [loadingAdminTransactions, setLoadingAdminTransactions] = useState(false);
+  const [transactionFilterStatus, setTransactionFilterStatus] = useState<string>('all');
+  const [transactionFilterProvider, setTransactionFilterProvider] = useState<string>('all');
+  const [transactionSearch, setTransactionSearch] = useState<string>('');
+  const [adminPromos, setAdminPromos] = useState<any[]>([]);
+  const [loadingPromos, setLoadingPromos] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
+  const [reconcileReport, setReconcileReport] = useState<any>(null);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundTarget, setRefundTarget] = useState<any>(null);
+  const [refundAmount, setRefundAmount] = useState<number>(0);
+  const [refundReason, setRefundReason] = useState<string>('');
+  const [isProcessingRefund, setIsProcessingRefund] = useState(false);
+  const [showCreatePromoModal, setShowCreatePromoModal] = useState(false);
+  const [newPromoForm, setNewPromoForm] = useState({
+    code: '',
+    description: '',
+    discountType: 'percent' as 'percent' | 'fixed',
+    discountValue: 20,
+    minOrderAmount: 0,
+    maxUses: 100,
+  });
 
   // 6. Sauvegardes & Migrations
   const [backupsOverview, setBackupsOverview] = useState<any>(null);
@@ -498,6 +527,135 @@ export const AdminPage: React.FC = () => {
     }
   }, []);
 
+  // 7b. Passerelles de Paiement Réelles
+  const loadPaymentProviders = useCallback(async () => {
+    setLoadingProviders(true);
+    try {
+      const res = await api.get<any>('/payments/admin/providers');
+      setPaymentProviders(Array.isArray(res) ? res : res.providers || []);
+    } catch (err: any) {
+      console.error('Erreur passerelles:', err);
+    } finally {
+      setLoadingProviders(false);
+    }
+  }, []);
+
+  // 7c. Grand Livre des Transactions & Audit
+  const loadAdminTransactions = useCallback(async () => {
+    setLoadingAdminTransactions(true);
+    try {
+      const params = new URLSearchParams();
+      if (transactionFilterStatus !== 'all') params.append('status', transactionFilterStatus);
+      if (transactionFilterProvider !== 'all') params.append('provider', transactionFilterProvider);
+      if (transactionSearch.trim()) params.append('search', transactionSearch.trim());
+
+      const res = await api.get<any>(`/payments/admin/transactions?${params.toString()}`);
+      setAdminTransactions(Array.isArray(res) ? res : res.transactions || []);
+    } catch (err: any) {
+      console.error('Erreur transactions admin:', err);
+    } finally {
+      setLoadingAdminTransactions(false);
+    }
+  }, [transactionFilterStatus, transactionFilterProvider, transactionSearch]);
+
+  // 7d. Gestion des Codes Promotionnels
+  const loadAdminPromos = useCallback(async () => {
+    setLoadingPromos(true);
+    try {
+      const res = await api.get<any>('/payments/admin/promos');
+      setAdminPromos(Array.isArray(res) ? res : res.promos || []);
+    } catch (err: any) {
+      console.error('Erreur promos admin:', err);
+    } finally {
+      setLoadingPromos(false);
+    }
+  }, []);
+
+  // Test en direct d'une passerelle
+  const handleTestProvider = async (provider: string) => {
+    setTestingProvider(provider);
+    try {
+      const res = await api.post<any>(`/payments/admin/providers/${provider}/test-connection`, {});
+      setProviderTestResults(prev => ({ ...prev, [provider]: res }));
+      showToast(res.message || `Test ${provider} exécuté avec succès.`);
+      loadPaymentProviders();
+    } catch (err: any) {
+      setProviderTestResults(prev => ({
+        ...prev,
+        [provider]: { isValid: false, message: err.message || 'Échec du test de connexion.' },
+      }));
+      alert(`Erreur test ${provider} : ${err.message || 'Échec'}`);
+    } finally {
+      setTestingProvider(null);
+    }
+  };
+
+  // Déclenchement de la réconciliation automatique
+  const handleTriggerReconciliation = async () => {
+    setIsReconciling(true);
+    try {
+      const res = await api.post<any>('/payments/reconcile', {});
+      setReconcileReport(res.report);
+      showToast(res.message || 'Réconciliation terminée avec succès !');
+      loadAdminTransactions();
+      loadSubscriptions();
+    } catch (err: any) {
+      alert(`Erreur réconciliation : ${err.message || 'Échec'}`);
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
+  // Exécution sécurisée d'un remboursement
+  const handleExecuteRefund = async () => {
+    if (!refundTarget || !refundReason.trim() || refundAmount <= 0) {
+      alert('Veuillez spécifier un motif valide et un montant supérieur à 0.');
+      return;
+    }
+    setIsProcessingRefund(true);
+    try {
+      const res = await api.post<any>(`/payments/admin/transactions/${refundTarget.id}/refund`, {
+        amount: refundAmount,
+        reason: refundReason.trim(),
+      });
+      showToast(res.message || 'Remboursement exécuté avec succès.');
+      setShowRefundModal(false);
+      setRefundTarget(null);
+      setRefundReason('');
+      loadAdminTransactions();
+      loadSubscriptions();
+    } catch (err: any) {
+      alert(`Erreur remboursement : ${err.message || 'Échec'}`);
+    } finally {
+      setIsProcessingRefund(false);
+    }
+  };
+
+  // Création d'un code promotionnel
+  const handleCreatePromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPromoForm.code.trim()) {
+      alert('Le code promo est requis.');
+      return;
+    }
+    try {
+      await api.post<any>('/payments/admin/promos', newPromoForm);
+      showToast(`Code promotionnel ${newPromoForm.code.toUpperCase()} créé avec succès !`);
+      setShowCreatePromoModal(false);
+      setNewPromoForm({
+        code: '',
+        description: '',
+        discountType: 'percent',
+        discountValue: 20,
+        minOrderAmount: 0,
+        maxUses: 100,
+      });
+      loadAdminPromos();
+    } catch (err: any) {
+      alert(`Erreur création code promo : ${err.message || 'Échec'}`);
+    }
+  };
+
   // 8. Chargement des sauvegardes et migrations Neon
   const loadBackups = useCallback(async () => {
     setLoadingBackups(true);
@@ -590,6 +748,9 @@ export const AdminPage: React.FC = () => {
       loadRoles();
     } else if (activeTab === 'subscriptions') {
       loadSubscriptions();
+      loadPaymentProviders();
+      loadAdminTransactions();
+      loadAdminPromos();
     } else if (activeTab === 'backups') {
       loadBackups();
     } else if (activeTab === 'notifications') {
@@ -605,6 +766,9 @@ export const AdminPage: React.FC = () => {
     loadAuditLogs,
     loadRoles,
     loadSubscriptions,
+    loadPaymentProviders,
+    loadAdminTransactions,
+    loadAdminPromos,
     loadBackups,
     loadBroadcasts,
   ]);
@@ -3760,266 +3924,928 @@ export const AdminPage: React.FC = () => {
              ========================================================================= */}
           {activeTab === 'subscriptions' && (
             <div>
-              <div style={{ marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '20px', fontWeight: 800, color: adminTheme === 'light' ? '#172033' : '#FFFFFF', margin: 0, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CreditCard size={20} color="#2563EB" />
-                  Gestion des Abonnements Marchands & Revenus SaaS
-                </h2>
-                <p style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px', marginTop: '4px', margin: 0 }}>
-                  Suivi de la récurrence des revenus (MRR / ARR), échéances des licences marchandes et transactions de facturation.
-                </p>
-              </div>
-
-              {/* Cartes KPI Revenus */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                <div
-                  className="admin-card"
-                  style={{
-                    background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
-                    padding: '20px',
-                    borderRadius: '12px',
-                    border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
-                    boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      REVENU MENSUEL (MRR)
-                    </span>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '8px',
-                      background: adminTheme === 'light' ? '#ECFDF5' : 'rgba(16,185,129,0.1)',
+              <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: adminTheme === 'light' ? '#172033' : '#FFFFFF', margin: 0, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CreditCard size={20} color="#2563EB" />
+                    Cockpit FinTech : Paiements & Abonnements SaaS
+                  </h2>
+                  <p style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px', marginTop: '4px', margin: 0 }}>
+                    Supervision des revenus récurrents, audit des passerelles de paiement, grand livre transactionnel et moteur promotionnel.
+                  </p>
+                </div>
+                {paymentSubTab === 'transactions' && (
+                  <button
+                    onClick={handleTriggerReconciliation}
+                    disabled={isReconciling}
+                    style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <TrendingUp size={16} color="#10B981" />
-                    </div>
-                  </div>
-                  <div style={{ color: '#10B981', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                    {(subscriptionsOverview?.metrics?.mrr || 0).toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 600 }}>FCFA</span>
-                  </div>
-                  <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '12px', marginTop: '6px' }}>
-                    Flux mensuels récurrents
-                  </div>
-                </div>
-
-                <div
-                  className="admin-card"
-                  style={{
-                    background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
-                    padding: '20px',
-                    borderRadius: '12px',
-                    border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
-                    boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      REVENU ANNUEL PROJETÉ (ARR)
-                    </span>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
+                      gap: '8px',
+                      padding: '9px 16px',
+                      background: '#0284C7',
+                      color: '#FFFFFF',
                       borderRadius: '8px',
-                      background: adminTheme === 'light' ? '#F0F9FF' : 'rgba(14,165,233,0.1)',
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(2,132,199,0.25)',
+                    }}
+                  >
+                    <RefreshCw size={14} className={isReconciling ? 'animate-spin' : ''} />
+                    {isReconciling ? 'Réconciliation en cours...' : 'Lancer la Réconciliation Automatique'}
+                  </button>
+                )}
+                {paymentSubTab === 'promos' && (
+                  <button
+                    onClick={() => setShowCreatePromoModal(true)}
+                    style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <CreditCard size={16} color="#0284C7" />
-                    </div>
-                  </div>
-                  <div style={{ color: '#0284C7', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                    {(subscriptionsOverview?.metrics?.arr || 0).toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 600 }}>FCFA</span>
-                  </div>
-                  <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '12px', marginTop: '6px' }}>
-                    Base 12 mois annualisée
-                  </div>
-                </div>
-
-                <div
-                  className="admin-card"
-                  style={{
-                    background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
-                    padding: '20px',
-                    borderRadius: '12px',
-                    border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
-                    boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      ABONNÉS PAYANTS
-                    </span>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
+                      gap: '8px',
+                      padding: '9px 16px',
+                      background: '#2563EB',
+                      color: '#FFFFFF',
                       borderRadius: '8px',
-                      background: adminTheme === 'light' ? '#FFFBEB' : 'rgba(245,158,11,0.1)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <Award size={16} color="#D97706" />
-                    </div>
-                  </div>
-                  <div style={{ color: '#D97706', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                    {subscriptionsOverview?.metrics?.activePaidCount || 0}
-                  </div>
-                  <div style={{ color: '#10B981', fontSize: '12px', marginTop: '6px', fontWeight: 600 }}>
-                    Formules Pro & Business
-                  </div>
-                </div>
-
-                <div
-                  className="admin-card"
-                  style={{
-                    background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
-                    padding: '20px',
-                    borderRadius: '12px',
-                    border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
-                    boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      ABONNÉS GRATUITS / ESSAI
-                    </span>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '8px',
-                      background: adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.05)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <Users size={16} color="#64748B" />
-                    </div>
-                  </div>
-                  <div style={{ color: adminTheme === 'light' ? '#334155' : '#94A3B8', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                    {subscriptionsOverview?.metrics?.activeFreeCount || 0}
-                  </div>
-                  <div style={{ color: adminTheme === 'light' ? '#64748B' : '#64748B', fontSize: '12px', marginTop: '6px' }}>
-                    Formule Découverte
-                  </div>
-                </div>
-              </div>
-
-              {/* Table des Abonnements Marchands */}
-              <div
-                className="admin-card"
-                style={{
-                  background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
-                  borderRadius: '12px',
-                  border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
-                  padding: '20px',
-                  boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                }}
-              >
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: adminTheme === 'light' ? '#172033' : '#FFFFFF', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Users size={16} color="#2563EB" />
-                  Liste des Abonnements Marchands Actifs
-                </h3>
-
-                {loadingSubscriptions ? (
-                  <div style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Chargement des abonnements...</div>
-                ) : (
-                  <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}` }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-                      <thead style={{ background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)' }}>
-                        <tr style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`, color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
-                          <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Commerçant & Boutique</th>
-                          <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Formule Souscrite</th>
-                          <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prix Mensuel</th>
-                          <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statut</th>
-                          <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date d'Échéance</th>
-                          <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Jours Restants</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(!subscriptionsOverview?.subscriptions || subscriptionsOverview.subscriptions.length === 0) ? (
-                          <tr>
-                            <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
-                              Aucun abonnement trouvé en base de données.
-                            </td>
-                          </tr>
-                        ) : (
-                          subscriptionsOverview.subscriptions.map((sub: any) => (
-                            <tr key={sub.id} style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.03)'}` }}>
-                              <td style={{ padding: '12px 14px' }}>
-                                <div style={{ fontWeight: 700, color: adminTheme === 'light' ? '#172033' : '#FFFFFF' }}>{sub.userName}</div>
-                                <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px' }}>{sub.userEmail} • {sub.businessName}</div>
-                              </td>
-                              <td style={{ padding: '12px 14px' }}>
-                                <span style={{
-                                  background: sub.planName === 'business'
-                                    ? (adminTheme === 'light' ? '#F5F3FF' : 'rgba(168, 85, 247, 0.2)')
-                                    : sub.planName === 'pro'
-                                    ? (adminTheme === 'light' ? '#EFF6FF' : 'rgba(37, 99, 235, 0.2)')
-                                    : (adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.06)'),
-                                  color: sub.planName === 'business'
-                                    ? (adminTheme === 'light' ? '#7C3AED' : '#C084FC')
-                                    : sub.planName === 'pro'
-                                    ? (adminTheme === 'light' ? '#1D4ED8' : '#60A5FA')
-                                    : (adminTheme === 'light' ? '#475569' : '#94A3B8'),
-                                  border: `1px solid ${sub.planName === 'business'
-                                    ? (adminTheme === 'light' ? '#DDD6FE' : 'transparent')
-                                    : sub.planName === 'pro'
-                                    ? (adminTheme === 'light' ? '#BFDBFE' : 'transparent')
-                                    : (adminTheme === 'light' ? '#CBD5E1' : 'transparent')}`,
-                                  padding: '3px 8px',
-                                  borderRadius: '6px',
-                                  fontSize: '11px',
-                                  fontWeight: 700,
-                                }}>
-                                  {sub.planDisplayName}
-                                </span>
-                              </td>
-                              <td style={{ padding: '12px 14px', color: '#0284C7', fontWeight: 700 }}>
-                                {sub.monthlyPrice > 0 ? `${sub.monthlyPrice.toLocaleString('fr-FR')} FCFA` : 'Gratuit'}
-                              </td>
-                              <td style={{ padding: '12px 14px' }}>
-                                <span style={{
-                                  background: sub.status === 'active'
-                                    ? (adminTheme === 'light' ? '#ECFDF5' : 'rgba(16, 185, 129, 0.15)')
-                                    : (adminTheme === 'light' ? '#FEF2F2' : 'rgba(239, 68, 68, 0.15)'),
-                                  color: sub.status === 'active'
-                                    ? (adminTheme === 'light' ? '#047857' : '#34D399')
-                                    : (adminTheme === 'light' ? '#DC2626' : '#F87171'),
-                                  border: `1px solid ${sub.status === 'active'
-                                    ? (adminTheme === 'light' ? '#A7F3D0' : 'rgba(16, 185, 129, 0.3)')
-                                    : (adminTheme === 'light' ? '#FECACA' : 'rgba(239, 68, 68, 0.3)')}`,
-                                  padding: '3px 8px',
-                                  borderRadius: '6px',
-                                  fontSize: '11px',
-                                  fontWeight: 700,
-                                }}>
-                                  ● {sub.status === 'active' ? 'ACTIF' : 'EXPIRÉ'}
-                                </span>
-                              </td>
-                              <td style={{ padding: '12px 14px', color: adminTheme === 'light' ? '#334155' : '#CBD5E1', fontWeight: 500 }}>
-                                {sub.endDate ? new Date(sub.endDate).toLocaleDateString('fr-FR') : 'Illimitée'}
-                              </td>
-                              <td style={{ padding: '12px 14px' }}>
-                                <span style={{
-                                  color: sub.daysRemaining > 7 ? '#10B981' : sub.daysRemaining > 0 ? '#F59E0B' : '#EF4444',
-                                  fontWeight: 700
-                                }}>
-                                  {sub.daysRemaining > 0 ? `${sub.daysRemaining} j restants` : 'Expiré'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                      border: 'none',
+                      fontWeight: 700,
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(37,99,235,0.25)',
+                    }}
+                  >
+                    <Plus size={15} />
+                    Créer un Code Promo
+                  </button>
                 )}
               </div>
+
+              {/* Navigation des 4 sous-onglets */}
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                borderBottom: `1px solid ${adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.08)'}`,
+                paddingBottom: '12px',
+                marginBottom: '24px',
+                overflowX: 'auto',
+              }}>
+                {[
+                  { id: 'kpi', label: 'Licences & Revenus MRR', icon: CreditCard, count: subscriptionsOverview?.subscriptions?.length },
+                  { id: 'providers', label: 'Passerelles de Paiement', icon: Zap, count: paymentProviders?.length || 4 },
+                  { id: 'transactions', label: 'Grand Livre des Transactions', icon: FileText, count: adminTransactions?.length },
+                  { id: 'promos', label: 'Codes Promotionnels', icon: Tag, count: adminPromos?.length },
+                ].map(tab => {
+                  const Icon = tab.icon;
+                  const isActive = paymentSubTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setPaymentSubTab(tab.id as any)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 16px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        fontWeight: isActive ? 700 : 500,
+                        background: isActive
+                          ? (adminTheme === 'light' ? '#EFF6FF' : 'rgba(37,99,235,0.2)')
+                          : 'transparent',
+                        color: isActive
+                          ? '#2563EB'
+                          : (adminTheme === 'light' ? '#64748B' : '#94A3B8'),
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <Icon size={16} />
+                      {tab.label}
+                      {tab.count !== undefined && (
+                        <span style={{
+                          fontSize: '11px',
+                          padding: '2px 7px',
+                          borderRadius: '10px',
+                          background: isActive
+                            ? '#2563EB'
+                            : (adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.1)'),
+                          color: isActive ? '#FFFFFF' : (adminTheme === 'light' ? '#475569' : '#CBD5E1'),
+                          fontWeight: 700,
+                        }}>
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* -------------------------------------------------------------
+                  SOUS-ONGLET 1 : LICENCES & REVENUS RÉELS (MRR / ARR)
+                  ------------------------------------------------------------- */}
+              {paymentSubTab === 'kpi' && (
+                <div>
+                  {/* Cartes KPI Revenus */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                    <div
+                      className="admin-card"
+                      style={{
+                        background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                        padding: '20px',
+                        borderRadius: '12px',
+                        border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                        boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          REVENU MENSUEL (MRR)
+                        </span>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: adminTheme === 'light' ? '#ECFDF5' : 'rgba(16,185,129,0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <TrendingUp size={16} color="#10B981" />
+                        </div>
+                      </div>
+                      <div style={{ color: '#10B981', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                        {(subscriptionsOverview?.metrics?.mrr || 0).toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 600 }}>FCFA</span>
+                      </div>
+                      <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '12px', marginTop: '6px' }}>
+                        Flux mensuels récurrents calculés en base
+                      </div>
+                    </div>
+
+                    <div
+                      className="admin-card"
+                      style={{
+                        background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                        padding: '20px',
+                        borderRadius: '12px',
+                        border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                        boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          REVENU ANNUEL PROJETÉ (ARR)
+                        </span>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: adminTheme === 'light' ? '#F0F9FF' : 'rgba(14,165,233,0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <CreditCard size={16} color="#0284C7" />
+                        </div>
+                      </div>
+                      <div style={{ color: '#0284C7', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                        {(subscriptionsOverview?.metrics?.arr || 0).toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 600 }}>FCFA</span>
+                      </div>
+                      <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '12px', marginTop: '6px' }}>
+                        Base 12 mois annualisée
+                      </div>
+                    </div>
+
+                    <div
+                      className="admin-card"
+                      style={{
+                        background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                        padding: '20px',
+                        borderRadius: '12px',
+                        border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                        boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          ABONNÉS PAYANTS
+                        </span>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: adminTheme === 'light' ? '#FFFBEB' : 'rgba(245,158,11,0.1)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Award size={16} color="#D97706" />
+                        </div>
+                      </div>
+                      <div style={{ color: '#D97706', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                        {subscriptionsOverview?.metrics?.activePaidCount || 0}
+                      </div>
+                      <div style={{ color: '#10B981', fontSize: '12px', marginTop: '6px', fontWeight: 600 }}>
+                        Formules Pro & Business
+                      </div>
+                    </div>
+
+                    <div
+                      className="admin-card"
+                      style={{
+                        background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                        padding: '20px',
+                        borderRadius: '12px',
+                        border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                        boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          ABONNÉS GRATUITS / ESSAI
+                        </span>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.05)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Users size={16} color="#64748B" />
+                        </div>
+                      </div>
+                      <div style={{ color: adminTheme === 'light' ? '#334155' : '#94A3B8', fontSize: '24px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                        {subscriptionsOverview?.metrics?.activeFreeCount || 0}
+                      </div>
+                      <div style={{ color: adminTheme === 'light' ? '#64748B' : '#64748B', fontSize: '12px', marginTop: '6px' }}>
+                        Formule Découverte
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Table des Abonnements Marchands */}
+                  <div
+                    className="admin-card"
+                    style={{
+                      background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                      borderRadius: '12px',
+                      border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                      padding: '20px',
+                      boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
+                    }}
+                  >
+                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: adminTheme === 'light' ? '#172033' : '#FFFFFF', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Users size={16} color="#2563EB" />
+                      Liste des Abonnements Marchands Actifs
+                    </h3>
+
+                    {loadingSubscriptions ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Chargement des abonnements...</div>
+                    ) : (
+                      <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}` }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                          <thead style={{ background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)' }}>
+                            <tr style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`, color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                              <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Commerçant & Boutique</th>
+                              <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Formule Souscrite</th>
+                              <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Prix Mensuel</th>
+                              <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statut</th>
+                              <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date d'Échéance</th>
+                              <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Jours Restants</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(!subscriptionsOverview?.subscriptions || subscriptionsOverview.subscriptions.length === 0) ? (
+                              <tr>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                                  Aucun abonnement trouvé en base de données.
+                                </td>
+                              </tr>
+                            ) : (
+                              subscriptionsOverview.subscriptions.map((sub: any) => (
+                                <tr key={sub.id} style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.03)'}` }}>
+                                  <td style={{ padding: '12px 14px' }}>
+                                    <div style={{ fontWeight: 700, color: adminTheme === 'light' ? '#172033' : '#FFFFFF' }}>{sub.userName}</div>
+                                    <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11px' }}>{sub.userEmail} • {sub.businessName}</div>
+                                  </td>
+                                  <td style={{ padding: '12px 14px' }}>
+                                    <span style={{
+                                      background: sub.planName === 'business'
+                                        ? (adminTheme === 'light' ? '#F5F3FF' : 'rgba(168, 85, 247, 0.2)')
+                                        : sub.planName === 'pro'
+                                        ? (adminTheme === 'light' ? '#EFF6FF' : 'rgba(37, 99, 235, 0.2)')
+                                        : (adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.06)'),
+                                      color: sub.planName === 'business'
+                                        ? (adminTheme === 'light' ? '#7C3AED' : '#C084FC')
+                                        : sub.planName === 'pro'
+                                        ? (adminTheme === 'light' ? '#1D4ED8' : '#60A5FA')
+                                        : (adminTheme === 'light' ? '#475569' : '#94A3B8'),
+                                      border: `1px solid ${sub.planName === 'business'
+                                        ? (adminTheme === 'light' ? '#DDD6FE' : 'transparent')
+                                        : sub.planName === 'pro'
+                                        ? (adminTheme === 'light' ? '#BFDBFE' : 'transparent')
+                                        : (adminTheme === 'light' ? '#CBD5E1' : 'transparent')}`,
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                    }}>
+                                      {sub.planDisplayName}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px 14px', color: '#0284C7', fontWeight: 700 }}>
+                                    {sub.monthlyPrice > 0 ? `${sub.monthlyPrice.toLocaleString('fr-FR')} FCFA` : 'Gratuit'}
+                                  </td>
+                                  <td style={{ padding: '12px 14px' }}>
+                                    <span style={{
+                                      background: sub.status === 'active'
+                                        ? (adminTheme === 'light' ? '#ECFDF5' : 'rgba(16, 185, 129, 0.15)')
+                                        : (adminTheme === 'light' ? '#FEF2F2' : 'rgba(239, 68, 68, 0.15)'),
+                                      color: sub.status === 'active'
+                                        ? (adminTheme === 'light' ? '#047857' : '#34D399')
+                                        : (adminTheme === 'light' ? '#DC2626' : '#F87171'),
+                                      border: `1px solid ${sub.status === 'active'
+                                        ? (adminTheme === 'light' ? '#A7F3D0' : 'rgba(16, 185, 129, 0.3)')
+                                        : (adminTheme === 'light' ? '#FECACA' : 'rgba(239, 68, 68, 0.3)')}`,
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                    }}>
+                                      ● {sub.status === 'active' ? 'ACTIF' : 'EXPIRÉ'}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px 14px', color: adminTheme === 'light' ? '#334155' : '#CBD5E1', fontWeight: 500 }}>
+                                    {sub.endDate ? new Date(sub.endDate).toLocaleDateString('fr-FR') : 'Illimitée'}
+                                  </td>
+                                  <td style={{ padding: '12px 14px' }}>
+                                    <span style={{
+                                      color: sub.daysRemaining > 7 ? '#10B981' : sub.daysRemaining > 0 ? '#F59E0B' : '#EF4444',
+                                      fontWeight: 700
+                                    }}>
+                                      {sub.daysRemaining > 0 ? `${sub.daysRemaining} j restants` : 'Expiré'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* -------------------------------------------------------------
+                  SOUS-ONGLET 2 : PASSERELLES DE PAIEMENT & CONNECTEURS
+                  ------------------------------------------------------------- */}
+              {paymentSubTab === 'providers' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <p style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px', margin: 0 }}>
+                      Surveillance cryptographique des clés marchandes, masquage PCI-DSS et validation en direct des connecteurs.
+                    </p>
+                    <button
+                      onClick={loadPaymentProviders}
+                      disabled={loadingProviders}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '7px 12px',
+                        borderRadius: '6px',
+                        border: `1px solid ${adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.1)'}`,
+                        background: 'transparent',
+                        color: adminTheme === 'light' ? '#475569' : '#CBD5E1',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <RefreshCw size={13} className={loadingProviders ? 'animate-spin' : ''} />
+                      Actualiser
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+                    {paymentProviders.map((p: any) => {
+                      const testResult = providerTestResults[p.provider];
+                      const isTesting = testingProvider === p.provider;
+                      const isWaveDisabled = p.provider === 'wave';
+
+                      return (
+                        <div
+                          key={p.provider}
+                          className="admin-card"
+                          style={{
+                            background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                            borderRadius: '12px',
+                            border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`,
+                            padding: '20px',
+                            boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+                            <div>
+                              <div style={{ fontWeight: 800, fontSize: '15px', color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                {p.displayName}
+                              </div>
+                              <div style={{ fontSize: '11.5px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8', marginTop: '2px', fontFamily: 'monospace' }}>
+                                ID : {p.provider}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                background: p.isActive
+                                  ? (adminTheme === 'light' ? '#ECFDF5' : 'rgba(16,185,129,0.15)')
+                                  : (adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.06)'),
+                                color: p.isActive ? '#10B981' : '#64748B',
+                              }}>
+                                {p.isActive ? 'ACTIF' : 'INACTIF'}
+                              </span>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                background: p.isSandbox
+                                  ? (adminTheme === 'light' ? '#FFFBEB' : 'rgba(245,158,11,0.15)')
+                                  : (adminTheme === 'light' ? '#EFF6FF' : 'rgba(37,99,235,0.15)'),
+                                color: p.isSandbox ? '#D97706' : '#2563EB',
+                              }}>
+                                {p.isSandbox ? 'SANDBOX' : 'PRODUCTION'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {isWaveDisabled && (
+                            <div style={{
+                              background: adminTheme === 'light' ? '#FEF2F2' : 'rgba(239,68,68,0.1)',
+                              border: `1px solid ${adminTheme === 'light' ? '#FCA5A5' : 'rgba(239,68,68,0.3)'}`,
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              fontSize: '11.5px',
+                              color: '#DC2626',
+                              marginBottom: '14px',
+                              fontWeight: 600,
+                            }}>
+                              ⚠️ Strictement désactivé pour le Cameroun (XAF). Disponible uniquement pour la zone UEMOA (Sénégal/CI).
+                            </div>
+                          )}
+
+                          <div style={{
+                            background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            fontSize: '12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            marginBottom: '16px',
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Identifiant Marchand :</span>
+                              <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{p.merchantId || 'NON DÉFINI'}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Clé Secrète :</span>
+                              <span style={{ letterSpacing: '2px', color: '#64748B' }}>{p.secretKey || '••••••••••••••••'}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Frais d'acquisition :</span>
+                              <span style={{ fontWeight: 700, color: '#0284C7' }}>{p.feePercentage}%</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Pays autorisés :</span>
+                              <span style={{ fontWeight: 600 }}>{Array.isArray(p.supportedCountries) ? p.supportedCountries.join(', ') : 'CM'}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Dernier test :</span>
+                              <span style={{ fontWeight: 600, color: p.testStatus === 'success' ? '#10B981' : p.testStatus === 'failed' ? '#DC2626' : '#64748B' }}>
+                                {p.testStatus === 'success' ? '● Connectivité Opérationnelle' : p.testStatus === 'failed' ? '● Défaillant' : 'Jamais testé'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {testResult && (
+                            <div style={{
+                              padding: '8px 12px',
+                              borderRadius: '6px',
+                              fontSize: '11.5px',
+                              marginBottom: '12px',
+                              background: testResult.isValid
+                                ? (adminTheme === 'light' ? '#ECFDF5' : 'rgba(16,185,129,0.1)')
+                                : (adminTheme === 'light' ? '#FEF2F2' : 'rgba(239,68,68,0.1)'),
+                              color: testResult.isValid ? '#047857' : '#DC2626',
+                              border: `1px solid ${testResult.isValid ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                            }}>
+                              {testResult.message || (testResult.isValid ? 'Connexion API établie avec succès.' : 'Erreur de connexion.')}
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => handleTestProvider(p.provider)}
+                            disabled={isTesting}
+                            style={{
+                              width: '100%',
+                              padding: '9px 12px',
+                              borderRadius: '8px',
+                              border: `1px solid ${adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.1)'}`,
+                              background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.04)',
+                              color: adminTheme === 'light' ? '#1E293B' : '#FFFFFF',
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <RefreshCw size={13} className={isTesting ? 'animate-spin' : ''} />
+                            {isTesting ? 'Validation de connexion...' : 'Tester la connexion en direct'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* -------------------------------------------------------------
+                  SOUS-ONGLET 3 : GRAND LIVRE TRANSACTIONNEL (AUDIT LEDGER)
+                  ------------------------------------------------------------- */}
+              {paymentSubTab === 'transactions' && (
+                <div>
+                  {/* Filtres & Recherche */}
+                  <div
+                    className="admin-card"
+                    style={{
+                      background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                      marginBottom: '20px',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div style={{ display: 'flex', flex: 1, minWidth: '240px', gap: '8px', alignItems: 'center' }}>
+                      <Search size={16} color={adminTheme === 'light' ? '#64748B' : '#94A3B8'} />
+                      <input
+                        type="text"
+                        value={transactionSearch}
+                        onChange={(e) => setTransactionSearch(e.target.value)}
+                        placeholder="Rechercher par référence, email ou téléphone..."
+                        style={{
+                          width: '100%',
+                          border: 'none',
+                          outline: 'none',
+                          background: 'transparent',
+                          color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                          fontSize: '13px',
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <select
+                        value={transactionFilterStatus}
+                        onChange={(e) => setTransactionFilterStatus(e.target.value)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: '8px',
+                          border: `1px solid ${adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.1)'}`,
+                          background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                          color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <option value="all">Tous les statuts</option>
+                        <option value="completed">Complété (Succès)</option>
+                        <option value="pending">En attente</option>
+                        <option value="failed">Échoué</option>
+                        <option value="refunded">Remboursé</option>
+                      </select>
+
+                      <select
+                        value={transactionFilterProvider}
+                        onChange={(e) => setTransactionFilterProvider(e.target.value)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: '8px',
+                          border: `1px solid ${adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.1)'}`,
+                          background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                          color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <option value="all">Tous les prestataires</option>
+                        <option value="orange_money">Orange Money</option>
+                        <option value="mtn_momo">MTN Mobile Money</option>
+                        <option value="card">Carte Bancaire</option>
+                        <option value="wave">Wave</option>
+                      </select>
+
+                      <button
+                        onClick={loadAdminTransactions}
+                        style={{
+                          padding: '7px 14px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: '#2563EB',
+                          color: '#FFFFFF',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Actualiser
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tableau du Grand Livre */}
+                  <div
+                    className="admin-card"
+                    style={{
+                      background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                      borderRadius: '12px',
+                      border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                      padding: '20px',
+                    }}
+                  >
+                    {loadingAdminTransactions ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                        Chargement des flux transactionnels...
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                          <thead style={{ background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)' }}>
+                            <tr style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`, color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>DATE & HEURE</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>RÉFÉRENCE INTERNE</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>COMMERÇANT</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>MONTANT</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>PRESTATAIRE</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>STATUT</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>ACTION</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminTransactions.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                                  Aucune transaction enregistrée pour les filtres sélectionnés.
+                                </td>
+                              </tr>
+                            ) : (
+                              adminTransactions.map((tx: any) => {
+                                const statusBg = tx.status === 'completed'
+                                  ? (adminTheme === 'light' ? '#ECFDF5' : 'rgba(16,185,129,0.15)')
+                                  : tx.status === 'pending'
+                                  ? (adminTheme === 'light' ? '#FFFBEB' : 'rgba(245,158,11,0.15)')
+                                  : tx.status === 'refunded'
+                                  ? (adminTheme === 'light' ? '#F5F3FF' : 'rgba(139,92,246,0.15)')
+                                  : (adminTheme === 'light' ? '#FEF2F2' : 'rgba(239,68,68,0.15)');
+
+                                const statusColor = tx.status === 'completed'
+                                  ? '#10B981'
+                                  : tx.status === 'pending'
+                                  ? '#D97706'
+                                  : tx.status === 'refunded'
+                                  ? '#8B5CF6'
+                                  : '#EF4444';
+
+                                return (
+                                  <tr key={tx.id} style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.03)'}` }}>
+                                    <td style={{ padding: '12px', color: adminTheme === 'light' ? '#334155' : '#CBD5E1' }}>
+                                      {new Date(tx.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                      <div style={{ fontFamily: 'monospace', fontWeight: 700, color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF' }}>
+                                        {tx.reference}
+                                      </div>
+                                      {tx.providerTransactionId && (
+                                        <div style={{ fontSize: '11px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontFamily: 'monospace' }}>
+                                          Ext: {tx.providerTransactionId}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                      <div style={{ fontWeight: 600, color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF' }}>
+                                        {tx.user ? `${tx.user.firstName} ${tx.user.lastName}` : (tx.payerEmail || 'Client')}
+                                      </div>
+                                      <div style={{ fontSize: '11px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                                        {tx.user?.email || tx.payerEmail || tx.phoneNumber || 'N/A'}
+                                      </div>
+                                    </td>
+                                    <td style={{ padding: '12px', fontWeight: 800, color: '#10B981' }}>
+                                      {tx.amount?.toLocaleString('fr-FR')} <span style={{ fontSize: '11px' }}>{tx.currency}</span>
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                      <span style={{
+                                        padding: '3px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        background: tx.provider === 'orange_money'
+                                          ? '#FF7900'
+                                          : tx.provider === 'mtn_momo'
+                                          ? '#FFCC00'
+                                          : '#2563EB',
+                                        color: tx.provider === 'mtn_momo' ? '#000000' : '#FFFFFF',
+                                      }}>
+                                        {tx.provider === 'orange_money' ? 'Orange Money' : tx.provider === 'mtn_momo' ? 'MTN MoMo' : tx.provider === 'card' ? 'Carte Bancaire' : tx.provider}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                      <span style={{
+                                        padding: '3px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        background: statusBg,
+                                        color: statusColor,
+                                      }}>
+                                        ● {tx.status === 'completed' ? 'COMPLÉTÉ' : tx.status === 'pending' ? 'EN ATTENTE' : tx.status === 'refunded' ? 'REMBOURSÉ' : 'ÉCHOUÉ'}
+                                      </span>
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                      {tx.status === 'completed' && (
+                                        <button
+                                          onClick={() => {
+                                            setRefundTarget(tx);
+                                            setRefundAmount(tx.amount);
+                                            setShowRefundModal(true);
+                                          }}
+                                          style={{
+                                            padding: '4px 10px',
+                                            borderRadius: '6px',
+                                            border: `1px solid ${adminTheme === 'light' ? '#FECACA' : 'rgba(239,68,68,0.3)'}`,
+                                            background: adminTheme === 'light' ? '#FEF2F2' : 'rgba(239,68,68,0.1)',
+                                            color: '#DC2626',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                          }}
+                                        >
+                                          Rembourser
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* -------------------------------------------------------------
+                  SOUS-ONGLET 4 : CODES PROMOTIONNELS
+                  ------------------------------------------------------------- */}
+              {paymentSubTab === 'promos' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <p style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px', margin: 0 }}>
+                      Codes de réduction validés côté serveur avec quotas d'usage, éligibilité de plans et traçabilité des redemptions.
+                    </p>
+                    <button
+                      onClick={loadAdminPromos}
+                      disabled={loadingPromos}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '7px 12px',
+                        borderRadius: '6px',
+                        border: `1px solid ${adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.1)'}`,
+                        background: 'transparent',
+                        color: adminTheme === 'light' ? '#475569' : '#CBD5E1',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <RefreshCw size={13} className={loadingPromos ? 'animate-spin' : ''} />
+                      Actualiser
+                    </button>
+                  </div>
+
+                  <div
+                    className="admin-card"
+                    style={{
+                      background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                      borderRadius: '12px',
+                      border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                      padding: '20px',
+                    }}
+                  >
+                    {loadingPromos ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                        Chargement des codes promotionnels...
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                          <thead style={{ background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)' }}>
+                            <tr style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`, color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>CODE</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>DESCRIPTION</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>TYPE</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>RÉDUCTION</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>UTILISATIONS</th>
+                              <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>STATUT</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminPromos.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                                  Aucun code promo créé. Cliquez sur "+ Créer un Code Promo".
+                                </td>
+                              </tr>
+                            ) : (
+                              adminPromos.map((pr: any) => (
+                                <tr key={pr.id} style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.03)'}` }}>
+                                  <td style={{ padding: '12px' }}>
+                                    <span style={{
+                                      fontFamily: 'monospace',
+                                      fontWeight: 800,
+                                      background: adminTheme === 'light' ? '#EFF6FF' : 'rgba(37,99,235,0.15)',
+                                      color: '#2563EB',
+                                      padding: '4px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '12px',
+                                    }}>
+                                      {pr.code}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px', color: adminTheme === 'light' ? '#334155' : '#CBD5E1' }}>
+                                    {pr.description || 'Offre promotionnelle'}
+                                  </td>
+                                  <td style={{ padding: '12px' }}>
+                                    <span style={{
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      background: adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.05)',
+                                      color: adminTheme === 'light' ? '#475569' : '#CBD5E1',
+                                    }}>
+                                      {pr.discountType === 'percent' ? 'Pourcentage (%)' : 'Montant Fixe (FCFA)'}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px', fontWeight: 800, color: '#10B981' }}>
+                                    {pr.discountType === 'percent' ? `-${pr.discountValue}%` : `-${pr.discountValue.toLocaleString('fr-FR')} FCFA`}
+                                  </td>
+                                  <td style={{ padding: '12px' }}>
+                                    <span style={{ fontWeight: 700, color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF' }}>
+                                      {pr.usedCount || 0}
+                                    </span>
+                                    <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                                      {' '}/ {pr.maxUses || '∞'}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '12px' }}>
+                                    <span style={{
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      background: pr.isActive
+                                        ? (adminTheme === 'light' ? '#ECFDF5' : 'rgba(16,185,129,0.15)')
+                                        : (adminTheme === 'light' ? '#FEF2F2' : 'rgba(239,68,68,0.15)'),
+                                      color: pr.isActive ? '#10B981' : '#EF4444',
+                                    }}>
+                                      ● {pr.isActive ? 'ACTIF' : 'INACTIF'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -5527,6 +6353,318 @@ export const AdminPage: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MODAL 6 : REMBOURSEMENT TRANSACTION FINTECH */}
+      {showRefundModal && refundTarget && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }}>
+          <div style={{
+            background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+            border: `1px solid ${adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.1)'}`,
+            borderRadius: '16px',
+            maxWidth: '500px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 12px 0', color: adminTheme === 'light' ? '#172033' : '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldAlert size={20} color="#DC2626" />
+              Confirmation de Remboursement FinTech
+            </h3>
+            <p style={{ fontSize: '13px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8', marginBottom: '16px' }}>
+              Cette opération déclenche un appel de rétrocession auprès de l'opérateur et consigne l'action dans le journal d'audit immuable.
+            </p>
+
+            <div style={{
+              background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.03)',
+              padding: '14px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              fontSize: '12.5px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Référence :</span>
+                <span style={{ fontWeight: 700, fontFamily: 'monospace' }}>{refundTarget.reference}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Marchand :</span>
+                <span style={{ fontWeight: 600 }}>{refundTarget.user ? `${refundTarget.user.firstName} ${refundTarget.user.lastName}` : (refundTarget.payerEmail || 'Client')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>Montant initial :</span>
+                <span style={{ fontWeight: 800, color: '#10B981' }}>{refundTarget.amount?.toLocaleString('fr-FR')} {refundTarget.currency}</span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: adminTheme === 'light' ? '#334155' : '#CBD5E1', marginBottom: '6px' }}>
+                Montant à rembourser ({refundTarget.currency}) :
+              </label>
+              <input
+                type="number"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(Number(e.target.value))}
+                max={refundTarget.amount}
+                min={1}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                  background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                  color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: adminTheme === 'light' ? '#334155' : '#CBD5E1', marginBottom: '6px' }}>
+                Motif réglementaire ou commercial (obligatoire) :
+              </label>
+              <textarea
+                rows={3}
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                placeholder="Ex : Demande d'annulation client justifiée sous 48h..."
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                  background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                  color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                  fontSize: '13px',
+                  resize: 'none',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowRefundModal(false)}
+                disabled={isProcessingRefund}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                  background: 'transparent',
+                  color: adminTheme === 'light' ? '#64748B' : '#94A3B8',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteRefund}
+                disabled={isProcessingRefund || !refundReason.trim() || refundAmount <= 0}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#DC2626',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {isProcessingRefund ? <RefreshCw size={16} className="animate-spin" /> : <ShieldAlert size={16} />}
+                Confirmer le Remboursement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 7 : CRÉATION DE CODE PROMOTIONNEL */}
+      {showCreatePromoModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }}>
+          <form onSubmit={handleCreatePromo} style={{
+            background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+            border: `1px solid ${adminTheme === 'light' ? '#E2E8F0' : 'rgba(255,255,255,0.1)'}`,
+            borderRadius: '16px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 12px 0', color: adminTheme === 'light' ? '#172033' : '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Tag size={20} color="#2563EB" />
+              Nouveau Code Promotionnel
+            </h3>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: adminTheme === 'light' ? '#334155' : '#CBD5E1', marginBottom: '6px' }}>
+                Code (ex : COMMERCIA2025) :
+              </label>
+              <input
+                type="text"
+                required
+                value={newPromoForm.code}
+                onChange={(e) => setNewPromoForm({ ...newPromoForm, code: e.target.value.toUpperCase() })}
+                placeholder="EXEMPLE : PROMOVIP"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                  background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                  color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: adminTheme === 'light' ? '#334155' : '#CBD5E1', marginBottom: '6px' }}>
+                Description :
+              </label>
+              <input
+                type="text"
+                value={newPromoForm.description}
+                onChange={(e) => setNewPromoForm({ ...newPromoForm, description: e.target.value })}
+                placeholder="Ex : Réduction de lancement entrepreneurs"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                  background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                  color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                  fontSize: '13px',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: adminTheme === 'light' ? '#334155' : '#CBD5E1', marginBottom: '6px' }}>
+                  Type de réduction :
+                </label>
+                <select
+                  value={newPromoForm.discountType}
+                  onChange={(e) => setNewPromoForm({ ...newPromoForm, discountType: e.target.value as any })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                    background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                    color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                    fontSize: '13px',
+                  }}
+                >
+                  <option value="percent">Pourcentage (%)</option>
+                  <option value="fixed">Montant fixe (FCFA)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: adminTheme === 'light' ? '#334155' : '#CBD5E1', marginBottom: '6px' }}>
+                  Valeur :
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={newPromoForm.discountValue}
+                  onChange={(e) => setNewPromoForm({ ...newPromoForm, discountValue: Number(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                    background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                    color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: adminTheme === 'light' ? '#334155' : '#CBD5E1', marginBottom: '6px' }}>
+                Nombre max d'utilisations :
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={newPromoForm.maxUses}
+                onChange={(e) => setNewPromoForm({ ...newPromoForm, maxUses: Number(e.target.value) })}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                  background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                  color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF',
+                  fontSize: '13px',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowCreatePromoModal(false)}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.15)'}`,
+                  background: 'transparent',
+                  color: adminTheme === 'light' ? '#64748B' : '#94A3B8',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                type="submit"
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#2563EB',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Créer le Code Promo
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

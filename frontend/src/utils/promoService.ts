@@ -1,5 +1,6 @@
 // COMMERCIA Dynamic Promo Code Engine
-// Centralizes discounts and promo validation across the entire application
+// Centralizes discounts and promo validation across the entire application with server-side validation
+import { api } from '../services/api';
 
 export interface PromoRule {
   code: string;
@@ -7,6 +8,16 @@ export interface PromoRule {
   value: number; // e.g. 20 for 20%, 5000 for 5000 FCFA
   label: string;
   description: string;
+}
+
+export interface PromoServerValidation {
+  isValid: boolean;
+  code: string;
+  discountType: 'percent' | 'fixed';
+  discountValue: number;
+  discountAmount: number;
+  finalAmount: number;
+  message: string;
 }
 
 export const PROMO_REGISTRY: Record<string, PromoRule> = {
@@ -39,6 +50,54 @@ export const PROMO_REGISTRY: Record<string, PromoRule> = {
     description: '5 000 FCFA déduits immédiatement sur votre facture',
   },
 };
+
+/**
+ * Validation côté serveur en base de données
+ */
+export async function verifyPromoCodeWithServer(
+  code: string,
+  planName: 'pro' | 'business',
+  billingCycle: 'monthly' | 'yearly' | 'mensuel' | 'annuel'
+): Promise<PromoServerValidation> {
+  const cleanCode = (code || '').trim().toUpperCase();
+  if (!cleanCode) {
+    return {
+      isValid: false,
+      code: '',
+      discountType: 'percent',
+      discountValue: 0,
+      discountAmount: 0,
+      finalAmount: 0,
+      message: '',
+    };
+  }
+
+  try {
+    const res = await api.post<PromoServerValidation>('/payments/promo/validate', {
+      code: cleanCode,
+      planName,
+      billingCycle,
+    });
+    return res;
+  } catch (err: any) {
+    // Si offline ou fallback local
+    const fallback = validatePromoCode(cleanCode);
+    const basePrice = planName === 'business'
+      ? (billingCycle === 'annuel' || billingCycle === 'yearly' ? 120000 : 12000)
+      : (billingCycle === 'annuel' || billingCycle === 'yearly' ? 45000 : 4500);
+
+    const discounted = calculateDiscountedPrice(basePrice, cleanCode);
+    return {
+      isValid: fallback.isValid,
+      code: cleanCode,
+      discountType: fallback.rule?.type || 'percent',
+      discountValue: fallback.rule?.value || 0,
+      discountAmount: discounted.discountAmount,
+      finalAmount: discounted.finalPrice,
+      message: fallback.message,
+    };
+  }
+}
 
 export function validatePromoCode(rawCode: string): { isValid: boolean; rule?: PromoRule; message: string } {
   const cleanCode = (rawCode || '').trim().toUpperCase();

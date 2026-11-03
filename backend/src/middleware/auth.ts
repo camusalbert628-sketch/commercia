@@ -151,6 +151,8 @@ export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFu
   }
 };
 
+export const requireSuperAdmin = requireAdmin;
+
 import { getUserSubscriptionDetails } from '../utils/subscriptionUtils';
 
 /**

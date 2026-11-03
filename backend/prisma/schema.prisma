@@ -411,8 +411,9 @@ model Payment {
   planId            String?
   amount            Float
   currency          String    @default("XAF")
+  country           String    @default("CM")
   method            String    // mobile_money, card, bank_transfer
-  provider          String    @default("cinetpay") // cinetpay, notchpay, manual_admin
+  provider          String    @default("cinetpay") // orange_money, mtn_momo, wave, card, cinetpay
   status            String    @default("pending") // pending, completed, failed, cancelled, refunded
   reference         String    @unique
   providerReference String?
@@ -420,6 +421,9 @@ model Payment {
   payerEmail        String?
   checkoutUrl       String?
   errorMessage      String?
+  providerFee       Float     @default(0)
+  refundedAmount    Float     @default(0)
+  attemptCount      Int       @default(1)
   metadata          String?   // JSON
   verifiedAt        DateTime?
   createdAt         DateTime  @default(now())
@@ -427,18 +431,114 @@ model Payment {
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan Plan? @relation(fields: [planId], references: [id])
+  refunds PaymentRefund[]
+}
+
+model PaymentProviderConfig {
+  id                  String   @id @default(uuid())
+  provider            String   @unique // orange_money, mtn_momo, wave, card
+  displayName         String   // e.g. Orange Money Cameroun
+  isActive            Boolean  @default(true)
+  isSandbox           Boolean  @default(true)
+  merchantId          String?
+  apiKey              String?
+  secretKey           String?
+  publicKey           String?
+  webhookSecret       String?
+  apiUrl              String?
+  callbackUrl         String?
+  supportedCountries  String   @default("[\"CM\"]") // JSON array
+  supportedCurrencies String   @default("[\"XAF\"]") // JSON array
+  feePercentage       Float    @default(0)
+  feeFixed            Float    @default(0)
+  lastTestedAt        DateTime?
+  testStatus          String?  // success, failed, pending
+  testError           String?
+  metadata            String?  // JSON
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PromotionCode {
+  id               String   @id @default(uuid())
+  code             String   @unique
+  description      String?
+  discountType     String   @default("percent") // percent, fixed
+  discountValue    Float
+  minOrderAmount   Float    @default(0)
+  maxDiscount      Float?
+  maxUses          Int      @default(100)
+  currentUses      Int      @default(0)
+  maxUsesPerUser   Int      @default(1)
+  validFrom        DateTime @default(now())
+  validUntil       DateTime?
+  applicablePlans  String   @default("[\"pro\",\"business\"]") // JSON array
+  applicableCycles String   @default("[\"monthly\",\"yearly\"]") // JSON array
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  redemptions PromotionRedemption[]
+}
+
+model PromotionRedemption {
+  id             String   @id @default(uuid())
+  promoCodeId    String
+  userId         String
+  paymentId      String?
+  discountAmount Float
+  redeemedAt     DateTime @default(now())
+
+  promoCode PromotionCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+}
+
+model PaymentWebhookEvent {
+  id          String   @id @default(uuid())
+  provider    String   // orange_money, mtn_momo, wave, card, cinetpay
+  reference   String
+  eventType   String?
+  payload     String   // Raw JSON
+  signature   String?
+  isVerified  Boolean  @default(false)
+  processed   Boolean  @default(false)
+  error       String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+}
+
+model PaymentRefund {
+  id                String    @id @default(uuid())
+  paymentId         String
+  amount            Float
+  currency          String    @default("XAF")
+  reason            String
+  status            String    @default("pending") // pending, completed, failed
+  providerRefundId  String?
+  approvedBy        String?   // Admin User ID
+  processedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 }
 
 model Invoice {
-  id        String   @id @default(uuid())
-  userId    String
-  amount    Float
-  currency  String   @default("XAF")
-  status    String   @default("pending") // pending, paid, overdue
-  dueDate   DateTime
-  paidAt    DateTime?
-  metadata  String?  // JSON
-  createdAt DateTime @default(now())
+  id            String    @id @default(uuid())
+  invoiceNumber String    @unique @default(uuid())
+  userId        String
+  paymentId     String?
+  planName      String?
+  billingCycle  String?
+  amount        Float
+  currency      String    @default("XAF")
+  taxAmount     Float     @default(0)
+  status        String    @default("pending") // pending, paid, overdue, cancelled
+  dueDate       DateTime
+  paidAt        DateTime?
+  downloadUrl   String?
+  metadata      String?   // JSON
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 // ===================== NOTIFICATIONS =====================

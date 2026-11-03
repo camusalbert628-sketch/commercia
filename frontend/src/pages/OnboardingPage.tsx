@@ -2106,22 +2106,31 @@ export const OnboardingPage: React.FC = () => {
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                       {[
-                        { id: 'orange', name: 'Orange Money', logo: '/logos/orange-money.png' },
-                        { id: 'mtn', name: 'MTN MoMo', logo: '/logos/mtn-momo.png' },
-                        { id: 'wave', name: 'Wave', logo: '/logos/wave.png' },
-                        { id: 'card', name: 'Carte Bancaire', logo: '/logos/visa-mastercard.png' },
+                        { id: 'orange', name: 'Orange Money', logo: '/logos/orange-money.png', available: true },
+                        { id: 'mtn', name: 'MTN MoMo', logo: '/logos/mtn-momo.png', available: true },
+                        { id: 'card', name: 'Carte Bancaire', logo: '/logos/visa-mastercard.png', available: true },
+                        { id: 'wave', name: 'Wave', logo: '/logos/wave.png', available: false },
                       ].map((prov) => {
                         const isChosen = moyenPaiement === prov.id;
+                        const isWaveDisabled = !prov.available;
                         return (
                           <div
                             key={prov.id}
-                            onClick={() => setMoyenPaiement(prov.id as any)}
+                            onClick={() => {
+                              if (isWaveDisabled) {
+                                alert("Wave n'est pas disponible au Cameroun (XAF). Veuillez sélectionner Orange Money, MTN MoMo ou Carte Bancaire.");
+                                return;
+                              }
+                              setMoyenPaiement(prov.id as any);
+                            }}
+                            title={isWaveDisabled ? "Wave n'est pas déployé comme opérateur d'acquisition au Cameroun (XAF)" : prov.name}
                             style={{
                               padding: '10px 8px',
                               borderRadius: '12px',
-                              border: isChosen ? '2px solid #0062FF' : '1px solid #E2E8F0',
-                              background: isChosen ? '#EFF6FF' : '#FFFFFF',
-                              cursor: 'pointer',
+                              border: isChosen ? '2px solid #0062FF' : (isWaveDisabled ? '1.5px dashed #FECACA' : '1px solid #E2E8F0'),
+                              background: isChosen ? '#EFF6FF' : (isWaveDisabled ? '#FEF2F2' : '#FFFFFF'),
+                              opacity: isWaveDisabled ? 0.6 : 1,
+                              cursor: isWaveDisabled ? 'not-allowed' : 'pointer',
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
@@ -2135,13 +2144,13 @@ export const OnboardingPage: React.FC = () => {
                             <img
                               src={prov.logo}
                               alt={prov.name}
-                              style={{ height: '24px', maxWidth: '44px', objectFit: 'contain' }}
+                              style={{ height: '24px', maxWidth: '44px', objectFit: 'contain', filter: isWaveDisabled ? 'grayscale(80%)' : 'none' }}
                               onError={(e) => {
                                 (e.target as HTMLElement).style.display = 'none';
                               }}
                             />
-                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: isChosen ? '#0062FF' : '#334155' }}>
-                              {prov.name}
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: isChosen ? '#0062FF' : (isWaveDisabled ? '#DC2626' : '#334155') }}>
+                              {isWaveDisabled ? 'Wave (Indisponible)' : prov.name}
                             </span>
                           </div>
                         );

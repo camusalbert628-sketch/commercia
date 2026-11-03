@@ -24,10 +24,11 @@ import {
   Smartphone,
   ExternalLink,
   Trash2,
+  Globe,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
-import { calculateDiscountedPrice, validatePromoCode } from '../utils/promoService';
+import { calculateDiscountedPrice, validatePromoCode, verifyPromoCodeWithServer } from '../utils/promoService';
 import { formatCurrency } from '../utils/formatters';
 
 interface PaymentItem {
@@ -77,11 +78,15 @@ export const SubscriptionPage: React.FC = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifiedPayment, setVerifiedPayment] = useState<PaymentItem | null>(null);
 
+  const [selectedCountry] = useState<'CM'>('CM');
+  const [serverDiscount, setServerDiscount] = useState<number>(0);
+  const [serverPromoInfo, setServerPromoInfo] = useState<any>(null);
+  const [isValidatingPromo, setIsValidatingPromo] = useState<boolean>(false);
+
   const sub = user?.subscription;
   const isPro = !!(user?.isAdmin || sub?.isPro);
   const isExpired = sub?.status === 'expired' || (sub?.endDate && new Date(sub.endDate) < new Date());
   const isFree = !isPro && !isExpired;
-
 
   const handleDeletePayment = async (paymentId: string) => {
     try {
@@ -110,7 +115,39 @@ export const SubscriptionPage: React.FC = () => {
     ? (periodicite === 'annuel' ? 120000 : 12000)
     : (periodicite === 'annuel' ? 45000 : 4500);
 
-  const { finalPrice } = calculateDiscountedPrice(basePrice, promoCode);
+  const finalPrice = Math.max(0, basePrice - serverDiscount);
+
+  // Recalculate discount when plan or cycle changes if promo is active
+  useEffect(() => {
+    if (promoCode.trim()) {
+      handleApplyPromoCode();
+    }
+  }, [selectedPlan, periodicite]);
+
+  const handleApplyPromoCode = async () => {
+    if (!promoCode.trim()) {
+      setServerDiscount(0);
+      setServerPromoInfo(null);
+      setPromoMessage('');
+      return;
+    }
+    try {
+      setIsValidatingPromo(true);
+      const res = await verifyPromoCodeWithServer(promoCode, selectedPlan, periodicite);
+      setServerPromoInfo(res);
+      setPromoMessage(res.message);
+      if (res.isValid) {
+        setServerDiscount(res.discountAmount);
+      } else {
+        setServerDiscount(0);
+      }
+    } catch (e: any) {
+      setPromoMessage('Erreur validation code promo.');
+      setServerDiscount(0);
+    } finally {
+      setIsValidatingPromo(false);
+    }
+  };
 
   // Formatters for credit card
   const handleCardNumberChange = (val: string) => {
@@ -130,6 +167,11 @@ export const SubscriptionPage: React.FC = () => {
 
   // Handle initiate payment with tailored checks for each provider
   const handleInitiatePayment = async () => {
+    if (moyenPaiement === 'wave' && selectedCountry === 'CM') {
+      alert('Wave n\'est pas disponible au Cameroun (XAF). Veuillez sélectionner Orange Money, MTN MoMo ou Carte Bancaire.');
+      return;
+    }
+
     if (moyenPaiement === 'card') {
       const cleanCard = cardNumber.replace(/\s/g, '');
       if (cleanCard.length < 16) {
@@ -157,11 +199,21 @@ export const SubscriptionPage: React.FC = () => {
 
     try {
       setIsInitiating(true);
-      const res = await api.post<{ payment: PaymentItem; message: string }>('/payments/initiate', {
+      const providerMapping: Record<string, string> = {
+        orange: 'orange_money',
+        mtn: 'mtn_momo',
+        card: 'card',
+        wave: 'wave',
+      };
+
+      const res = await api.post<any>('/payments/initiate', {
         planName: selectedPlan,
         billingCycle: periodicite,
-        provider: moyenPaiement,
+        provider: providerMapping[moyenPaiement] || 'orange_money',
         phoneNumber: moyenPaiement === 'card' ? `CARD-****${cardNumber.slice(-4)}` : momoPhone,
+        promoCode: serverPromoInfo?.isValid ? serverPromoInfo.code : (promoCode.trim() || undefined),
+        country: selectedCountry,
+        currency: 'XAF',
         metadata: moyenPaiement === 'card' ? {
           cardLast4: cardNumber.slice(-4),
           cardHolder,
@@ -171,15 +223,16 @@ export const SubscriptionPage: React.FC = () => {
         },
       });
 
-      setCurrentPaymentRef(res.payment.reference);
+      const ref = res.reference || res.payment?.reference;
+      setCurrentPaymentRef(ref);
       setPaymentStep('waiting');
       setIsInitiating(false);
 
       // Start automatic polling every 3.5s
       const pollTimer = setInterval(async () => {
         try {
-          const check = await api.get<{ status: string; payment: PaymentItem }>(`/payments/verify/${res.payment.reference}`);
-          if (check.status === 'completed') {
+          const check = await api.get<any>(`/payments/verify/${ref}`);
+          if (check.status === 'completed' || check.payment?.status === 'completed') {
             clearInterval(pollTimer);
             setVerifiedPayment(check.payment);
             setPaymentStep('success');
@@ -204,8 +257,8 @@ export const SubscriptionPage: React.FC = () => {
     if (!currentPaymentRef) return;
     try {
       setIsVerifying(true);
-      const check = await api.get<{ status: string; payment: PaymentItem }>(`/payments/verify/${currentPaymentRef}`);
-      if (check.status === 'completed') {
+      const check = await api.get<any>(`/payments/verify/${currentPaymentRef}`);
+      if (check.status === 'completed' || check.payment?.status === 'completed') {
         setVerifiedPayment(check.payment);
         setPaymentStep('success');
         await fetchMe();
@@ -820,10 +873,32 @@ export const SubscriptionPage: React.FC = () => {
 
                 {/* Mode de Paiement */}
                 <div>
+                  {/* Badge Territoire & Devise officielle */}
+                  <div style={{
+                    background: '#F0FDF4',
+                    border: '1px solid #BBF7D0',
+                    borderRadius: '10px',
+                    padding: '8px 12px',
+                    marginBottom: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '0.8rem',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#166534', fontWeight: 700 }}>
+                      <Globe size={14} color="#16A34A" />
+                      <span>Territoire : <strong>Cameroun</strong> (Devise : <strong>XAF / FCFA</strong>)</span>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', background: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '12px', fontWeight: 800 }}>
+                      ● Zone CEMAC
+                    </span>
+                  </div>
+
                   <label style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', marginBottom: '8px' }}>
-                    Moyen de paiement
+                    Moyen de paiement sécurisé
                   </label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {/* 1. Orange Money Cameroun */}
                     <button
                       type="button"
                       onClick={() => setMoyenPaiement('orange')}
@@ -836,10 +911,11 @@ export const SubscriptionPage: React.FC = () => {
                         fontSize: '0.84rem',
                         cursor: 'pointer',
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '8px',
-                        minHeight: '52px',
+                        gap: '4px',
+                        minHeight: '58px',
                         boxShadow: moyenPaiement === 'orange' ? '0 2px 8px rgba(255, 121, 0, 0.2)' : 'none',
                         transition: 'all 0.15s ease',
                       }}
@@ -847,9 +923,14 @@ export const SubscriptionPage: React.FC = () => {
                       <img
                         src="/logos/orange-money.png"
                         alt="Orange Money"
-                        style={{ maxHeight: '28px', maxWidth: '135px', objectFit: 'contain' }}
+                        style={{ maxHeight: '26px', maxWidth: '130px', objectFit: 'contain' }}
                       />
+                      <span style={{ fontSize: '0.68rem', color: '#EA580C', fontWeight: 700 }}>
+                        Orange Money Cameroun (Actif)
+                      </span>
                     </button>
+
+                    {/* 2. MTN MoMo Cameroun */}
                     <button
                       type="button"
                       onClick={() => setMoyenPaiement('mtn')}
@@ -862,10 +943,11 @@ export const SubscriptionPage: React.FC = () => {
                         fontSize: '0.84rem',
                         cursor: 'pointer',
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '8px',
-                        minHeight: '52px',
+                        gap: '4px',
+                        minHeight: '58px',
                         boxShadow: moyenPaiement === 'mtn' ? '0 2px 8px rgba(234, 179, 8, 0.2)' : 'none',
                         transition: 'all 0.15s ease',
                       }}
@@ -873,35 +955,45 @@ export const SubscriptionPage: React.FC = () => {
                       <img
                         src="/logos/mtn-momo.png"
                         alt="MTN MoMo"
-                        style={{ maxHeight: '28px', maxWidth: '130px', objectFit: 'contain' }}
+                        style={{ maxHeight: '26px', maxWidth: '125px', objectFit: 'contain' }}
                       />
+                      <span style={{ fontSize: '0.68rem', color: '#CA8A04', fontWeight: 700 }}>
+                        MTN Mobile Money (Actif)
+                      </span>
                     </button>
+
+                    {/* 3. Wave (DÉSACTIVÉ AU CAMEROUN) */}
                     <button
                       type="button"
-                      onClick={() => setMoyenPaiement('wave')}
+                      disabled={true}
+                      onClick={() => {}}
+                      title="Wave n'opère pas comme acquéreur marchand direct au Cameroun (Zone CEMAC - XAF)"
                       style={{
-                        padding: '10px 14px',
+                        padding: '8px 12px',
                         borderRadius: '10px',
-                        border: moyenPaiement === 'wave' ? '2px solid #0099FF' : '1px solid #CBD5E1',
-                        background: moyenPaiement === 'wave' ? '#F0F9FF' : '#FFFFFF',
-                        fontWeight: 700,
-                        fontSize: '0.84rem',
-                        cursor: 'pointer',
+                        border: '1.5px dashed #CBD5E1',
+                        background: '#F8FAFC',
+                        cursor: 'not-allowed',
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '8px',
-                        minHeight: '52px',
-                        boxShadow: moyenPaiement === 'wave' ? '0 2px 8px rgba(0, 153, 255, 0.2)' : 'none',
-                        transition: 'all 0.15s ease',
+                        gap: '3px',
+                        minHeight: '58px',
+                        opacity: 0.6,
                       }}
                     >
                       <img
                         src="/logos/wave.png"
                         alt="Wave"
-                        style={{ maxHeight: '28px', maxWidth: '120px', objectFit: 'contain' }}
+                        style={{ maxHeight: '22px', maxWidth: '90px', objectFit: 'contain', filter: 'grayscale(70%)' }}
                       />
+                      <span style={{ fontSize: '0.62rem', background: '#FEE2E2', color: '#DC2626', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                        Indisponible au Cameroun
+                      </span>
                     </button>
+
+                    {/* 4. Carte Bancaire (Visa / Mastercard) */}
                     <button
                       type="button"
                       onClick={() => setMoyenPaiement('card')}
@@ -914,10 +1006,11 @@ export const SubscriptionPage: React.FC = () => {
                         fontSize: '0.84rem',
                         cursor: 'pointer',
                         display: 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '8px',
-                        minHeight: '52px',
+                        gap: '4px',
+                        minHeight: '58px',
                         boxShadow: moyenPaiement === 'card' ? '0 2px 8px rgba(0, 98, 255, 0.2)' : 'none',
                         transition: 'all 0.15s ease',
                       }}
@@ -925,8 +1018,11 @@ export const SubscriptionPage: React.FC = () => {
                       <img
                         src="/logos/visa-mastercard.png"
                         alt="Visa / Mastercard"
-                        style={{ maxHeight: '28px', maxWidth: '125px', objectFit: 'contain' }}
+                        style={{ maxHeight: '24px', maxWidth: '115px', objectFit: 'contain' }}
                       />
+                      <span style={{ fontSize: '0.68rem', color: '#2563EB', fontWeight: 700 }}>
+                        Visa / Mastercard (3D-Secure)
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -1176,40 +1272,61 @@ export const SubscriptionPage: React.FC = () => {
                 {/* Code promo */}
                 <div>
                   <label style={{ display: 'block', fontWeight: 600, fontSize: '0.82rem', marginBottom: '4px' }}>
-                    Code promotionnel (optionnel : essayez <code>COMMERCIA20</code>)
+                    Code promotionnel (vérifié en temps réel par le serveur)
                   </label>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       type="text"
                       value={promoCode}
-                      onChange={e => setPromoCode(e.target.value)}
+                      onChange={e => setPromoCode(e.target.value.toUpperCase())}
                       placeholder="Ex: COMMERCIA20"
-                      style={{ flex: 1, padding: '8px' }}
+                      style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontWeight: 700, fontSize: '0.9rem' }}
                     />
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      onClick={() => {
-                        const res = validatePromoCode(promoCode);
-                        setPromoMessage(res.message);
-                      }}
+                      disabled={isValidatingPromo || !promoCode.trim()}
+                      onClick={handleApplyPromoCode}
+                      style={{ minWidth: '110px', fontWeight: 700 }}
                     >
-                      Appliquer
+                      {isValidatingPromo ? 'Vérification...' : 'Appliquer'}
                     </button>
                   </div>
                   {promoMessage && (
-                    <div style={{ fontSize: '0.78rem', color: promoMessage.includes('validé') ? '#059669' : '#DC2626', marginTop: '4px' }}>
-                      {promoMessage}
+                    <div style={{
+                      fontSize: '0.78rem',
+                      color: serverDiscount > 0 ? '#15803D' : '#DC2626',
+                      marginTop: '6px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}>
+                      {serverDiscount > 0 ? '✓ ' : '✗ '} {promoMessage}
                     </div>
                   )}
                 </div>
 
-                {/* Montant Net */}
-                <div style={{ background: '#F8FAFC', padding: '14px 18px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #E2E8F0' }}>
-                  <span style={{ fontWeight: 600, color: '#334155' }}>Total net à débiter :</span>
-                  <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0062FF' }}>
-                    {finalPrice.toLocaleString('fr-FR')} FCFA
-                  </span>
+                {/* Récapitulatif détaillé de la commande */}
+                <div style={{ background: '#F8FAFC', padding: '14px 18px', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#64748B' }}>
+                    <span>Tarif officiel de base :</span>
+                    <span style={{ fontWeight: 600 }}>{basePrice.toLocaleString('fr-FR')} FCFA</span>
+                  </div>
+
+                  {serverDiscount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#16A34A', fontWeight: 700 }}>
+                      <span>Réduction code promo :</span>
+                      <span>-{serverDiscount.toLocaleString('fr-FR')} FCFA</span>
+                    </div>
+                  )}
+
+                  <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, color: '#1E293B' }}>Montant net à débiter :</span>
+                    <span style={{ fontSize: '1.35rem', fontWeight: 900, color: '#0062FF' }}>
+                      {finalPrice.toLocaleString('fr-FR')} FCFA
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
