@@ -5,6 +5,12 @@ import { AppError } from '../../middleware/errorHandler';
 import { encryptSecret, decryptSecret, maskApiKey } from '../../utils/crypto';
 import { telemetry } from '../../utils/telemetry';
 import { testLlmConnection } from '../../utils/llmEngine';
+import { merchantsAdminRouter } from './merchants.routes';
+import { profitabilityAdminRouter } from './profitability.routes';
+import { communicationAdminRouter } from './communication.routes';
+import { feedbacksAdminRouter } from './feedbacks.routes';
+import { rulesAlertsAdminRouter } from './rulesAlerts.routes';
+import { promosAdminRouter } from './promos.routes';
 
 const router = Router();
 router.use(authenticate);
@@ -44,6 +50,14 @@ router.post('/report-unauthorized-access', async (req: AuthRequest, res: Respons
 
 // Middleware vérifiant strictement les droits Super Administrateur en base réelle avec détection d'intrusion
 router.use(requireAdmin);
+
+// Extensions Majeures du Super Admin (Commercial, Finances, Communication, Retours, Règles, Promos)
+router.use(merchantsAdminRouter);
+router.use(profitabilityAdminRouter);
+router.use(communicationAdminRouter);
+router.use(feedbacksAdminRouter);
+router.use(rulesAlertsAdminRouter);
+router.use(promosAdminRouter);
 
 // 0.1 VÉRIFICATION EN TEMPS RÉEL DU RÔLE SUPER ADMIN (Pour RouteGuard Frontend)
 router.get('/verify-access', async (req: AuthRequest, res: Response) => {

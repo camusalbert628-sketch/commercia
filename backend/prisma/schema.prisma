@@ -24,6 +24,18 @@ model User {
   currency      String   @default("XAF")
   isAdmin       Boolean  @default(false)
   isActive      Boolean  @default(true)
+  isSuspended   Boolean  @default(false)
+  suspendedReason String?
+  suspendedAt   DateTime?
+  suspendedBy   String?
+  suspensionType String? // "manual" | "automatic" | null
+  securityLocked Boolean @default(false)
+  securityLockedReason String?
+  lastLoginAt   DateTime?
+  loginCount    Int      @default(0)
+  optInMarketing Boolean @default(true)
+  estimatedCac  Float?
+  supportCost   Float?
   emailVerified Boolean  @default(false)
   mfaEnabled    Boolean  @default(false)
   mfaSecret     String?  // AES-256 encrypted TOTP secret
@@ -39,6 +51,9 @@ model User {
   subscription   Subscription?
   cashSessions   CashSession[]
   payments       Payment[]
+  feedbacks      UserFeedback[]
+  sentCommunications     CommunicationMessage[] @relation("SentCommunications")
+  receivedCommunications CommunicationMessage[] @relation("ReceivedCommunications")
 }
 
 
@@ -378,17 +393,25 @@ model Plan {
 }
 
 model Subscription {
-  id            String    @id @default(uuid())
-  userId        String    @unique
-  planId        String
-  status        String    @default("free") // free, active, expired, cancelled, trial
-  startDate     DateTime  @default(now())
-  endDate       DateTime?
-  trialEndsAt   DateTime?
-  autoRenew     Boolean   @default(false)
-  lastPaymentId String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  planId            String
+  status            String    @default("free") // free, active, expired, cancelled, trial, in_grace
+  startDate         DateTime  @default(now())
+  endDate           DateTime?
+  trialEndsAt       DateTime?
+  gracePeriodEndsAt DateTime?
+  suspendedAt       DateTime?
+  suspendedReason   String?
+  suspendedBy       String?   // "system" | admin userId
+  renewalCount      Int       @default(0)
+  lastRenewedAt     DateTime?
+  cancelledAt       DateTime?
+  cancelledReason   String?
+  autoRenew         Boolean   @default(false)
+  lastPaymentId     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan   Plan @relation(fields: [planId], references: [id])
@@ -1022,3 +1045,102 @@ model PlatformGlobalConfig {
   waveLive            Boolean  @default(true)
   updatedAt           DateTime @updatedAt
 }
+
+// ===================== EXPÉRIENCE UTILISATEUR & FEEDBACKS =====================
+
+model UserFeedback {
+  id              String    @id @default(uuid())
+  userId          String?
+  businessId      String?
+  rating          Int       @default(5) // 1 to 5
+  category        String    // suggestion, amelioration, avis, bug, reclamation, autre
+  categoryLabel   String?
+  comment         String
+  module          String?
+  userName        String?
+  businessName    String?
+  userPhone       String?
+  userEmail       String?
+  satisfactionTags String?  // JSON array
+  status          String    @default("new") // new, in_progress, resolved, archived
+  assignedTo      String?
+  internalNotes   String?
+  isPriority      Boolean   @default(false)
+  responseMessage String?
+  respondedAt     DateTime?
+  respondedBy     String?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ===================== COMMUNICATION & NOTIFICATIONS =====================
+
+model CommunicationMessage {
+  id             String    @id @default(uuid())
+  type           String    @default("individual") // individual, campaign
+  recipientId    String?
+  targetAudience String?   // all, pro, business, free, expiring_7d, expired, suspended, custom
+  channel        String    @default("internal_notification") // internal_notification, email, sms, whatsapp
+  title          String
+  content        String
+  templateId     String?
+  status         String    @default("sent") // scheduled, sent, delivered, failed
+  scheduledAt    DateTime?
+  sentAt         DateTime  @default(now())
+  sentBy         String    // Admin userId
+  recipientCount Int       @default(1)
+  successCount   Int       @default(1)
+  failureCount   Int       @default(0)
+  errorMessage   String?
+  metadata       String?   // JSON string
+  createdAt      DateTime  @default(now())
+
+  sender    User? @relation("SentCommunications", fields: [sentBy], references: [id], onDelete: Cascade)
+  recipient User? @relation("ReceivedCommunications", fields: [recipientId], references: [id], onDelete: SetNull)
+}
+
+model CommunicationTemplate {
+  id             String   @id @default(uuid())
+  name           String
+  category       String   // welcome, renewal_reminder, expired, payment_failed, suspended, reactivated, promo, other
+  defaultChannel String   @default("internal_notification")
+  title          String
+  content        String
+  variables      String?  // JSON string
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ===================== AUTOMATISATION DES ABONNEMENTS =====================
+
+model SubscriptionRuleConfig {
+  id                         String   @id @default("singleton")
+  gracePeriodDays            Int      @default(3)
+  reminderDays               String   @default("[7, 3, 1, 0]") // JSON array
+  restrictFeaturesOnExpiry   Boolean  @default(true)
+  autoReactivateOnPayment    Boolean  @default(true)
+  allowEarlyRenewal          Boolean  @default(true)
+  updatedBy                  String?
+  updatedAt                  DateTime @updatedAt
+}
+
+// ===================== ALERTES COMMERCIALES & SURVEILLANCE =====================
+
+model CommercialAlert {
+  id         String    @id @default(uuid())
+  title      String
+  message    String
+  priority   String    @default("medium") // critical, high, medium, low
+  category   String    // churn_risk, payment_failed, expiring_soon, user_suspended, promo_quota, feedback_spike, inactivity
+  userId     String?
+  paymentId  String?
+  status     String    @default("open") // open, acknowledged, resolved, dismissed
+  resolvedBy String?
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+

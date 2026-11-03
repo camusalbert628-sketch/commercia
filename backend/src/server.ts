@@ -29,6 +29,7 @@ import { businessRouter } from './modules/business/business.routes';
 import { foodPrepRouter } from './modules/foodPrep/foodPrep.routes';
 import { serviceOrdersRouter } from './modules/serviceOrders/serviceOrders.routes';
 import { mobileMoneyRouter } from './modules/mobileMoney/mobileMoney.routes';
+import { feedbackRouter } from './modules/feedback/feedback.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 
@@ -113,6 +114,7 @@ app.use('/api/business', businessRouter);
 app.use('/api/food-prep', foodPrepRouter);
 app.use('/api/service-orders', serviceOrdersRouter);
 app.use('/api/mobile-money', mobileMoneyRouter);
+app.use('/api/feedback', feedbackRouter);
 
 
 // Health check

@@ -56,6 +56,12 @@ import {
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { api, ApiError } from '../services/api';
+import { MerchantsDirectoryView } from '../components/admin/MerchantsDirectoryView';
+import { MerchantProfileModal } from '../components/admin/MerchantProfileModal';
+import { ProfitabilityView } from '../components/admin/ProfitabilityView';
+import { CommunicationView } from '../components/admin/CommunicationView';
+import { FeedbacksView } from '../components/admin/FeedbacksView';
+import { AutomationAlertsView } from '../components/admin/AutomationAlertsView';
 
 // Types stricts
 type AdminTab =
@@ -73,7 +79,12 @@ type AdminTab =
   | 'settings'
   | 'subscriptions'
   | 'notifications'
-  | 'admin_history';
+  | 'admin_history'
+  | 'profitability'
+  | 'communication'
+  | 'feedbacks'
+  | 'automation'
+  | 'promos';
 
 interface DbHealth {
   status: 'operational' | 'degraded' | 'unreachable';
@@ -224,19 +235,44 @@ export const AdminPage: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [globalSearchTerm, setGlobalSearchTerm] = useState<string>('');
 
-  // 5 Catégories Fonctionnelles Officielles Super Admin
+  // 7 Piliers Fonctionnels Officiels Super Admin
   const adminNavCategories = useMemo(() => [
     {
-      category: 'GÉNÉRAL',
+      category: 'GESTION COMMERCIALE',
       items: [
-        { id: 'dashboard' as AdminTab, label: 'Vue d\'ensemble', description: 'Tableau de bord & métriques réelles', icon: Activity },
+        { id: 'dashboard' as AdminTab, label: 'Tableau de bord', description: 'Cockpit & indicateurs clés', icon: Activity },
+        { id: 'users' as AdminTab, label: 'Utilisateurs & Marchands', description: 'Répertoire 360° des comptes', icon: Users },
+        { id: 'subscriptions' as AdminTab, label: 'Abonnements & Revenus', description: 'MRR, plans & facturation', icon: CreditCard },
       ],
     },
     {
-      category: 'GESTION',
+      category: 'FINANCES & RENTABILITÉ',
       items: [
-        { id: 'users' as AdminTab, label: 'Utilisateurs & Commerçants', description: 'Comptes enregistrés Neon', icon: Users },
-        { id: 'subscriptions' as AdminTab, label: 'Abonnements & Revenus', description: 'MRR, plans & facturation', icon: CreditCard },
+        { id: 'profitability' as AdminTab, label: 'Rentabilité & Métriques SaaS', description: 'MRR, ARR, ARPU, LTV & Marges', icon: TrendingUp },
+      ],
+    },
+    {
+      category: 'COMMUNICATION',
+      items: [
+        { id: 'communication' as AdminTab, label: 'Messages & Campagnes', description: 'Envois ciblés & modèles', icon: Radio },
+      ],
+    },
+    {
+      category: 'MARKETING',
+      items: [
+        { id: 'promos' as AdminTab, label: 'Codes Promotionnels', description: 'Réductions, quotas & conversions', icon: Tag },
+      ],
+    },
+    {
+      category: 'EXPÉRIENCE UTILISATEUR',
+      items: [
+        { id: 'feedbacks' as AdminTab, label: 'Avis & Suggestions', description: 'Retours marchands & notations', icon: Sparkles },
+      ],
+    },
+    {
+      category: 'AUTOMATISATION',
+      items: [
+        { id: 'automation' as AdminTab, label: 'Règles & Alertes', description: 'Échéances, relances & alertes critiques', icon: Zap },
       ],
     },
     {
@@ -316,6 +352,7 @@ export const AdminPage: React.FC = () => {
   const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
 
   const [selectedUserProfile, setSelectedUserProfile] = useState<any | null>(null);
+  const [selectedMerchantId, setSelectedMerchantId] = useState<string | null>(null);
   const [userSearchTerm, setUserSearchTerm] = useState<string>('');
   const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
   const [userSortField, setUserSortField] = useState<'date' | 'name'>('date');
@@ -746,7 +783,7 @@ export const AdminPage: React.FC = () => {
       loadAuditLogs();
     } else if (activeTab === 'roles') {
       loadRoles();
-    } else if (activeTab === 'subscriptions') {
+    } else if (activeTab === 'subscriptions' || activeTab === 'promos') {
       loadSubscriptions();
       loadPaymentProviders();
       loadAdminTransactions();
@@ -3466,222 +3503,214 @@ export const AdminPage: React.FC = () => {
           )}
 
           {/* =========================================================================
-              ONGLET 9 : GESTION DES UTILISATEURS & MARCHANDS RÉELS
+              PILIER 1 : UTILISATEURS & MARCHANDS RÉELS (RÉPERTOIRE 360°)
              ========================================================================= */}
           {activeTab === 'users' && (
+            <MerchantsDirectoryView
+              adminTheme={adminTheme}
+              onSelectUser={(userId) => setSelectedMerchantId(userId)}
+              onOpenCreateModal={() => setShowAddUserModal(true)}
+            />
+          )}
+
+          {/* =========================================================================
+              PILIER 2 : FINANCES & RENTABILITÉ (MÉTRIQUES SAAS RÉELLES)
+             ========================================================================= */}
+          {activeTab === 'profitability' && (
+            <ProfitabilityView
+              adminTheme={adminTheme}
+              onSelectUser={(userId) => setSelectedMerchantId(userId)}
+            />
+          )}
+
+          {/* =========================================================================
+              PILIER 3 : COMMUNICATION (MESSAGES & CAMPAGNES CIBLÉES)
+             ========================================================================= */}
+          {activeTab === 'communication' && (
+            <CommunicationView
+              adminTheme={adminTheme}
+            />
+          )}
+
+          {/* =========================================================================
+              PILIER 4 : MARKETING (CODES PROMOTIONNELS & CONVERSIONS)
+             ========================================================================= */}
+          {activeTab === 'promos' && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
                   <h2 style={{ fontSize: '20px', fontWeight: 800, color: adminTheme === 'light' ? '#172033' : '#FFFFFF', margin: 0, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Users size={20} color="#2563EB" />
-                    Utilisateurs & Marchands Réels ({filteredUsers.length})
+                    <Tag size={20} color="#2563EB" />
+                    Marketing & Codes Promotionnels
                   </h2>
                   <p style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px', marginTop: '4px', margin: 0 }}>
-                    Comptes effectifs inscrits dans la base de données de production.
+                    Gestion des offres, réductions, quotas d'usage et suivi des conversions de marchands.
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setShowAddUserModal(true)}
-                  style={{
-                    background: '#2563EB',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    padding: '9px 16px',
-                    borderRadius: '8px',
-                    fontSize: '12.5px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
-                  }}
-                >
-                  <Plus size={15} />
-                  Nouveau Marchand
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={loadAdminPromos}
+                    disabled={loadingPromos}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.1)'}`,
+                      background: adminTheme === 'light' ? '#FFFFFF' : '#1E293B',
+                      color: adminTheme === 'light' ? '#334155' : '#CBD5E1',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <RefreshCw size={14} className={loadingPromos ? 'animate-spin' : ''} />
+                    Actualiser
+                  </button>
+                  <button
+                    onClick={() => setShowCreatePromoModal(true)}
+                    style={{
+                      background: '#2563EB',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
+                    }}
+                  >
+                    <Plus size={15} />
+                    Nouveau Code Promo
+                  </button>
+                </div>
               </div>
 
-              {/* Filtres & Recherche */}
+              {/* Tableau des codes promo */}
               <div
                 className="admin-card"
                 style={{
                   background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
                   borderRadius: '12px',
                   border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
-                  padding: '16px 20px',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  flexWrap: 'wrap',
+                  padding: '20px',
                   boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
                 }}
               >
-                <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
-                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: adminTheme === 'light' ? '#94A3B8' : '#64748B' }} />
-                  <input
-                    type="text"
-                    placeholder="Filtrer par nom ou email..."
-                    value={userSearchTerm}
-                    onChange={(e) => setUserSearchTerm(e.target.value)}
-                    style={{
-                      width: '100%',
-                      background: adminTheme === 'light' ? '#FFFFFF' : '#090D16',
-                      border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.1)'}`,
-                      borderRadius: '8px',
-                      color: adminTheme === 'light' ? '#172033' : '#FFFFFF',
-                      padding: '8px 12px 8px 32px',
-                      fontSize: '12px',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <select
-                    value={userRoleFilter}
-                    onChange={(e) => setUserRoleFilter(e.target.value)}
-                    style={{
-                      background: adminTheme === 'light' ? '#FFFFFF' : '#090D16',
-                      border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.1)'}`,
-                      borderRadius: '8px',
-                      color: adminTheme === 'light' ? '#334155' : '#CBD5E1',
-                      padding: '8px 12px',
-                      fontSize: '12px',
-                      outline: 'none',
-                    }}
-                  >
-                    <option value="all">Tous les rôles</option>
-                    <option value="admin">Super Administrateurs</option>
-                    <option value="merchant">Commerçants</option>
-                  </select>
-
-                  <select
-                    value={userSortField}
-                    onChange={(e) => setUserSortField(e.target.value as any)}
-                    style={{
-                      background: adminTheme === 'light' ? '#FFFFFF' : '#090D16',
-                      border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.1)'}`,
-                      borderRadius: '8px',
-                      color: adminTheme === 'light' ? '#334155' : '#CBD5E1',
-                      padding: '8px 12px',
-                      fontSize: '12px',
-                      outline: 'none',
-                    }}
-                  >
-                    <option value="date">Tri : Inscription récente</option>
-                    <option value="name">Tri : Ordre alphabétique</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Liste des Utilisateurs Réels */}
-              <div
-                className="admin-card"
-                style={{
-                  background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
-                  borderRadius: '12px',
-                  border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
-                  overflowX: 'auto',
-                  boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                }}
-              >
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-                  <thead style={{ background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)' }}>
-                    <tr style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`, color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
-                      <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Utilisateur / Marchand</th>
-                      <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Boutique(s) Associée(s)</th>
-                      <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rôle</th>
-                      <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date d'Inscription</th>
-                      <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((u: any) => {
-                      const bizName = u.businesses?.[0]?.business?.name || 'Aucune boutique';
-                      const sector = u.businesses?.[0]?.business?.sector || '-';
-
-                      return (
-                        <tr key={u.id} style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.03)'}` }}>
-                          <td style={{ padding: '14px 16px' }}>
-                            <div style={{ fontWeight: 700, color: adminTheme === 'light' ? '#172033' : '#FFFFFF' }}>{u.firstName} {u.lastName}</div>
-                            <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '11.5px', marginTop: '2px' }}>{u.email}</div>
-                          </td>
-                          <td style={{ padding: '14px 16px' }}>
-                            <div style={{ color: adminTheme === 'light' ? '#172033' : '#E2E8F0', fontWeight: 600 }}>{bizName}</div>
-                            <div style={{ color: adminTheme === 'light' ? '#64748B' : '#64748B', fontSize: '11.5px', marginTop: '2px' }}>Secteur : {sector}</div>
-                          </td>
-                          <td style={{ padding: '14px 16px' }}>
-                            <span style={{
-                              background: u.isAdmin
-                                ? (adminTheme === 'light' ? '#FFFBEB' : 'rgba(234, 179, 8, 0.2)')
-                                : (adminTheme === 'light' ? '#EFF6FF' : 'rgba(56, 189, 248, 0.2)'),
-                              color: u.isAdmin
-                                ? (adminTheme === 'light' ? '#B45309' : '#FBBF24')
-                                : (adminTheme === 'light' ? '#1D4ED8' : '#38BDF8'),
-                              border: `1px solid ${u.isAdmin
-                                ? (adminTheme === 'light' ? '#FDE68A' : 'rgba(234, 179, 8, 0.3)')
-                                : (adminTheme === 'light' ? '#BFDBFE' : 'rgba(56, 189, 248, 0.3)')}`,
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                            }}>
-                              {u.isAdmin ? 'SUPER ADMIN' : 'COMMERÇANT'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '14px 16px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '12px' }}>
-                            {new Date(u.createdAt).toLocaleDateString('fr-FR')}
-                          </td>
-                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                              <button
-                                onClick={() => setSelectedUserProfile(u)}
-                                style={{
-                                  background: adminTheme === 'light' ? '#EFF6FF' : 'rgba(56, 189, 248, 0.1)',
-                                  color: adminTheme === 'light' ? '#1D4ED8' : '#38BDF8',
-                                  border: `1px solid ${adminTheme === 'light' ? '#BFDBFE' : 'rgba(56, 189, 248, 0.2)'}`,
-                                  padding: '5px 12px',
-                                  borderRadius: '6px',
-                                  fontSize: '11.5px',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                Dossier 360°
-                              </button>
-
-                              {!u.isAdmin && (
-                                <button
-                                  onClick={() => {
-                                    setDeleteTarget({ type: 'user', id: u.id, name: `${u.firstName} ${u.lastName} (${u.email})` });
-                                    setShowDeleteModal(true);
-                                  }}
-                                  style={{
-                                    background: adminTheme === 'light' ? '#FEF2F2' : 'rgba(239, 68, 68, 0.1)',
-                                    color: adminTheme === 'light' ? '#DC2626' : '#F87171',
-                                    border: `1px solid ${adminTheme === 'light' ? '#FECACA' : 'rgba(239, 68, 68, 0.2)'}`,
-                                    padding: '5px 12px',
-                                    borderRadius: '6px',
-                                    fontSize: '11.5px',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  Supprimer
-                                </button>
-                              )}
-                            </div>
-                          </td>
+                {loadingPromos ? (
+                  <div style={{ textAlign: 'center', padding: '40px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                    Chargement des codes promotionnels...
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                      <thead style={{ background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)' }}>
+                        <tr style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`, color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                          <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>CODE</th>
+                          <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>DESCRIPTION</th>
+                          <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>TYPE</th>
+                          <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>RÉDUCTION</th>
+                          <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>UTILISATIONS</th>
+                          <th style={{ padding: '10px 12px', fontSize: '11px', fontWeight: 700 }}>STATUT</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody>
+                        {adminPromos.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                              Aucun code promo créé. Cliquez sur "+ Nouveau Code Promo".
+                            </td>
+                          </tr>
+                        ) : (
+                          adminPromos.map((pr: any) => (
+                            <tr key={pr.id} style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.03)'}` }}>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  fontFamily: 'monospace',
+                                  fontWeight: 800,
+                                  background: adminTheme === 'light' ? '#EFF6FF' : 'rgba(37,99,235,0.15)',
+                                  color: '#2563EB',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '12px',
+                                }}>
+                                  {pr.code}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px', color: adminTheme === 'light' ? '#334155' : '#CBD5E1' }}>
+                                {pr.description || 'Offre promotionnelle'}
+                              </td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  background: adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.05)',
+                                  color: adminTheme === 'light' ? '#475569' : '#CBD5E1',
+                                }}>
+                                  {pr.discountType === 'percent' ? 'Pourcentage (%)' : 'Montant Fixe (FCFA)'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px', fontWeight: 800, color: '#10B981' }}>
+                                {pr.discountType === 'percent' ? `-${pr.discountValue}%` : `-${pr.discountValue.toLocaleString('fr-FR')} FCFA`}
+                              </td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{ fontWeight: 700, color: adminTheme === 'light' ? '#0F172A' : '#FFFFFF' }}>
+                                  {pr.usedCount || 0}
+                                </span>
+                                <span style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                                  {' '}/ {pr.maxUses || '∞'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  background: pr.isActive
+                                    ? (adminTheme === 'light' ? '#ECFDF5' : 'rgba(16,185,129,0.15)')
+                                    : (adminTheme === 'light' ? '#FEF2F2' : 'rgba(239,68,68,0.15)'),
+                                  color: pr.isActive ? '#10B981' : '#EF4444',
+                                }}>
+                                  ● {pr.isActive ? 'ACTIF' : 'INACTIF'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
+          )}
+
+          {/* =========================================================================
+              PILIER 5 : EXPÉRIENCE UTILISATEUR (AVIS & SUGGESTIONS)
+             ========================================================================= */}
+          {activeTab === 'feedbacks' && (
+            <FeedbacksView
+              adminTheme={adminTheme}
+              onSelectUser={(userId) => setSelectedMerchantId(userId)}
+            />
+          )}
+
+          {/* =========================================================================
+              PILIER 6 : AUTOMATISATION (RÈGLES D'EXPIRATION & ALERTES)
+             ========================================================================= */}
+          {activeTab === 'automation' && (
+            <AutomationAlertsView
+              adminTheme={adminTheme}
+            />
           )}
 
           {/* =========================================================================
@@ -6666,6 +6695,18 @@ export const AdminPage: React.FC = () => {
             </div>
           </form>
         </div>
+      )}
+
+      {/* MODAL 360° MARCHAND UNIFIÉ (PILIER 1) */}
+      {selectedMerchantId && (
+        <MerchantProfileModal
+          userId={selectedMerchantId}
+          adminTheme={adminTheme}
+          onClose={() => setSelectedMerchantId(null)}
+          onRefresh={() => {
+            loadCoreData();
+          }}
+        />
       )}
     </div>
   );
