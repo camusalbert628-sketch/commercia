@@ -19,10 +19,11 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ) => {
-  if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
+  const status = (err as any).statusCode || (err instanceof AppError ? err.statusCode : undefined);
+  if (status && status < 500) {
+    return res.status(status).json({
       error: err.message,
-      statusCode: err.statusCode,
+      statusCode: status,
     });
   }
 
