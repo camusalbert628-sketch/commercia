@@ -48,6 +48,7 @@ export const PlansPage: React.FC = () => {
       const res = await api.post<any>('/plans/subscribe', {
         planName: selectedPlan.name,
         paymentMethod: 'mobile_money',
+        provider: provider === 'mtn' ? 'mtn_momo' : 'orange_money',
         phoneNumber: phone || undefined,
       });
 

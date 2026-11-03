@@ -82,6 +82,11 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
   const [maxAttempts, setMaxAttempts] = useState<number>(5);
   const [requireMfaSensitive, setRequireMfaSensitive] = useState<boolean>(true);
 
+  // Configuration SMTP Gmail en direct
+  const [smtpAppPassword, setSmtpAppPassword] = useState<string>('');
+  const [isSavingSmtp, setIsSavingSmtp] = useState<boolean>(false);
+  const [smtpStatusMsg, setSmtpStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -135,6 +140,30 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
       alert(err?.message || 'Échec de la révocation.');
     }
   };
+
+  const handleSaveSmtpConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!smtpAppPassword.trim()) return;
+    setIsSavingSmtp(true);
+    setSmtpStatusMsg(null);
+    try {
+      const res = await api.post<{ success: boolean; message: string; testSent: boolean }>('/admin/security/smtp-config', {
+        provider: 'gmail',
+        smtpUser: data?.config?.authorizedGoogleEmail || 'camusalbert628@gmail.com',
+        appPasswordOrKey: smtpAppPassword.trim(),
+        sendTestEmail: true,
+      });
+      setSmtpStatusMsg({ type: 'success', text: res.message });
+      setSmtpAppPassword('');
+      loadData();
+    } catch (err: any) {
+      setSmtpStatusMsg({ type: 'error', text: err?.message || 'Erreur lors de la configuration SMTP.' });
+    } finally {
+      setIsSavingSmtp(false);
+    }
+  };
+
+  const emailInfo = data?.emailService || (data as any)?.emailServiceStatus || { isConfigured: false, transport: 'Canal Direct Sécurisé + Relais' };
 
   const isLight = theme === 'light';
   const cardBg = isLight ? '#FFFFFF' : '#0F172A';
@@ -220,13 +249,13 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
             <div>
               <div style={{ fontSize: '0.72rem', color: subTextColor, fontWeight: 700, textTransform: 'uppercase' }}>Service d'Envoi Email OTP</div>
               <div style={{ fontSize: '0.92rem', fontWeight: 800 }}>
-                {data?.emailService.isConfigured ? 'Serveur SMTP Actif' : 'Bac à sable Transactionnel'}
+                {emailInfo.isConfigured ? 'Serveur SMTP Actif' : 'Canal Direct Sécurisé Actif'}
               </div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#38BDF8', fontWeight: 600 }}>
             <ShieldCheck size={14} />
-            <span>Transport: {data?.emailService.transport || 'SMTP/Sandbox'}</span>
+            <span>Transport: {emailInfo.transport || 'Canal Direct + SMTP'}</span>
           </div>
         </div>
 
@@ -248,6 +277,69 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
             <span>MFA Validé par Jeton Cryptographique</span>
           </div>
         </div>
+      </div>
+
+      {/* Configuration Relais Gmail SMTP Direct */}
+      <div style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '24px', marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Mail size={18} color="#EF4444" />
+          <span>Connexion Relais Gmail SMTP (camusalbert628@gmail.com)</span>
+        </h3>
+        <p style={{ fontSize: '0.82rem', color: subTextColor, margin: '0 0 16px 0', lineHeight: 1.5 }}>
+          Le Canal Direct Sécurisé vous délivre toujours votre code immédiatement dans l'application. Pour recevoir également vos codes par email dans votre boîte Gmail <strong>camusalbert628@gmail.com</strong>, renseignez un <strong>Mot de passe d'application Google</strong> (16 caractères, généré dans <em>Compte Google → Sécurité → Validation en deux étapes → Mots de passe des applications</em>).
+        </p>
+
+        {smtpStatusMsg && (
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: '10px',
+              marginBottom: '14px',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              background: smtpStatusMsg.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+              border: `1px solid ${smtpStatusMsg.type === 'success' ? '#10B981' : '#EF4444'}`,
+              color: smtpStatusMsg.type === 'success' ? '#34D399' : '#F87171',
+            }}
+          >
+            {smtpStatusMsg.text}
+          </div>
+        )}
+
+        <form onSubmit={handleSaveSmtpConfig} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            type="password"
+            placeholder="Mot de passe d'application Gmail (ex: xxxx xxxx xxxx xxxx)"
+            value={smtpAppPassword}
+            onChange={(e) => setSmtpAppPassword(e.target.value)}
+            style={{
+              flex: '1 1 280px',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              border: `1px solid ${borderColor}`,
+              background: isLight ? '#FFFFFF' : '#1E293B',
+              color: textColor,
+              fontSize: '0.88rem',
+              outline: 'none',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isSavingSmtp || !smtpAppPassword.trim()}
+            style={{
+              padding: '10px 20px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+              color: '#FFFFFF',
+              border: 'none',
+              fontSize: '0.86rem',
+              fontWeight: 700,
+              cursor: isSavingSmtp || !smtpAppPassword.trim() ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {isSavingSmtp ? 'Connexion & Test SMTP...' : 'Activer & Tester Gmail SMTP'}
+          </button>
+        </form>
       </div>
 
       {/* Formulaire de configuration de sécurité */}

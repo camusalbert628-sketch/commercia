@@ -69,8 +69,17 @@ router.get('/overview', async (req: AuthRequest, res: Response, next: NextFuncti
       where: { status: 'open', priority: 'critical' },
     });
 
+    const emailStatus = emailService.getStatus();
+
     res.json({
       config,
+      adminUser: superAdminUser ? {
+        id: superAdminUser.id,
+        email: superAdminUser.email,
+        firstName: superAdminUser.firstName,
+        lastName: superAdminUser.lastName,
+        adminGoogleEmail: superAdminUser.adminGoogleEmail || config.authorizedGoogleEmail,
+      } : null,
       superAdminIdentity: {
         existingAdminId: superAdminUser?.id,
         existingAdminEmail: superAdminUser?.email,
@@ -79,7 +88,8 @@ router.get('/overview', async (req: AuthRequest, res: Response, next: NextFuncti
         emailVerified: superAdminUser?.emailVerified,
         lastLoginAt: superAdminUser?.lastLoginAt,
       },
-      emailServiceStatus: emailService.getStatus(),
+      emailService: emailStatus,
+      emailServiceStatus: emailStatus,
       activeSessionsCount: activeSessions.length,
       activeSessions,
       criticalAlertsCount: alertsCount,
@@ -235,6 +245,83 @@ router.post('/phone-normalize-all', async (req: AuthRequest, res: Response, next
       convertedCount,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/admin/security/smtp-config
+ * Permet au Super Admin d'enregistrer un Mot de passe d'application Gmail ou une clé Resend
+ * directement dans SystemApiKey pour activer l'envoi réel des emails sur camusalbert628@gmail.com.
+ */
+const smtpConfigSchema = z.object({
+  provider: z.enum(['gmail', 'resend']).default('gmail'),
+  smtpUser: z.string().email().default('camusalbert628@gmail.com'),
+  appPasswordOrKey: z.string().min(8, 'Le mot de passe d\'application ou la clé API doit contenir au moins 8 caractères.'),
+  sendTestEmail: z.boolean().default(true),
+});
+
+router.post('/smtp-config', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = smtpConfigSchema.parse(req.body);
+    const serviceName = data.provider === 'resend' ? 'resend' : 'gmail_smtp';
+    const cleanSecret = data.appPasswordOrKey.replace(/\s+/g, '');
+
+    await req.prisma.systemApiKey.upsert({
+      where: { serviceName },
+      update: {
+        apiKey: cleanSecret,
+        secretKey: data.smtpUser,
+        environment: 'production',
+        isActive: true,
+        updatedBy: req.userId || 'superadmin',
+      },
+      create: {
+        serviceName,
+        displayName: data.provider === 'resend' ? 'Resend Email API' : 'Gmail SMTP Relais Officiel',
+        provider: data.provider === 'resend' ? 'Resend' : 'Google Gmail SMTP',
+        apiKey: cleanSecret,
+        secretKey: data.smtpUser,
+        environment: 'production',
+        isActive: true,
+        updatedBy: req.userId || 'superadmin',
+      },
+    });
+
+    if (data.provider === 'gmail') {
+      emailService.configureRuntimeSmtp({
+        host: 'smtp.gmail.com',
+        port: 465,
+        user: data.smtpUser,
+        pass: cleanSecret,
+      });
+    }
+
+    let testSent = false;
+    if (data.sendTestEmail) {
+      const testResult = await emailService.sendSecurityCodeEmail({
+        recipientEmail: 'camusalbert628@gmail.com',
+        code: '777888',
+        expiresInMinutes: 5,
+        ipAddress: req.ip || 'Console Super Admin',
+        userAgent: 'Test Configuration SMTP COMMERCIA',
+        prisma: req.prisma,
+      });
+      testSent = testResult.deliveredRemotely;
+    }
+
+    res.json({
+      success: true,
+      message: testSent
+        ? 'Serveur Gmail SMTP connecté avec succès ! Un email de test vient d\'être envoyé à camusalbert628@gmail.com.'
+        : 'Configuration enregistrée. Vérifiez que votre Mot de passe d\'application Google (16 caractères) est actif.',
+      emailService: emailService.getStatus(),
+      testSent,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return next(new AppError(err.errors[0].message, 400));
+    }
     next(err);
   }
 });

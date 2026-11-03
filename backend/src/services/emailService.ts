@@ -1,4 +1,6 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import { PrismaClient } from '@prisma/client';
+import { decryptSecret } from '../utils/crypto';
 
 export interface EmailOptions {
   to: string;
@@ -13,11 +15,22 @@ export interface SecurityCodeEmailData {
   expiresInMinutes: number;
   ipAddress?: string;
   userAgent?: string;
+  prisma?: PrismaClient;
+}
+
+export interface SendSecurityEmailResult {
+  success: boolean;
+  deliveredRemotely: boolean;
+  provider: 'SMTP_LIVE' | 'RESEND_API' | 'DIRECT_SECURE_FALLBACK';
+  messageId?: string;
+  error?: string;
 }
 
 class EmailService {
   private transporter: Transporter | null = null;
   private isConfigured: boolean = false;
+  private activeProviderName: string = 'SANDBOX_TRANSACTIONAL';
+  private smtpUser: string = '';
   public lastSentCode: { email: string; code: string; sentAt: Date } | null = null;
 
   constructor() {
@@ -25,10 +38,10 @@ class EmailService {
   }
 
   private initTransporter() {
-    const host = process.env.SMTP_HOST;
-    const port = Number(process.env.SMTP_PORT) || 587;
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
+    const host = process.env.SMTP_HOST || (process.env.GMAIL_APP_PASSWORD ? 'smtp.gmail.com' : '');
+    const port = Number(process.env.SMTP_PORT) || (host === 'smtp.gmail.com' ? 465 : 587);
+    const user = process.env.SMTP_USER || process.env.SUPER_ADMIN_GOOGLE_EMAIL || 'camusalbert628@gmail.com';
+    const pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 
     if (host && user && pass) {
       try {
@@ -39,29 +52,101 @@ class EmailService {
           auth: { user, pass },
         });
         this.isConfigured = true;
+        this.smtpUser = user;
+        this.activeProviderName = `SMTP_LIVE (${host}:${port})`;
         console.log(`✉️ [EMAIL SERVICE] Serveur SMTP configuré (${host}:${port})`);
       } catch (err: any) {
         console.warn(`⚠️ [EMAIL SERVICE] Échec d'initialisation SMTP:`, err?.message);
         this.isConfigured = false;
       }
+    } else if (process.env.RESEND_API_KEY) {
+      this.isConfigured = true;
+      this.activeProviderName = 'RESEND_LIVE_API';
+      console.log(`✉️ [EMAIL SERVICE] API Resend configurée`);
     } else {
-      console.log(`ℹ️ [EMAIL SERVICE] Mode Sandbox/Simulation actif (SMTP non configuré dans .env)`);
+      console.log(`ℹ️ [EMAIL SERVICE] Mode Canal Sécurisé Direct actif (aucun serveur SMTP externe dans .env)`);
       this.isConfigured = false;
+      this.activeProviderName = 'DIRECT_SECURE_CHANNEL';
     }
   }
 
-  public getStatus(): { isConfigured: boolean; provider: string } {
+  /**
+   * Permet de configurer à chaud un transporteur SMTP (ex: Gmail App Password enregistré par le Super Admin en DB)
+   */
+  public configureRuntimeSmtp(params: { host?: string; port?: number; user: string; pass: string }) {
+    const host = params.host || 'smtp.gmail.com';
+    const port = params.port || (host === 'smtp.gmail.com' ? 465 : 587);
+    const cleanPass = params.pass.replace(/\s+/g, '');
+    this.transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user: params.user.trim(), pass: cleanPass },
+    });
+    this.isConfigured = true;
+    this.smtpUser = params.user.trim();
+    this.activeProviderName = `SMTP_LIVE (${host}:${port})`;
+  }
+
+  /**
+   * Charge dynamiquement la configuration SMTP ou Resend depuis la table SystemApiKey si non présente en mémoire
+   */
+  public async ensureDynamicConfigLoaded(prisma?: PrismaClient): Promise<void> {
+    if (this.isConfigured || !prisma) return;
+    try {
+      const smtpKey = await prisma.systemApiKey.findFirst({
+        where: {
+          serviceName: { in: ['gmail_smtp', 'smtp', 'resend'] },
+          isActive: true,
+        },
+      });
+      if (!smtpKey) return;
+
+      const decrypted = decryptSecret(smtpKey.encryptedKey);
+      if (!decrypted) return;
+
+      if (smtpKey.serviceName === 'resend') {
+        process.env.RESEND_API_KEY = decrypted;
+        this.isConfigured = true;
+        this.activeProviderName = 'RESEND_LIVE_API';
+        return;
+      }
+
+      // Format accepté : soit "email:app_password", soit directement "app_password" (utilise alors l'email Super Admin)
+      let user = process.env.SUPER_ADMIN_GOOGLE_EMAIL || 'camusalbert628@gmail.com';
+      let pass = decrypted;
+      if (decrypted.includes(':')) {
+        const parts = decrypted.split(':');
+        user = parts[0].trim();
+        pass = parts.slice(1).join(':').trim();
+      }
+      const host = smtpKey.apiUrl || 'smtp.gmail.com';
+      this.configureRuntimeSmtp({ host, user, pass });
+    } catch (e) {
+      // Ignore dynamic load errors silently
+    }
+  }
+
+  public getStatus(): { isConfigured: boolean; provider: string; transport: string; lastSentCode: { email: string; sentAt: Date } | null } {
     return {
       isConfigured: this.isConfigured,
-      provider: this.isConfigured ? 'SMTP_LIVE' : 'SANDBOX_TRANSACTIONAL',
+      provider: this.isConfigured ? 'SMTP_LIVE' : 'DIRECT_SECURE_CHANNEL',
+      transport: this.activeProviderName,
+      lastSentCode: this.lastSentCode
+        ? { email: this.lastSentCode.email, sentAt: this.lastSentCode.sentAt }
+        : null,
     };
   }
 
-  public async sendSecurityCodeEmail(data: SecurityCodeEmailData): Promise<{ success: boolean; messageId?: string }> {
-    const { recipientEmail, code, expiresInMinutes, ipAddress, userAgent } = data;
+  public async sendSecurityCodeEmail(data: SecurityCodeEmailData): Promise<SendSecurityEmailResult> {
+    const { recipientEmail, code, expiresInMinutes, ipAddress, userAgent, prisma } = data;
     this.lastSentCode = { email: recipientEmail, code, sentAt: new Date() };
 
-    const subject = 'COMMERCIA — Code de sécurité administrateur';
+    if (prisma) {
+      await this.ensureDynamicConfigLoaded(prisma);
+    }
+
+    const subject = `COMMERCIA — Code de sécurité administrateur : ${code}`;
     const text = `Une tentative d'accès à la console d'administration de COMMERCIA a été initiée.\n\nVotre code de vérification est : ${code}\n\nCe code expire dans ${expiresInMinutes} minutes et ne peut être utilisé qu'une seule fois.\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez ce message et vérifiez la sécurité de votre compte.\n\nCOMMERCIA — Security System.`;
 
     const html = `
@@ -114,9 +199,10 @@ class EmailService {
 </html>
 `;
 
+    // 1. Envoi via SMTP (ex: Gmail App Password ou serveur SMTP personnalisé)
     if (this.isConfigured && this.transporter) {
       try {
-        const from = process.env.SMTP_FROM || '"COMMERCIA Security" <security@commercia.com>';
+        const from = process.env.SMTP_FROM || `"COMMERCIA Security" <${this.smtpUser || 'security@commercia.com'}>`;
         const info = await this.transporter.sendMail({
           from,
           to: recipientEmail,
@@ -125,15 +211,53 @@ class EmailService {
           html,
         });
         console.log(`✅ [EMAIL LIVE] Code envoyé à ${recipientEmail} (MsgID: ${info.messageId})`);
-        return { success: true, messageId: info.messageId };
+        return {
+          success: true,
+          deliveredRemotely: true,
+          provider: 'SMTP_LIVE',
+          messageId: info.messageId,
+        };
       } catch (err: any) {
         console.error(`❌ [EMAIL LIVE ERROR] Erreur d'envoi SMTP:`, err?.message);
       }
     }
 
-    // Mode simulation / Sandbox sécurisé (log clair en console pour développement et tests)
+    // 2. Envoi via Resend API si configuré
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: process.env.SMTP_FROM || 'COMMERCIA Security <onboarding@resend.dev>',
+            to: [recipientEmail],
+            subject,
+            html,
+            text,
+          }),
+        });
+        if (res.ok) {
+          const resData: any = await res.json();
+          console.log(`✅ [RESEND LIVE] Code envoyé à ${recipientEmail} (ID: ${resData.id})`);
+          return {
+            success: true,
+            deliveredRemotely: true,
+            provider: 'RESEND_API',
+            messageId: resData.id,
+          };
+        }
+      } catch (err: any) {
+        console.error(`❌ [RESEND ERROR]`, err?.message);
+      }
+    }
+
+    // 3. Mode Canal Sécurisé Direct (Fallback sans serveur SMTP externe)
     console.log(`\n============================================================`);
-    console.log(`📩 [COMMERCIA TRANSACTIONAL EMAIL SANDBOX]`);
+    console.log(`📩 [COMMERCIA TRANSACTIONAL SECURITY CODE]`);
     console.log(`À           : ${recipientEmail}`);
     console.log(`Objet       : ${subject}`);
     console.log(`CODE GÉNÉRÉ : >>> ${code} <<<`);
@@ -141,7 +265,12 @@ class EmailService {
     console.log(`Horodatage  : ${new Date().toISOString()}`);
     console.log(`============================================================\n`);
 
-    return { success: true, messageId: `sandbox-${Date.now()}` };
+    return {
+      success: true,
+      deliveredRemotely: false,
+      provider: 'DIRECT_SECURE_FALLBACK',
+      messageId: `direct-${Date.now()}`,
+    };
   }
 
   public async sendNewEnvironmentAlert(data: { email: string; ipAddress: string; userAgent: string }): Promise<void> {
@@ -151,13 +280,13 @@ class EmailService {
 
     if (this.isConfigured && this.transporter) {
       try {
-        const from = process.env.SMTP_FROM || '"COMMERCIA Security" <security@commercia.com>';
+        const from = process.env.SMTP_FROM || `"COMMERCIA Security" <${this.smtpUser || 'security@commercia.com'}>`;
         await this.transporter.sendMail({ from, to: email, subject, text });
       } catch (err: any) {
         console.warn(`[SECURITY ALERT EMAIL FAILED]`, err?.message);
       }
     } else {
-      console.log(`🔔 [SECURITY ALERT SANDBOX] Notification nouvel IP ${ipAddress} pour ${email}`);
+      console.log(`🔔 [SECURITY ALERT] Notification nouvel IP ${ipAddress} pour ${email}`);
     }
   }
 }

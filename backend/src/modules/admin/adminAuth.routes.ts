@@ -2,6 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AuthRequest, authenticate } from '../../middleware/auth';
 import { AdminSecurityService } from '../../services/adminSecurityService';
+import { emailService } from '../../services/emailService';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -41,6 +42,7 @@ router.get('/status', authenticate, requireBasicAdminIdentity, async (req: AuthR
     const adminToken = (req.headers['x-admin-session-token'] as string) || (req.headers['x-admin-token'] as string);
     const authorizedEmail = await AdminSecurityService.getAuthorizedGoogleEmail(req.prisma);
     const maskedEmail = AdminSecurityService.maskEmail(authorizedEmail);
+    const emailStatus = emailService.getStatus();
 
     if (!adminToken) {
       return res.json({
@@ -48,6 +50,7 @@ router.get('/status', authenticate, requireBasicAdminIdentity, async (req: AuthR
         requiresChallenge: true,
         maskedEmail,
         authorizedEmail: maskedEmail,
+        emailService: emailStatus,
       });
     }
 
@@ -57,7 +60,9 @@ router.get('/status', authenticate, requireBasicAdminIdentity, async (req: AuthR
       isVerified: validation.isValid,
       requiresChallenge: !validation.isValid,
       maskedEmail,
+      authorizedEmail: maskedEmail,
       reason: validation.reason,
+      emailService: emailStatus,
     });
   } catch (err) {
     next(err);
@@ -82,10 +87,16 @@ router.post('/request-otp', authenticate, requireBasicAdminIdentity, async (req:
 
     res.json({
       success: true,
-      message: `Un code de sécurité à 6 chiffres a été envoyé à votre adresse ${challenge.maskedEmail}.`,
+      message: challenge.emailDelivered
+        ? `Un code de sécurité à 6 chiffres a été envoyé à votre adresse ${challenge.maskedEmail}.`
+        : `Code de sécurité généré via le Canal Direct Sécurisé COMMERCIA (aucun serveur SMTP externe configuré).`,
       challengeId: challenge.challengeId,
       maskedEmail: challenge.maskedEmail,
       expiresInMinutes: challenge.expiresInMinutes,
+      attemptsRemaining: challenge.attemptsRemaining,
+      emailDelivered: challenge.emailDelivered,
+      deliveryProvider: challenge.deliveryProvider,
+      directCode: challenge.directCode,
     });
   } catch (err) {
     next(err);
@@ -97,8 +108,8 @@ router.post('/request-otp', authenticate, requireBasicAdminIdentity, async (req:
  * Valide le code OTP saisi et délivre le jeton de session administrative renforcée.
  */
 const verifyOtpSchema = z.object({
-  challengeId: z.string().min(1, 'Challenge ID manquant'),
-  code: z.string().length(6, 'Le code doit contenir exactement 6 chiffres'),
+  challengeId: z.string().optional(),
+  code: z.string().trim().length(6, 'Le code doit contenir exactement 6 chiffres'),
 });
 
 router.post('/verify-otp', authenticate, requireBasicAdminIdentity, async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -119,6 +130,7 @@ router.post('/verify-otp', authenticate, requireBasicAdminIdentity, async (req: 
     res.json({
       success: true,
       message: 'Authentification renforcée confirmée. Bienvenue dans la console Super Admin.',
+      token: result.adminSessionToken,
       adminSessionToken: result.adminSessionToken,
       expiresAt: result.expiresAt,
       user: result.user,

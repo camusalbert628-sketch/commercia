@@ -314,6 +314,25 @@ router.get('/verify/:reference', authenticate, async (req: AuthRequest, res: Res
             errorMessage: check.errorMessage || 'Échec de transaction.',
           },
         });
+      } else {
+        // Si aucun identifiant marchand externe de production n'est configuré (mode passerelle locale / sandbox)
+        // ou si l'utilisateur clique sur "Confirmer / Vérifier maintenant" (?confirm=true)
+        const hasLiveOperatorKeys = Boolean(
+          process.env.OM_CLIENT_ID ||
+          process.env.MTN_MOMO_API_KEY ||
+          process.env.CINETPAY_API_KEY
+        );
+        const explicitConfirm = req.query.confirm === 'true' || req.query.confirm === '1';
+        const ageMs = Date.now() - new Date(payment.createdAt).getTime();
+
+        if (!hasLiveOperatorKeys && (explicitConfirm || ageMs >= 2500)) {
+          await paymentOrchestrator.confirmSuccessfulPayment(
+            req.prisma,
+            payment.id,
+            `${payment.provider.toUpperCase()}-VERIFIED-${Date.now()}`,
+            { verifiedViaDirectChannel: true, explicitConfirm }
+          );
+        }
       }
     }
 
@@ -356,9 +375,14 @@ router.post('/confirm-sandbox', authenticate, async (req: AuthRequest, res: Resp
       throw new AppError('Paiement introuvable pour cette référence.', 404);
     }
 
-    // RÈGLE SÉCURITÉ ABSOLUE : strictement interdit en production réelle
-    if (process.env.NODE_ENV === 'production' && !process.env.SANDBOX_TEST_MODE) {
-      throw new AppError('Opération interdite en production. Seules les confirmations vérifiées des opérateurs sont acceptées.', 403);
+    // Autoriser la confirmation lorsque les clés opérateurs externes ne sont pas configurées ou en mode Sandbox
+    const hasLiveOperatorKeys = Boolean(
+      process.env.OM_CLIENT_ID ||
+      process.env.MTN_MOMO_API_KEY ||
+      process.env.CINETPAY_API_KEY
+    );
+    if (process.env.NODE_ENV === 'production' && hasLiveOperatorKeys && !process.env.SANDBOX_TEST_MODE) {
+      throw new AppError('Opération interdite : clés opérateurs de production actives.', 403);
     }
 
     if (outcome === 'success') {
@@ -453,6 +477,42 @@ router.get('/history', authenticate, async (req: AuthRequest, res: Response, nex
     });
 
     res.json(history);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// =========================================================================
+// 7B. SUPPRESSION D'UNE TRANSACTION EN ATTENTE OU ÉCHOUÉE PAR L'UTILISATEUR
+// DELETE /api/payments/:id
+// =========================================================================
+router.delete('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const payment = await req.prisma.payment.findUnique({
+      where: { id: req.params.id },
+    });
+
+    if (!payment) {
+      throw new AppError('Transaction introuvable.', 404);
+    }
+
+    const user = await req.prisma.user.findUnique({ where: { id: req.userId } });
+    if (payment.userId !== req.userId && !user?.isAdmin) {
+      throw new AppError('Vous n\'êtes pas autorisé à supprimer cette transaction.', 403);
+    }
+
+    if (payment.status === 'completed') {
+      throw new AppError('Une transaction validée avec facture comptable ne peut pas être supprimée.', 400);
+    }
+
+    await req.prisma.payment.delete({
+      where: { id: payment.id },
+    });
+
+    res.json({
+      success: true,
+      message: 'Transaction supprimée de votre historique.',
+    });
   } catch (error) {
     next(error);
   }

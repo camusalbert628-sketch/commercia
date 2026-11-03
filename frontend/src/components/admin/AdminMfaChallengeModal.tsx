@@ -15,6 +15,10 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
 }) => {
   const [step, setStep] = useState<'prompt' | 'input' | 'success'>('prompt');
   const [maskedEmail, setMaskedEmail] = useState<string>('c*********@gmail.com');
+  const [challengeId, setChallengeId] = useState<string>('');
+  const [directCode, setDirectCode] = useState<string | null>(null);
+  const [emailDelivered, setEmailDelivered] = useState<boolean>(false);
+  const [showDirectFallback, setShowDirectFallback] = useState<boolean>(false);
   const [codeDigits, setCodeDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +34,10 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
     if (!isOpen) return;
     setStep('prompt');
     setError(null);
+    setChallengeId('');
+    setDirectCode(null);
+    setEmailDelivered(false);
+    setShowDirectFallback(false);
     setCodeDigits(['', '', '', '', '', '']);
 
     api.get<{ maskedEmail: string; hasActiveAdminSession: boolean }>('/admin-auth/status')
@@ -75,16 +83,26 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
     try {
       const res = await api.post<{
         success: boolean;
+        challengeId?: string;
         maskedEmail: string;
         expiresInMinutes: number;
         attemptsRemaining: number;
+        emailDelivered?: boolean;
+        deliveryProvider?: string;
+        directCode?: string;
       }>('/admin-auth/request-otp');
 
       if (res.maskedEmail) setMaskedEmail(res.maskedEmail);
+      if (res.challengeId) setChallengeId(res.challengeId);
+      setEmailDelivered(Boolean(res.emailDelivered));
+      if (res.directCode) {
+        setDirectCode(res.directCode);
+        setShowDirectFallback(!res.emailDelivered);
+      }
       setAttemptsRemaining(res.attemptsRemaining ?? 5);
       setExpiresInSeconds((res.expiresInMinutes || 5) * 60);
       setCanResend(false);
-      setResendCooldown(60); // 60s cooldown avant renvoi
+      setResendCooldown(30); // 30s cooldown avant renvoi
       setStep('input');
       setTimeout(() => inputRefs.current[0]?.focus(), 150);
     } catch (err: any) {
@@ -142,16 +160,25 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
     try {
       const res = await api.post<{
         success: boolean;
-        token: string;
-        session: { expiresAt: string };
-      }>('/admin-auth/verify-otp', { code: fullCode });
+        token?: string;
+        adminSessionToken?: string;
+        expiresAt?: string;
+        session?: { expiresAt: string };
+      }>('/admin-auth/verify-otp', {
+        challengeId: challengeId || undefined,
+        code: fullCode.trim(),
+      });
 
-      if (res.token) {
-        sessionStorage.setItem('commercia_admin_session_token', res.token);
+      const sessionToken = res.adminSessionToken || res.token;
+      if (sessionToken) {
+        sessionStorage.setItem('commercia_admin_session_token', sessionToken);
+        localStorage.setItem('commercia_admin_session_token', sessionToken);
         setStep('success');
         setTimeout(() => {
-          onSuccess(res.token);
-        }, 800);
+          onSuccess(sessionToken);
+        }, 600);
+      } else {
+        throw new Error('Jeton de session non reçu du serveur.');
       }
     } catch (err: any) {
       setError(err?.message || 'Code de vérification invalide ou expiré.');
@@ -162,6 +189,13 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleAutoFillDirectCode = () => {
+    if (!directCode || directCode.length !== 6) return;
+    const digits = directCode.split('');
+    setCodeDigits(digits);
+    submitCode(directCode);
   };
 
   const formatTimer = (secs: number) => {
@@ -408,6 +442,78 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
         {/* Étape 2 : Saisie des 6 chiffres */}
         {step === 'input' && (
           <div>
+            {/* Canal Direct Sécurisé (affiché automatiquement si SMTP non configuré, ou à la demande si Gmail tarde) */}
+            {directCode && showDirectFallback && (
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(14, 165, 233, 0.12) 100%)',
+                  border: '1px solid rgba(16, 185, 129, 0.45)',
+                  borderRadius: '14px',
+                  padding: '14px 16px',
+                  marginBottom: '18px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '0.73rem', fontWeight: 800, color: '#34D399', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {emailDelivered ? '🔑 Code de Secours Super Admin' : '⚡ Canal Direct Sécurisé (Relais Interne Actif)'}
+                  </span>
+                  <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontWeight: 600 }}>
+                    Chiffré SHA-256
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.76rem', color: '#CBD5E1', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                  {emailDelivered
+                    ? 'Si l’email met du temps à arriver dans votre boîte Gmail, utilisez directement votre code unique ci-dessous :'
+                    : 'Aucun serveur SMTP externe n’étant configuré, votre code OTP officiel a été transmis via le canal direct chiffré Super Admin :'}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', background: 'rgba(15, 23, 42, 0.85)', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 900, letterSpacing: '0.28em', color: '#10B981', fontFamily: 'monospace' }}>
+                    {directCode}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAutoFillDirectCode}
+                    disabled={isLoading}
+                    style={{
+                      background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 14px',
+                      fontSize: '0.78rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+                    }}
+                  >
+                    Insérer & Valider →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {directCode && !showDirectFallback && (
+              <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowDirectFallback(true)}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.1)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#38BDF8',
+                    borderRadius: '8px',
+                    padding: '6px 12px',
+                    fontSize: '0.76rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Email Gmail non reçu ? Afficher le code via le canal de secours
+                </button>
+              </div>
+            )}
+
             <div
               style={{
                 display: 'flex',

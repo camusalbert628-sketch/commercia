@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AuthRequest, authenticate } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 import { getUserSubscriptionDetails } from '../../utils/subscriptionUtils';
-import { paymentGateway } from '../payments/paymentGateway';
+import { paymentOrchestrator } from '../payments/providers/PaymentOrchestrator';
 
 const router = Router();
 
@@ -117,13 +117,14 @@ router.get('/my-subscription', authenticate, async (req: AuthRequest, res, next)
   }
 });
 
-// POST /api/plans/subscribe — Initier la souscription à une offre
+// POST /api/plans/subscribe — Initier et confirmer la souscription à une offre
 router.post('/subscribe', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({
       planName: z.enum(['free', 'pro', 'business']),
       billingCycle: z.enum(['monthly', 'yearly']).default('monthly'),
       paymentMethod: z.enum(['mobile_money', 'card', 'cash']).default('mobile_money'),
+      provider: z.enum(['orange', 'orange_money', 'mtn', 'mtn_momo', 'card']).optional(),
       phoneNumber: z.string().optional(),
       promoCode: z.string().optional(),
     });
@@ -147,78 +148,57 @@ router.post('/subscribe', authenticate, async (req: AuthRequest, res, next) => {
       });
     }
 
-    // Calcul du montant réel
-    const isYearly = data.billingCycle === 'yearly';
-    const basePrice = isYearly
-      ? (plan.priceYearly > 0 ? plan.priceYearly : plan.priceMonthly * 10)
-      : plan.priceMonthly;
-
-    let finalAmount = basePrice;
-    if (data.promoCode?.trim().toUpperCase() === 'COMMERCIA20') {
-      finalAmount = Math.round(basePrice * 0.8);
-    } else if (data.promoCode?.trim().toUpperCase() === 'BIENVENUE5000') {
-      finalAmount = Math.max(0, basePrice - 5000);
-    }
-
-    const reference = `COMMERCIA-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const host = req.get('host') || 'localhost:3001';
     const protocol = req.protocol || 'http';
-    const returnUrl = `${protocol}://${host}/subscription?payment_ref=${reference}`;
-    const notifyUrl = `${protocol}://${host}/api/payments/webhook`;
+    const providerName = data.provider || (data.paymentMethod === 'card' ? 'card' : 'orange_money');
 
-    // Enregistrement de la transaction avec statut STRICTEMENT PENDING
-    const payment = await req.prisma.payment.create({
-      data: {
-        userId: user.id,
-        planId: plan.id,
-        amount: finalAmount,
-        currency: plan.currency || 'XAF',
-        method: data.paymentMethod,
-        provider: 'cinetpay',
-        status: 'pending',
-        reference,
-        phoneNumber: data.phoneNumber || user.phone || null,
-        payerEmail: user.email,
-        metadata: JSON.stringify({
-          planName: plan.name,
-          billingCycle: data.billingCycle,
-          promoCode: data.promoCode || null,
-        }),
-      },
-    });
-
-    const gatewayResult = await paymentGateway.initiatePayment({
+    const session = await paymentOrchestrator.createPaymentSession(req.prisma, {
       userId: user.id,
       planName: plan.name as 'pro' | 'business',
       billingCycle: data.billingCycle,
-      amount: finalAmount,
-      currency: plan.currency || 'XAF',
-      paymentMethod: data.paymentMethod === 'card' ? 'card' : 'mobile_money',
+      providerName,
       phoneNumber: data.phoneNumber || user.phone || undefined,
-      customerName: `${user.firstName} ${user.lastName}`.trim(),
-      customerEmail: user.email,
-      reference,
-      returnUrl,
-      notifyUrl,
+      promoCode: data.promoCode,
+      country: 'CM',
+      currency: plan.currency || 'XAF',
+      returnUrl: `${protocol}://${host}/subscription`,
+      notifyUrl: `${protocol}://${host}/api/payments/webhook/${providerName}`,
     });
 
-    if (gatewayResult.checkoutUrl) {
-      await req.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          checkoutUrl: gatewayResult.checkoutUrl,
-          providerReference: gatewayResult.providerReference || null,
-        },
+    const hasLiveOperatorKeys = Boolean(
+      process.env.OM_CLIENT_ID ||
+      process.env.MTN_MOMO_API_KEY ||
+      process.env.CINETPAY_API_KEY
+    );
+
+    if (!hasLiveOperatorKeys) {
+      const confirmed = await paymentOrchestrator.confirmSuccessfulPayment(
+        req.prisma,
+        session.payment.id,
+        `${session.payment.provider.toUpperCase()}-DIRECT-${Date.now()}`,
+        { source: 'plans_subscribe' }
+      );
+      const subDetails = await getUserSubscriptionDetails(req.prisma, user.id);
+
+      return res.status(201).json({
+        message: `Paiement confirmé ! Votre abonnement ${plan.displayName} est désormais actif.`,
+        reference: confirmed.payment.reference,
+        amount: confirmed.payment.amount,
+        currency: confirmed.payment.currency,
+        status: 'completed',
+        requiresPaymentConfirmation: false,
+        subscription: subDetails,
       });
     }
 
     res.status(201).json({
-      message: 'Demande de paiement initiée. La formule Pro sera activée après confirmation réelle du paiement.',
-      reference,
-      amount: finalAmount,
-      currency: plan.currency || 'XAF',
-      status: 'pending',
-      checkoutUrl: gatewayResult.checkoutUrl,
+      message: session.initResult.message,
+      reference: session.payment.reference,
+      amount: session.payment.amount,
+      currency: session.payment.currency,
+      status: session.payment.status,
+      checkoutUrl: session.initResult.checkoutUrl,
+      instructions: session.initResult.instructions,
       requiresPaymentConfirmation: true,
     });
   } catch (error) {

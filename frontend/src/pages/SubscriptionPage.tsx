@@ -252,15 +252,18 @@ export const SubscriptionPage: React.FC = () => {
     }
   };
 
-  // Vérification manuelle auprès de la passerelle de paiement
-  const handleCheckVerification = async () => {
-    if (!currentPaymentRef) return;
+  // Vérification et confirmation auprès de la passerelle de paiement
+  const handleCheckVerification = async (refOverride?: string) => {
+    const targetRef = refOverride || currentPaymentRef;
+    if (!targetRef) return;
     try {
       setIsVerifying(true);
-      const check = await api.get<any>(`/payments/verify/${currentPaymentRef}`);
+      const check = await api.get<any>(`/payments/verify/${targetRef}?confirm=true`);
       if (check.status === 'completed' || check.payment?.status === 'completed') {
         setVerifiedPayment(check.payment);
-        setPaymentStep('success');
+        if (showPayModal) {
+          setPaymentStep('success');
+        }
         await fetchMe();
         await loadHistory();
       } else {
@@ -742,6 +745,18 @@ export const SubscriptionPage: React.FC = () => {
                             >
                               <Printer size={14} />
                               <span>Voir reçu</span>
+                            </button>
+                          )}
+                          {p.status === 'pending' && (
+                            <button
+                              className="btn btn-primary"
+                              onClick={() => handleCheckVerification(p.reference)}
+                              disabled={isVerifying}
+                              title="Confirmer et activer cet abonnement"
+                              style={{ padding: '6px 10px', fontSize: '0.8rem', background: '#10B981', borderColor: '#10B981' }}
+                            >
+                              <CheckCircle size={14} />
+                              <span>Valider</span>
                             </button>
                           )}
                           {p.status !== 'completed' && (
@@ -1437,16 +1452,16 @@ export const SubscriptionPage: React.FC = () => {
 
                 <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: '16px' }}>
                   <div style={{ fontSize: '0.80rem', color: '#475569', marginBottom: '10px' }}>
-                    Le serveur vérifie automatiquement la confirmation de débit :
+                    Le serveur vérifie automatiquement la confirmation de débit (ou cliquez ci-dessous pour finaliser immédiatement) :
                   </div>
                   <button
                     type="button"
-                    className="btn btn-outline"
-                    onClick={handleCheckVerification}
+                    className="btn btn-primary"
+                    onClick={() => handleCheckVerification()}
                     disabled={isVerifying}
-                    style={{ width: '100%', fontWeight: 700 }}
+                    style={{ width: '100%', fontWeight: 800, padding: '12px', background: '#10B981', borderColor: '#10B981' }}
                   >
-                    {isVerifying ? 'Vérification en cours...' : 'Vérifier le statut du paiement'}
+                    {isVerifying ? 'Confirmation en cours...' : 'Confirmer et Activer mon Abonnement Maintenant →'}
                   </button>
                 </div>
               </div>
