@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -36,6 +36,7 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { getBusinessProfile } from '../../config/businessProfiles';
 import { TradeConfigModal } from '../common/TradeConfigModal';
+import { AdminMfaChallengeModal } from '../admin/AdminMfaChallengeModal';
 import { getSupportWhatsAppNumber } from '../../utils/formatters';
 
 interface SidebarProps {
@@ -44,6 +45,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount = 0 }) => {
+  const navigate = useNavigate();
   const { user, activeBusinessId, logout } = useAuthStore();
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBusinessId) || user?.businesses?.[0];
 
@@ -51,6 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showTradeModal, setShowTradeModal] = useState(false);
+  const [showAdminMfaModal, setShowAdminMfaModal] = useState(false);
   const [callbackSent, setCallbackSent] = useState(false);
   const [callbackPhone, setCallbackPhone] = useState(user?.phone || '');
 
@@ -91,6 +94,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
       <TradeConfigModal
         isOpen={showTradeModal}
         onClose={() => setShowTradeModal(false)}
+      />
+      <AdminMfaChallengeModal
+        isOpen={showAdminMfaModal}
+        onClose={() => setShowAdminMfaModal(false)}
+        onSuccess={() => {
+          setShowAdminMfaModal(false);
+          navigate('/admin');
+        }}
       />
 
       <aside className="sidebar">
@@ -553,13 +564,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
         {user?.isAdmin && (
           <>
             <div className="menu-category">Super Administration</div>
-            <NavLink
-              to="/admin"
-              className={({ isActive }) => `nav-item admin-saas-beveled-btn ${isActive ? 'active' : ''}`}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                const token = sessionStorage.getItem('commercia_admin_session_token');
+                if (token) {
+                  navigate('/admin');
+                } else {
+                  setShowAdminMfaModal(true);
+                }
+              }}
+              className="nav-item admin-saas-beveled-btn"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                textAlign: 'left',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
               <ShieldAlert size={18} style={{ color: '#FFFFFF', flexShrink: 0 }} />
               <span>Administration SaaS</span>
-            </NavLink>
+            </button>
           </>
         )}
       </nav>

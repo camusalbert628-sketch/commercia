@@ -27,6 +27,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['x-business-id'] = activeBusinessId;
   }
 
+  const adminSessionToken = sessionStorage.getItem('commercia_admin_session_token');
+  if (adminSessionToken) {
+    headers['x-admin-session-token'] = adminSessionToken;
+  }
+
   try {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,

@@ -40,6 +40,18 @@ model User {
   mfaEnabled    Boolean  @default(false)
   mfaSecret     String?  // AES-256 encrypted TOTP secret
   mfaRecoveryCodes String? // JSON array of SHA-256 hashed recovery codes
+
+  // International phone standardization
+  phoneCountry        String?   // ISO code (e.g. "CM", "CI", "FR")
+  phoneCallingCode    String?   // Calling code with plus (e.g. "+237")
+  phoneNationalNumber String?   // National format number (e.g. "697221997")
+  phoneVerified       Boolean   @default(false)
+  phoneVerifiedAt     DateTime?
+
+  // Google identity link
+  googleId            String?   @unique
+  adminGoogleEmail    String?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -54,6 +66,8 @@ model User {
   feedbacks      UserFeedback[]
   sentCommunications     CommunicationMessage[] @relation("SentCommunications")
   receivedCommunications CommunicationMessage[] @relation("ReceivedCommunications")
+  adminSessions          AdminSession[]
+  securityAccessLogs     SecurityAccessLog[]
 }
 
 
@@ -1143,4 +1157,68 @@ model CommercialAlert {
   resolvedAt DateTime?
   createdAt  DateTime  @default(now())
 }
+
+// ===================== SÉCURITÉ ADMINISTRATIVE & AUDIT D'ACCÈS =====================
+
+model AdminSession {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  ipAddress  String?
+  userAgent  String?
+  expiresAt  DateTime
+  isActive   Boolean   @default(true)
+  revokedAt  DateTime?
+  revokedBy  String?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SecurityAccessLog {
+  id               String   @id @default(uuid())
+  timestamp        DateTime @default(now())
+  userId           String?
+  email            String
+  googleIdVerified Boolean  @default(false)
+  authMethod       String   // "google_oauth" | "otp_gmail" | "password" | "direct_api"
+  status           String   // "SUCCESS" | "FAILED" | "BLOCKED"
+  step             String   // "oauth" | "otp_request" | "otp_verify" | "admin_api_access"
+  codeSent         Boolean  @default(false)
+  ipAddress        String?
+  userAgent        String?
+  sessionId        String?
+  failureReason    String?
+  metadata         String?  // JSON string
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model PhoneVerification {
+  id           String    @id @default(uuid())
+  phoneNumber  String    // E.164 format (e.g. "+237697221997")
+  country      String    // ISO 2-letter (e.g. "CM")
+  codeHash     String    // Cryptographic hash of OTP code
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(5)
+  expiresAt    DateTime
+  isVerified   Boolean   @default(false)
+  verifiedAt   DateTime?
+  userId       String?
+  ipAddress    String?
+  createdAt    DateTime  @default(now())
+}
+
+model AdminSecurityConfig {
+  id                      String   @id @default("singleton")
+  authorizedGoogleEmail   String   @default("camusalbert628@gmail.com")
+  otpValidityMinutes      Int      @default(5)
+  maxOtpAttempts          Int      @default(5)
+  sessionDurationMinutes  Int      @default(60)
+  requireMfaForSensitive  Boolean  @default(true)
+  emailNotificationOnNewIp Boolean @default(true)
+  updatedBy               String?
+  updatedAt               DateTime @updatedAt
+}
+
 

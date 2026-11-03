@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppError } from './errorHandler';
 import { getJwtSecret } from '../config/security';
+import { AdminSecurityService } from '../services/adminSecurityService';
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -142,6 +143,62 @@ export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFu
       return res.status(403).json({
         error: 'Accès strictement interdit. Cet espace et ses données sont exclusivement réservés au Super Administrateur COMMERCIA.',
         code: 'FORBIDDEN_SUPER_ADMIN_REQUIRED',
+      });
+    }
+
+    // 4. Exigence de la Session Administrative Renforcée (Double vérification Google + Code Gmail)
+    const adminSessionToken =
+      (req.headers['x-admin-session-token'] as string) ||
+      (req.headers['x-admin-token'] as string);
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+
+    if (!adminSessionToken) {
+      await req.prisma.securityAccessLog.create({
+        data: {
+          userId: user.id,
+          email: user.email,
+          authMethod: 'direct_api',
+          status: 'BLOCKED',
+          step: 'admin_api_access',
+          ipAddress: clientIp,
+          userAgent,
+          failureReason: 'Accès refusé : Jeton de session administrative renforcée manquant',
+        },
+      }).catch(() => {});
+
+      return res.status(403).json({
+        error: 'Session administrative renforcée requise. Une confirmation de sécurité par code envoyé sur votre Gmail administrateur est obligatoire.',
+        code: 'ADMIN_MFA_CHALLENGE_REQUIRED',
+        requiresAdminOtp: true,
+      });
+    }
+
+    const sessionValidation = await AdminSecurityService.validateAdminSessionToken(
+      req.prisma,
+      adminSessionToken,
+      user.id
+    );
+
+    if (!sessionValidation.isValid) {
+      await req.prisma.securityAccessLog.create({
+        data: {
+          userId: user.id,
+          email: user.email,
+          authMethod: 'direct_api',
+          status: 'BLOCKED',
+          step: 'admin_api_access',
+          ipAddress: clientIp,
+          userAgent,
+          failureReason: `Accès refusé : Session administrative invalide ou expirée (${sessionValidation.reason})`,
+        },
+      }).catch(() => {});
+
+      return res.status(403).json({
+        error: `Session administrative expirée ou révoquée (${sessionValidation.reason}). Veuillez vous ré-authentifier.`,
+        code: 'ADMIN_SESSION_INVALID_OR_EXPIRED',
+        requiresAdminOtp: true,
       });
     }
 

@@ -24,6 +24,7 @@ import { useAuthStore } from '../store/authStore';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
+import { InternationalPhoneInput } from '../components/common/InternationalPhoneInput';
 
 export interface DeliveryItem {
   id: string;
@@ -606,14 +607,11 @@ _Transmis via COMMERCIA SaaS Gestion Commerciale_`;
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
-                      Téléphone du client *
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="Ex: 690 12 34 56"
+                    <InternationalPhoneInput
                       value={customerPhone}
-                      onChange={e => setCustomerPhone(e.target.value)}
+                      onChange={(val) => setCustomerPhone(val)}
+                      label="Téléphone du client *"
+                      placeholder="6XX XX XX XX"
                       required
                     />
                   </div>
@@ -746,14 +744,11 @@ _Transmis via COMMERCIA SaaS Gestion Commerciale_`;
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#334155', display: 'block', marginBottom: '4px' }}>
-                      Téléphone coursier
-                    </label>
-                    <input
-                      type="tel"
-                      placeholder="Ex: 671 00 22 33"
+                    <InternationalPhoneInput
                       value={courierPhone}
-                      onChange={e => setCourierPhone(e.target.value)}
+                      onChange={(val) => setCourierPhone(val)}
+                      label="Téléphone coursier"
+                      placeholder="6XX XX XX XX"
                     />
                   </div>
                 </div>

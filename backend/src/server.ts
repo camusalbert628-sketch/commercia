@@ -30,6 +30,8 @@ import { foodPrepRouter } from './modules/foodPrep/foodPrep.routes';
 import { serviceOrdersRouter } from './modules/serviceOrders/serviceOrders.routes';
 import { mobileMoneyRouter } from './modules/mobileMoney/mobileMoney.routes';
 import { feedbackRouter } from './modules/feedback/feedback.routes';
+import adminAuthRouter from './modules/admin/adminAuth.routes';
+import phoneRouter from './modules/phone/phone.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 
@@ -115,6 +117,8 @@ app.use('/api/food-prep', foodPrepRouter);
 app.use('/api/service-orders', serviceOrdersRouter);
 app.use('/api/mobile-money', mobileMoneyRouter);
 app.use('/api/feedback', feedbackRouter);
+app.use('/api/admin-auth', adminAuthRouter);
+app.use('/api/phone', phoneRouter);
 
 
 // Health check

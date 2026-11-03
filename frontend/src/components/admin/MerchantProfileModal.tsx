@@ -364,9 +364,20 @@ export const MerchantProfileModal: React.FC<MerchantProfileModalProps> = ({
                       <span style={{ color: textSecondary }}>Email :</span>
                       <span style={{ color: '#2563EB', fontWeight: 600 }}>{identity.email}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ color: textSecondary }}>Téléphone :</span>
-                      <strong style={{ color: textPrimary }}>{identity.phone}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <strong style={{ color: textPrimary }}>{identity.phone || 'Non renseigné'}</strong>
+                        {identity.phoneVerified ? (
+                          <span style={{ fontSize: '10px', background: 'rgba(16,185,129,0.15)', color: '#10B981', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                            ✓ Vérifié OTP
+                          </span>
+                        ) : identity.phone ? (
+                          <span style={{ fontSize: '10px', background: 'rgba(0,98,255,0.1)', color: '#0062FF', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                            E.164
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ color: textSecondary }}>Pays & Devise :</span>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck, X, Camera, Upload, User as UserIcon, Sparkles, KeyRound, ShieldAlert } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { InternationalPhoneInput } from '../components/common/InternationalPhoneInput';
 
 export const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -554,17 +555,13 @@ export const AuthPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: '0.82rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                    Téléphone (WhatsApp)
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="+237 6XX XX XX XX"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                  />
-                </div>
+                <InternationalPhoneInput
+                  value={phone}
+                  onChange={(val) => setPhone(val)}
+                  label="Téléphone (WhatsApp)"
+                  placeholder="6XX XX XX XX"
+                  enableOtpVerification={false}
+                />
               </>
             )}
 

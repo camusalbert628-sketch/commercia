@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ShieldAlert, ArrowLeft, Lock, ShieldX } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { api } from '../services/api';
+import { AdminMfaChallengeModal } from './admin/AdminMfaChallengeModal';
 
 interface AdminRouteGuardProps {
   children: React.ReactNode;
@@ -155,6 +156,7 @@ export const AdminAccessDeniedView: React.FC<{ attemptedPath: string }> = ({ att
  * Interdit tout chargement, préchargement ou affichage de l'interface admin pour les comptes non-administrateurs.
  */
 export const AdminRouteGuard: React.FC<AdminRouteGuardProps> = ({ children }) => {
+  const navigate = useNavigate();
   const { user, isAuthenticated, isLoading, fetchMe } = useAuthStore();
   const location = useLocation();
 
@@ -255,11 +257,26 @@ export const AdminRouteGuard: React.FC<AdminRouteGuardProps> = ({ children }) =>
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Verrouillage absolu si non Super-Admin
-  if (!user?.isAdmin || !isServerAdminConfirmed) {
+  // Verrouillage absolu si non Super-Admin (utilisateurs ordinaires / marchands)
+  if (!user?.isAdmin) {
     return <AdminAccessDeniedView attemptedPath={location.pathname} />;
   }
 
-  // Utilisateur Super-Admin authentifié et validé en temps réel par le serveur
+  // Super-Admin authentifié mais sans session administrative renforcée valide -> Déclencher le challenge MFA Gmail
+  if (!isServerAdminConfirmed) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0B132B' }}>
+        <AdminMfaChallengeModal
+          isOpen={true}
+          onClose={() => navigate('/dashboard', { replace: true })}
+          onSuccess={() => {
+            setIsServerAdminConfirmed(true);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // Utilisateur Super-Admin avec session administrative renforcée validée
   return <>{children}</>;
 };

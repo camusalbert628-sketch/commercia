@@ -9,6 +9,7 @@ import { getJwtSecret, getJwtRefreshSecret, verifyGoogleIdToken } from '../../co
 import { bruteForceProtector, loginBruteForceMiddleware } from '../../utils/bruteForceProtection';
 import { encryptSecret, decryptSecret } from '../../utils/crypto';
 import { generateTotpSecret, verifyTotpCode, generateRecoveryCodes } from '../../utils/mfa';
+import { AdminSecurityService } from '../../services/adminSecurityService';
 
 const router = Router();
 
@@ -288,6 +289,11 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
     });
 
     const email = verifiedUser.email;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+
+    // 1. Détection de l'identité Google autorisée pour le Super Admin
+    const isSuperAdminGoogle = await AdminSecurityService.isAuthorizedSuperAdminEmail(req.prisma, email);
 
     let user = await req.prisma.user.findUnique({
       where: { email },
@@ -302,6 +308,39 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
       },
     });
 
+    if (isSuperAdminGoogle) {
+      // Rechercher le compte Super Admin existant dans la base
+      const existingSuperAdmin = await req.prisma.user.findFirst({
+        where: { isAdmin: true },
+        include: {
+          businesses: { include: { business: true }, where: { isActive: true } },
+          subscription: { include: { plan: true } },
+        },
+      });
+
+      if (existingSuperAdmin) {
+        // Lier l'identité Google vérifiée au compte Super Admin existant (préservation stricte du compte racine)
+        await req.prisma.user.update({
+          where: { id: existingSuperAdmin.id },
+          data: {
+            adminGoogleEmail: email,
+            emailVerified: true,
+            avatarUrl: verifiedUser.avatarUrl || existingSuperAdmin.avatarUrl,
+            lastLoginAt: new Date(),
+            loginCount: { increment: 1 },
+          },
+        });
+
+        user = await req.prisma.user.findUnique({
+          where: { id: existingSuperAdmin.id },
+          include: {
+            businesses: { include: { business: true }, where: { isActive: true } },
+            subscription: { include: { plan: true } },
+          },
+        });
+      }
+    }
+
     if (!user) {
       const dummyPassword = await bcrypt.hash('GOOGLE_AUTH_' + Date.now(), 10);
       const created = await req.prisma.user.create({
@@ -312,6 +351,8 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
           lastName: verifiedUser.lastName,
           avatarUrl: verifiedUser.avatarUrl || null,
           emailVerified: verifiedUser.emailVerified,
+          isAdmin: isSuperAdminGoogle, // Ne confère isAdmin que si Google email est formellement autorisé
+          adminGoogleEmail: isSuperAdminGoogle ? email : null,
         },
       });
 
@@ -356,6 +397,21 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
     if (!user || !user.isActive) {
       throw new AppError('Ce compte utilisateur est désactivé.', 403);
     }
+
+    // Journalisation de sécurité de l'authentification Google
+    await req.prisma.securityAccessLog.create({
+      data: {
+        userId: user.id,
+        email,
+        googleIdVerified: true,
+        authMethod: 'google_oauth',
+        status: 'SUCCESS',
+        step: 'oauth',
+        ipAddress: clientIp,
+        userAgent,
+        metadata: JSON.stringify({ isSuperAdmin: user.isAdmin }),
+      },
+    }).catch(() => {});
 
     const tokens = generateTokens(user.id);
     const expiresAt = new Date();

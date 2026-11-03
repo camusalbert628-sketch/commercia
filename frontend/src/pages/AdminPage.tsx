@@ -62,6 +62,9 @@ import { ProfitabilityView } from '../components/admin/ProfitabilityView';
 import { CommunicationView } from '../components/admin/CommunicationView';
 import { FeedbacksView } from '../components/admin/FeedbacksView';
 import { AutomationAlertsView } from '../components/admin/AutomationAlertsView';
+import { SecurityAuthView } from '../components/admin/SecurityAuthView';
+import { InternationalPhonesView } from '../components/admin/InternationalPhonesView';
+import { InternationalPhoneInput } from '../components/common/InternationalPhoneInput';
 
 // Types stricts
 type AdminTab =
@@ -75,6 +78,7 @@ type AdminTab =
   | 'services'
   | 'logs'
   | 'security'
+  | 'phone_config'
   | 'backups'
   | 'settings'
   | 'subscriptions'
@@ -288,7 +292,8 @@ export const AdminPage: React.FC = () => {
     {
       category: 'SÉCURITÉ',
       items: [
-        { id: 'security' as AdminTab, label: 'Security Operations Center', description: 'SOC, WAF & Zero-Trust', icon: ShieldAlert },
+        { id: 'security' as AdminTab, label: 'Sécurité & Authentification', description: 'Google IAM, MFA Gmail & Sessions', icon: ShieldAlert },
+        { id: 'phone_config' as AdminTab, label: 'Numéros Internationaux', description: 'E.164, vérification OTP & pays', icon: Globe },
         { id: 'admin_history' as AdminTab, label: 'Journaux d\'Audit', description: 'Traçabilité immuable des actions', icon: History },
         { id: 'roles' as AdminTab, label: 'Rôles & Permissions', description: 'RBAC & contrôle des accès', icon: Lock },
       ],
@@ -3714,6 +3719,20 @@ export const AdminPage: React.FC = () => {
           )}
 
           {/* =========================================================================
+              MODULE SÉCURITÉ & AUTHENTIFICATION (GOOGLE OPENID, GMAIL MFA, SESSIONS)
+             ========================================================================= */}
+          {activeTab === 'security' && (
+            <SecurityAuthView theme={adminTheme} />
+          )}
+
+          {/* =========================================================================
+              MODULE GESTION INTERNATIONALE DES NUMÉROS DE TÉLÉPHONE (E.164 & OTP)
+             ========================================================================= */}
+          {activeTab === 'phone_config' && (
+            <InternationalPhonesView theme={adminTheme} />
+          )}
+
+          {/* =========================================================================
               ONGLET 10 : RÔLES & PERMISSIONS (RBAC)
              ========================================================================= */}
           {activeTab === 'roles' && (
@@ -5798,6 +5817,15 @@ export const AdminPage: React.FC = () => {
                     fontSize: '13px',
                     outline: 'none'
                   }}
+                />
+              </div>
+
+              <div>
+                <InternationalPhoneInput
+                  value={newUserForm.phone}
+                  onChange={(val) => setNewUserForm({ ...newUserForm, phone: val })}
+                  label="Téléphone Professionnel (WhatsApp)"
+                  placeholder="6XX XX XX XX"
                 />
               </div>
 

@@ -155,6 +155,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.removeItem('activeBusinessId');
     localStorage.removeItem('commercia_active_business_id');
     localStorage.removeItem('commercia_user');
+    sessionStorage.removeItem('commercia_admin_session_token');
     set({
       user: null,
       isAuthenticated: false,

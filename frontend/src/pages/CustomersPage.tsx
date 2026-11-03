@@ -5,6 +5,7 @@ import { Customer } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
 import { CustomSelect } from '../components/common/CustomSelect';
+import { InternationalPhoneInput } from '../components/common/InternationalPhoneInput';
 import { formatCurrency, downloadCSVWithBOM } from '../utils/formatters';
 
 const ITEMS_PER_PAGE = 12;
@@ -415,17 +416,12 @@ export const CustomersPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
-                    Numéro de Téléphone (WhatsApp)
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="Ex: +237 677 00 11 22"
-                    value={newPhone}
-                    onChange={e => setNewPhone(e.target.value)}
-                  />
-                </div>
+                <InternationalPhoneInput
+                  value={newPhone}
+                  onChange={(val) => setNewPhone(val)}
+                  label="Numéro de Téléphone (WhatsApp)"
+                  placeholder="6XX XX XX XX"
+                />
 
                 <div>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>
