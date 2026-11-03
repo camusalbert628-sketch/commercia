@@ -52,6 +52,8 @@ import {
   CheckCircle2,
   Award,
 } from 'lucide-react';
+import { useNavigate, Navigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
 import { api, ApiError } from '../services/api';
 
 // Types stricts
@@ -179,6 +181,14 @@ interface LlmConfigItem {
 }
 
 export const AdminPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+
+  // VERROUILLAGE TOTAL ZERO-TRUST : Seul un Super Administrateur vérifié peut monter ce composant
+  if (!user || !user.isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [isWideMode, setIsWideMode] = useState<boolean>(true);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
@@ -382,9 +392,17 @@ export const AdminPage: React.FC = () => {
 
       if (statsRes.status === 'rejected') {
         const err = statsRes.reason as ApiError;
+        if (err?.statusCode === 403) {
+          window.location.replace('/dashboard');
+          return;
+        }
         setErrorMessage(err?.message || 'Erreur lors du chargement des statistiques réelles.');
       }
     } catch (err: any) {
+      if (err?.statusCode === 403 || err?.status === 403) {
+        window.location.replace('/dashboard');
+        return;
+      }
       setErrorMessage(err?.message || 'Impossible de joindre le serveur d’administration.');
     } finally {
       setLoading(false);

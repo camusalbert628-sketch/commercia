@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { AuthRequest, authenticate } from '../../middleware/auth';
+import { AuthRequest, authenticate, requireAdmin } from '../../middleware/auth';
 import { AppError } from '../../middleware/errorHandler';
 import { encryptSecret, decryptSecret, maskApiKey } from '../../utils/crypto';
 import { telemetry } from '../../utils/telemetry';
@@ -9,20 +9,63 @@ import { testLlmConnection } from '../../utils/llmEngine';
 const router = Router();
 router.use(authenticate);
 
-// Middleware vérifiant strictement les droits Super Administrateur en base réelle
-const requireAdmin = async (req: AuthRequest, _res: any, next: any) => {
-  try {
-    const user = await req.prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user || !user.isAdmin) {
-      return next(new AppError('Accès strictement réservé aux Super Administrateurs COMMERCIA.', 403));
-    }
-    next();
-  } catch (err) {
-    next(err);
-  }
-};
+// 0. SIGNALEMENT DE TENTATIVE D'ACCÈS NON AUTORISÉE (Accessible à tout utilisateur authentifié pour audit)
+router.post('/report-unauthorized-access', async (req: AuthRequest, res: Response) => {
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+  const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+  const { path: attemptedPath } = req.body || {};
 
+  try {
+    const user = req.userId ? await req.prisma.user.findUnique({ where: { id: req.userId } }) : null;
+
+    await req.prisma.auditLog.create({
+      data: {
+        userId: req.userId || 'anonymous',
+        action: 'SECURITY_ALERT_UNAUTHORIZED_ADMIN_NAVIGATION',
+        entity: 'AdminFrontendRoute',
+        entityId: attemptedPath || '/admin',
+        details: JSON.stringify({
+          attemptedPath,
+          clientIp,
+          userAgent,
+          userEmail: user?.email || 'unknown',
+          userRole: user?.isAdmin ? 'admin' : 'merchant',
+          timestamp: new Date().toISOString(),
+        }),
+        ipAddress: clientIp,
+      },
+    });
+
+    res.json({ reported: true, status: 'logged' });
+  } catch (err) {
+    res.json({ reported: false });
+  }
+});
+
+// Middleware vérifiant strictement les droits Super Administrateur en base réelle avec détection d'intrusion
 router.use(requireAdmin);
+
+// 0.1 VÉRIFICATION EN TEMPS RÉEL DU RÔLE SUPER ADMIN (Pour RouteGuard Frontend)
+router.get('/verify-access', async (req: AuthRequest, res: Response) => {
+  const user = await req.prisma.user.findUnique({
+    where: { id: req.userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      isAdmin: true,
+      isActive: true,
+      locale: true,
+    },
+  });
+
+  res.json({
+    authorized: true,
+    user,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // =========================================================================
 // 1. DASHBOARD GÉNÉRAL & MÉTRIQUES RÉELLES

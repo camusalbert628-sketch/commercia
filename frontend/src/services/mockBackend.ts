@@ -363,6 +363,31 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
   const storedUser = localStorage.getItem('commercia_user') || localStorage.getItem('rsbizz_user');
   let currentUser = storedUser ? JSON.parse(storedUser) : null;
 
+  // VERROUILLAGE TOTAL DES ROUTES /admin DANS LE MOCK BACKEND
+  if (endpoint.startsWith('/admin')) {
+    if (endpoint === '/admin/report-unauthorized-access') {
+      return { reported: true };
+    }
+    const realUsers = getUsersDb();
+    const verifiedUser = realUsers.find(u => u.id === currentUser?.id || (u.email && u.email.toLowerCase() === (currentUser?.email || '').toLowerCase()));
+    const isSuperAdmin = Boolean(verifiedUser && verifiedUser.isAdmin && (verifiedUser.email === 'admin@commercia.com' || verifiedUser.isAdmin === true));
+    
+    if (!currentUser || !isSuperAdmin) {
+      const err: any = new Error("Accès strictement interdit. Cet espace et ses données sont exclusivement réservés au Super Administrateur COMMERCIA.");
+      err.statusCode = 403;
+      err.status = 403;
+      throw err;
+    }
+
+    if (endpoint === '/admin/verify-access') {
+      return {
+        authorized: true,
+        user: verifiedUser,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
   // 1. AUTH / GOOGLE AUTHENTICATION
   if (endpoint.startsWith('/auth/google') && method === 'POST') {
     const rawEmail = (body?.email || '').trim().toLowerCase();
@@ -387,7 +412,7 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
         isGoogleVerified: true,
         locale: 'fr',
         currency: 'XAF',
-        isAdmin: rawEmail.includes('admin'),
+        isAdmin: rawEmail === 'admin@commercia.com',
         businesses: [],
         subscription: {
           planName: 'free',

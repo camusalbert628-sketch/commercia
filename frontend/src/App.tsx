@@ -12,6 +12,7 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { CommerciaChatbot } from './components/chatbot/CommerciaChatbot';
 import { OfflineSyncBanner } from './components/common/OfflineSyncBanner';
 import { ProRouteGuard } from './components/common/ProRouteGuard';
+import { AdminRouteGuard } from './components/AdminRouteGuard';
 
 // Lazy-loaded pages for mobile performance and fast initial load
 const AuthPage = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })));
@@ -348,12 +349,21 @@ export function App() {
               </ProtectedRoute>
             }
           />
+          {/* Espace Super Administration — Verrouillage hermétique Zero-Trust */}
           <Route
             path="/admin"
             element={
-              <ProtectedRoute>
+              <AdminRouteGuard>
                 <AdminPage />
-              </ProtectedRoute>
+              </AdminRouteGuard>
+            }
+          />
+          <Route
+            path="/admin/*"
+            element={
+              <AdminRouteGuard>
+                <AdminPage />
+              </AdminRouteGuard>
             }
           />
           <Route

@@ -75,18 +75,74 @@ export const getTenantBusinessId = async (req: AuthRequest): Promise<string> => 
   return member.businessId;
 };
 
-export const requireAdmin = async (req: AuthRequest, _res: Response, next: NextFunction) => {
+export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     if (!req.userId) {
-      throw new AppError('Non authentifié.', 401);
+      throw new AppError('Non authentifié. Jeton de session manquant ou expiré.', 401);
     }
 
     const user = await req.prisma.user.findUnique({
       where: { id: req.userId },
     });
 
-    if (!user || !user.isAdmin) {
-      throw new AppError('Accès refusé. Droits administrateur requis.', 403);
+    if (!user) {
+      throw new AppError('Utilisateur introuvable.', 401);
+    }
+
+    if (!user.isActive) {
+      throw new AppError('Compte suspendu ou inactif. Accès refusé.', 403);
+    }
+
+    if (!user.isAdmin) {
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+      const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+
+      // Journalisation d'audit de sécurité immédiate en base de données
+      await req.prisma.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'SECURITY_ALERT_UNAUTHORIZED_ADMIN_ACCESS',
+          entity: 'AdminEndpoint',
+          entityId: req.originalUrl,
+          details: JSON.stringify({
+            method: req.method,
+            path: req.originalUrl,
+            ip: clientIp,
+            userAgent,
+            userEmail: user.email,
+            reason: 'Tentative d\'accès à un endpoint Super Admin par un utilisateur non autorisé',
+            timestamp: new Date().toISOString(),
+          }),
+          ipAddress: clientIp,
+        },
+      }).catch(() => {});
+
+      // Détection de tentatives répétées (bruteforce / escalade de privilèges)
+      const recentAttempts = await req.prisma.auditLog.count({
+        where: {
+          action: 'SECURITY_ALERT_UNAUTHORIZED_ADMIN_ACCESS',
+          createdAt: { gte: new Date(Date.now() - 15 * 60 * 1000) },
+          userId: user.id,
+        },
+      }).catch(() => 0);
+
+      if (recentAttempts >= 3) {
+        await req.prisma.systemAlert.create({
+          data: {
+            nature: 'auth_bruteforce_detected',
+            title: `Alerte Sécurité: Tentatives répétées d'accès Super Admin (${recentAttempts} requêtes)`,
+            severity: 'critical',
+            service: 'security',
+            description: `Le compte ${user.email} (ID: ${user.id}, IP: ${clientIp}) a tenté d'accéder aux endpoints Super Admin à ${recentAttempts} reprises sans autorisations requises.`,
+            status: 'active',
+          },
+        }).catch(() => {});
+      }
+
+      return res.status(403).json({
+        error: 'Accès strictement interdit. Cet espace et ses données sont exclusivement réservés au Super Administrateur COMMERCIA.',
+        code: 'FORBIDDEN_SUPER_ADMIN_REQUIRED',
+      });
     }
 
     next();
