@@ -26,10 +26,18 @@ import {
   Layers,
   HelpCircle,
   Eye,
-  X
+  X,
+  Crown,
+  Smartphone,
+  RefreshCw,
+  CheckCircle,
+  QrCode,
+  AlertCircle,
+  Phone,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { calculateDiscountedPrice, validatePromoCode } from '../utils/promoService';
 import {
   MANAGEMENT_MODES,
   MODULES_CATALOG,
@@ -94,8 +102,36 @@ export const OnboardingPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
-  const { fetchMe } = useAuthStore();
+  const { user, fetchMe } = useAuthStore();
   const navigate = useNavigate();
+
+  // Payment Modal & Checkout State
+  const [showPayModal, setShowPayModal] = useState<boolean>(false);
+  const [periodicite, setPeriodicite] = useState<'mensuel' | 'annuel'>('mensuel');
+  const [moyenPaiement, setMoyenPaiement] = useState<'orange' | 'mtn' | 'wave' | 'card'>('orange');
+  const [momoPhone, setMomoPhone] = useState<string>(user?.phone || '');
+  const [waveAction, setWaveAction] = useState<'push' | 'qr'>('push');
+  const [cardNumber, setCardNumber] = useState<string>('');
+  const [cardExpiry, setCardExpiry] = useState<string>('');
+  const [cardCvv, setCardCvv] = useState<string>('');
+  const [cardHolder, setCardHolder] = useState<string>(
+    user?.firstName || user?.lastName ? `${user?.firstName || ''} ${user?.lastName || ''}`.trim() : ''
+  );
+  const [promoCodeInput, setPromoCodeInput] = useState<string>('');
+  const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const [promoError, setPromoError] = useState<string>('');
+
+  const [paymentStep, setPaymentStep] = useState<'form' | 'waiting' | 'success'>('form');
+  const [currentPaymentRef, setCurrentPaymentRef] = useState<string>('');
+  const [isInitiating, setIsInitiating] = useState<boolean>(false);
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [verifiedPayment, setVerifiedPayment] = useState<any>(null);
+
+  // Price calculations
+  const baseAmount = selectedPlan === 'business'
+    ? (periodicite === 'mensuel' ? 12000 : 120000)
+    : (periodicite === 'mensuel' ? 4500 : 45000);
+  const finalAmount = appliedPromo ? calculateDiscountedPrice(baseAmount, appliedPromo.code).finalPrice : baseAmount;
 
   // --- Auto-Save draft to localStorage on any state modification ---
   useEffect(() => {
@@ -151,7 +187,7 @@ export const OnboardingPage: React.FC = () => {
     }
   };
 
-  const handleFinish = async () => {
+  const handleFinish = async (planToActivate: SubscriptionPlanId = selectedPlan, paymentRef?: string) => {
     const businessName = name.trim() || 'Mon Commerce';
 
     try {
@@ -179,7 +215,8 @@ export const OnboardingPage: React.FC = () => {
         hasStock: customHasStock,
         trackingMode: trackingMode || selectedProfile.defaultTrackingMode || 'avec_stock',
         dailySalesEstimate: dailySalesEstimate || REVENUE_ESTIMATES[1].label,
-        plan: selectedPlan,
+        plan: planToActivate,
+        paymentRef: paymentRef || undefined,
       });
 
       if (res?.business?.id) {
@@ -199,6 +236,131 @@ export const OnboardingPage: React.FC = () => {
       setError(err.message || 'Erreur lors de la configuration de votre activité.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBypassToFree = async () => {
+    setShowPayModal(false);
+    setSelectedPlan('free');
+    await handleFinish('free');
+  };
+
+  const handleApplyPromo = () => {
+    setPromoError('');
+    if (!promoCodeInput.trim()) return;
+    const result = validatePromoCode(promoCodeInput.trim());
+    if (result.isValid && result.rule) {
+      setAppliedPromo(result.rule);
+    } else {
+      setPromoError(result.message || 'Code promo invalide');
+    }
+  };
+
+  const handleInitiatePayment = async () => {
+    if (moyenPaiement === 'card') {
+      if (cardNumber.replace(/\s/g, '').length < 16) {
+        alert('Numéro de carte bancaire invalide (16 chiffres requis).');
+        return;
+      }
+      if (!cardHolder.trim()) {
+        alert('Veuillez renseigner le nom du porteur de la carte.');
+        return;
+      }
+      if (cardExpiry.length < 5) {
+        alert('Veuillez renseigner la date d\'expiration (MM/AA).');
+        return;
+      }
+      if (cardCvv.length < 3) {
+        alert('Veuillez renseigner le cryptogramme de sécurité (CVV).');
+        return;
+      }
+    } else {
+      if (!momoPhone.trim()) {
+        alert('Veuillez renseigner le numéro de téléphone pour le débit.');
+        return;
+      }
+    }
+
+    try {
+      setIsInitiating(true);
+      const res = await api.post<{ payment: any; message: string }>('/payments/initiate', {
+        planName: selectedPlan,
+        billingCycle: periodicite,
+        provider: moyenPaiement,
+        phoneNumber: moyenPaiement === 'card' ? `CARD-****${cardNumber.slice(-4)}` : momoPhone,
+        metadata: moyenPaiement === 'card' ? {
+          cardLast4: cardNumber.slice(-4),
+          cardHolder,
+          cardBrand: cardNumber.startsWith('4') ? 'Visa' : 'Mastercard',
+          promoCode: appliedPromo?.code,
+        } : {
+          waveAction: waveAction,
+          promoCode: appliedPromo?.code,
+        },
+      });
+
+      setCurrentPaymentRef(res.payment.reference);
+      setPaymentStep('waiting');
+      setIsInitiating(false);
+
+      // Start automatic polling every 3.5s
+      const pollTimer = setInterval(async () => {
+        try {
+          const check = await api.get<{ status: string; payment: any }>(`/payments/verify/${res.payment.reference}`);
+          if (check.status === 'completed') {
+            clearInterval(pollTimer);
+            setVerifiedPayment(check.payment);
+            setPaymentStep('success');
+            await fetchMe();
+          }
+        } catch (err) {
+          // silently ignore polling errors
+        }
+      }, 3500);
+
+      // Timeout safety for poller after 2 minutes
+      setTimeout(() => clearInterval(pollTimer), 120000);
+    } catch (err: any) {
+      setIsInitiating(false);
+      alert(err?.response?.data?.message || err?.message || 'Erreur lors de l\'initialisation du paiement');
+    }
+  };
+
+  const handleCheckVerification = async () => {
+    if (!currentPaymentRef) return;
+    try {
+      setIsVerifying(true);
+      const check = await api.get<{ status: string; payment: any }>(`/payments/verify/${currentPaymentRef}`);
+      if (check.status === 'completed') {
+        setVerifiedPayment(check.payment);
+        setPaymentStep('success');
+        await fetchMe();
+      } else {
+        alert('Transaction en attente de validation par l\'opérateur.');
+      }
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Erreur lors de la vérification.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleSimulatePaymentSuccess = async () => {
+    if (!currentPaymentRef) return;
+    try {
+      setIsVerifying(true);
+      await api.post('/payments/confirm-sandbox', {
+        reference: currentPaymentRef,
+        outcome: 'success',
+      });
+      const check = await api.get<{ status: string; payment: any }>(`/payments/verify/${currentPaymentRef}`);
+      setVerifiedPayment(check.payment || { reference: currentPaymentRef });
+      setPaymentStep('success');
+      await fetchMe();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Erreur lors de la simulation sandbox');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -1469,36 +1631,77 @@ export const OnboardingPage: React.FC = () => {
                   Continuer <ArrowRight size={16} />
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleFinish}
-                  disabled={loading}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '10px',
-                    padding: '14px 32px',
-                    borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #0062FF 0%, #FF6B00 100%)',
-                    color: '#FFFFFF',
-                    fontSize: '0.98rem',
-                    fontWeight: 800,
-                    border: 'none',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 6px 20px rgba(0, 98, 255, 0.35)',
-                    opacity: loading ? 0.75 : 1,
-                  }}
-                >
-                  {loading ? (
-                    'Initialisation de votre espace vierge...'
-                  ) : (
-                    <>
-                      <span>Activer mon Commerce & Lancer le Tableau de Bord</span>
-                      <Rocket size={18} />
-                    </>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedPlan === 'free') {
+                        handleFinish('free');
+                      } else {
+                        setPaymentStep('form');
+                        setShowPayModal(true);
+                      }
+                    }}
+                    disabled={loading}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      padding: '14px 32px',
+                      borderRadius: '14px',
+                      background: selectedPlan === 'free'
+                        ? 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)'
+                        : selectedPlan === 'business'
+                        ? 'linear-gradient(135deg, #FF6B00 0%, #EA580C 100%)'
+                        : 'linear-gradient(135deg, #0062FF 0%, #FF6B00 100%)',
+                      color: '#FFFFFF',
+                      fontSize: '0.98rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 6px 20px rgba(0, 98, 255, 0.35)',
+                      opacity: loading ? 0.75 : 1,
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {loading ? (
+                      'Initialisation de votre espace vierge...'
+                    ) : selectedPlan === 'free' ? (
+                      <>
+                        <span>Activer mon Commerce (Formule Gratuite) & Lancer</span>
+                        <Rocket size={18} />
+                      </>
+                    ) : (
+                      <>
+                        <span>Activer mon Commerce & Payer ({selectedPlan === 'business' ? '12 000 FCFA' : '4 500 FCFA'})</span>
+                        <CreditCard size={18} />
+                      </>
+                    )}
+                  </button>
+
+                  {selectedPlan !== 'free' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPlan('free');
+                        handleFinish('free');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748B',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: '4px',
+                      }}
+                    >
+                      Ou passer cette étape et démarrer avec la Formule Gratuite (0 FCFA)
+                    </button>
                   )}
-                </button>
+                </div>
               )}
             </div>
           )}
@@ -1711,6 +1914,821 @@ export const OnboardingPage: React.FC = () => {
               >
                 Compris & Fermer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: PAIEMENT SÉCURISÉ & ACTIVATION IMMÉDIATE DU PLAN  */}
+      {/* ======================================================== */}
+      {showPayModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(8, 22, 43, 0.78)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+            padding: '16px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && paymentStep === 'form') {
+              setShowPayModal(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              background: '#FFFFFF',
+              width: '100%',
+              maxWidth: '560px',
+              maxHeight: '92vh',
+              borderRadius: '24px',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                borderBottom: '1px solid #E2E8F0',
+                background: selectedPlan === 'business'
+                  ? 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 100%)'
+                  : 'linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '12px',
+                    background: selectedPlan === 'business' ? '#FF6B00' : '#0062FF',
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(0, 98, 255, 0.25)',
+                  }}
+                >
+                  <Crown size={22} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>
+                      Activer le {selectedPlan === 'business' ? 'Plan Business' : 'Plan Pro'}
+                    </h3>
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        background: '#DCFCE7',
+                        color: '#15803D',
+                      }}
+                    >
+                      Paiement Sécurisé
+                    </span>
+                  </div>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '0.8rem', color: '#64748B' }}>
+                    Activation instantanée • Redirection directe sur votre tableau de bord
+                  </p>
+                </div>
+              </div>
+
+              {paymentStep === 'form' && (
+                <button
+                  type="button"
+                  onClick={() => setShowPayModal(false)}
+                  style={{
+                    background: '#F1F5F9',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748B',
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+              {/* ======================================================== */}
+              {/* STEP 1: FORMULAIRE DE PAIEMENT                           */}
+              {/* ======================================================== */}
+              {paymentStep === 'form' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {/* Periodicity selector */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>
+                      Période de facturation
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setPeriodicite('mensuel')}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          border: periodicite === 'mensuel' ? '2px solid #0062FF' : '1px solid #CBD5E1',
+                          background: periodicite === 'mensuel' ? '#EFF6FF' : '#FFFFFF',
+                          color: periodicite === 'mensuel' ? '#0062FF' : '#475569',
+                          fontWeight: 700,
+                          fontSize: '0.86rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '2px',
+                        }}
+                      >
+                        <span>Mensuel</span>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 500, color: '#64748B' }}>
+                          {selectedPlan === 'business' ? '12 000 FCFA / mois' : '4 500 FCFA / mois'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPeriodicite('annuel')}
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          border: periodicite === 'annuel' ? '2px solid #0062FF' : '1px solid #CBD5E1',
+                          background: periodicite === 'annuel' ? '#EFF6FF' : '#FFFFFF',
+                          color: periodicite === 'annuel' ? '#0062FF' : '#475569',
+                          fontWeight: 700,
+                          fontSize: '0.86rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '2px',
+                          position: 'relative',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>Annuel</span>
+                          <span style={{ background: '#FFEDD5', color: '#C2410C', fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', fontWeight: 800 }}>
+                            -17% (2 mois offerts)
+                          </span>
+                        </span>
+                        <span style={{ fontSize: '0.74rem', fontWeight: 500, color: '#64748B' }}>
+                          {selectedPlan === 'business' ? '120 000 FCFA / an' : '45 000 FCFA / an'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Payment provider selector */}
+                  <div>
+                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '8px' }}>
+                      Moyen de paiement
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                      {[
+                        { id: 'orange', name: 'Orange Money', logo: '/logos/orange-money.png' },
+                        { id: 'mtn', name: 'MTN MoMo', logo: '/logos/mtn-momo.png' },
+                        { id: 'wave', name: 'Wave', logo: '/logos/wave.png' },
+                        { id: 'card', name: 'Carte Bancaire', logo: '/logos/visa-mastercard.png' },
+                      ].map((prov) => {
+                        const isChosen = moyenPaiement === prov.id;
+                        return (
+                          <div
+                            key={prov.id}
+                            onClick={() => setMoyenPaiement(prov.id as any)}
+                            style={{
+                              padding: '10px 8px',
+                              borderRadius: '12px',
+                              border: isChosen ? '2px solid #0062FF' : '1px solid #E2E8F0',
+                              background: isChosen ? '#EFF6FF' : '#FFFFFF',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              textAlign: 'center',
+                              transition: 'all 0.15s ease',
+                              boxShadow: isChosen ? '0 4px 12px rgba(0, 98, 255, 0.15)' : 'none',
+                            }}
+                          >
+                            <img
+                              src={prov.logo}
+                              alt={prov.name}
+                              style={{ height: '24px', maxWidth: '44px', objectFit: 'contain' }}
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: isChosen ? '#0062FF' : '#334155' }}>
+                              {prov.name}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Provider specific inputs */}
+                  {(moyenPaiement === 'orange' || moyenPaiement === 'mtn') && (
+                    <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <Smartphone size={15} color="#0062FF" /> Numéro de téléphone {moyenPaiement === 'orange' ? 'Orange Money' : 'MTN Mobile Money'}
+                      </label>
+                      <input
+                        type="tel"
+                        value={momoPhone}
+                        onChange={(e) => setMomoPhone(e.target.value)}
+                        placeholder="Ex: 699000000 ou 07000000"
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          boxSizing: 'border-box',
+                          background: '#FFFFFF',
+                        }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px', display: 'block' }}>
+                        Une demande d'autorisation de débit sécurisé sera envoyée sur ce numéro.
+                      </span>
+                    </div>
+                  )}
+
+                  {moyenPaiement === 'wave' && (
+                    <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setWaveAction('push')}
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            border: waveAction === 'push' ? '2px solid #0062FF' : '1px solid #CBD5E1',
+                            background: waveAction === 'push' ? '#EFF6FF' : '#FFFFFF',
+                            color: waveAction === 'push' ? '#0062FF' : '#475569',
+                            fontWeight: 700,
+                            fontSize: '0.76rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Débit Direct (Téléphone)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWaveAction('qr')}
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            border: waveAction === 'qr' ? '2px solid #0062FF' : '1px solid #CBD5E1',
+                            background: waveAction === 'qr' ? '#EFF6FF' : '#FFFFFF',
+                            color: waveAction === 'qr' ? '#0062FF' : '#475569',
+                            fontWeight: 700,
+                            fontSize: '0.76rem',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Scanner QR Code Wave
+                        </button>
+                      </div>
+
+                      {waveAction === 'push' ? (
+                        <div>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                            Numéro Wave du compte
+                          </label>
+                          <input
+                            type="tel"
+                            value={momoPhone}
+                            onChange={(e) => setMomoPhone(e.target.value)}
+                            placeholder="Ex: 07000000 ou 65000000"
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.9rem',
+                              fontWeight: 600,
+                              boxSizing: 'border-box',
+                              background: '#FFFFFF',
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '12px', background: '#FFFFFF', borderRadius: '10px', border: '1px dashed #CBD5E1' }}>
+                          <QrCode size={40} color="#0062FF" style={{ margin: '0 auto 6px auto' }} />
+                          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0F172A' }}>
+                            Un QR Code Wave dynamique sera généré
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                            Scannable directement depuis votre application mobile Wave.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {moyenPaiement === 'card' && (
+                    <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                          Numéro de carte Visa / Mastercard
+                        </label>
+                        <input
+                          type="text"
+                          value={cardNumber}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(0, 16);
+                            setCardNumber(val.replace(/(\d{4})(?=\d)/g, '$1 '));
+                          }}
+                          placeholder="4000 1234 5678 9010"
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid #CBD5E1',
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            boxSizing: 'border-box',
+                            background: '#FFFFFF',
+                            fontFamily: 'monospace',
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '8px' }}>
+                        <div>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                            Titulaire
+                          </label>
+                          <input
+                            type="text"
+                            value={cardHolder}
+                            onChange={(e) => setCardHolder(e.target.value)}
+                            placeholder="Nom complet"
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.84rem',
+                              boxSizing: 'border-box',
+                              background: '#FFFFFF',
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                            Expire
+                          </label>
+                          <input
+                            type="text"
+                            value={cardExpiry}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              if (val.length >= 2) val = `${val.slice(0, 2)}/${val.slice(2)}`;
+                              setCardExpiry(val);
+                            }}
+                            placeholder="MM/AA"
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.84rem',
+                              boxSizing: 'border-box',
+                              background: '#FFFFFF',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>
+                            CVV
+                          </label>
+                          <input
+                            type="password"
+                            maxLength={4}
+                            value={cardCvv}
+                            onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            placeholder="123"
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '0.84rem',
+                              boxSizing: 'border-box',
+                              background: '#FFFFFF',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Promo Code Field */}
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                      Code Promo (optionnel)
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        value={promoCodeInput}
+                        onChange={(e) => {
+                          setPromoCodeInput(e.target.value.toUpperCase());
+                          setPromoError('');
+                        }}
+                        placeholder="Ex: COMMERCIA20"
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.84rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyPromo}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          background: '#0F172A',
+                          color: '#FFFFFF',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Appliquer
+                      </button>
+                    </div>
+                    {promoError && (
+                      <span style={{ fontSize: '0.72rem', color: '#EF4444', marginTop: '3px', display: 'block' }}>
+                        {promoError}
+                      </span>
+                    )}
+                    {appliedPromo && (
+                      <div style={{ marginTop: '6px', padding: '4px 10px', background: '#DCFCE7', color: '#166534', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Check size={14} /> Code {appliedPromo.code} appliqué : {appliedPromo.label}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Total Amount Box */}
+                  <div
+                    style={{
+                      padding: '14px 18px',
+                      background: '#F8FAFC',
+                      borderRadius: '14px',
+                      border: '1px solid #E2E8F0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: '0.76rem', color: '#64748B', display: 'block' }}>Montant total à régler</span>
+                      <strong style={{ fontSize: '1.25rem', color: '#0F172A' }}>
+                        {finalAmount.toLocaleString('fr-FR')} FCFA
+                      </strong>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#16A34A', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Shield size={13} /> Chiffré SSL 256 bits
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: '#94A3B8' }}>Sans engagement</span>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <button
+                    type="button"
+                    onClick={handleInitiatePayment}
+                    disabled={isInitiating}
+                    style={{
+                      padding: '14px 20px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)',
+                      color: '#FFFFFF',
+                      fontSize: '0.96rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: isInitiating ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 16px rgba(0, 98, 255, 0.35)',
+                      opacity: isInitiating ? 0.75 : 1,
+                    }}
+                  >
+                    {isInitiating ? (
+                      <>
+                        <RefreshCw size={18} className="animate-spin" />
+                        <span>Connexion à l'opérateur...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock size={16} />
+                        <span>Payer et Activer mon Commerce ({finalAmount.toLocaleString('fr-FR')} FCFA)</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* CRITICAL ESCAPE HATCH: BYPASS TO FREE PLAN */}
+                  <div style={{ textAlign: 'center', paddingTop: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={handleBypassToFree}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748B',
+                        fontSize: '0.84rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: '6px 12px',
+                      }}
+                    >
+                      Passer cette étape & Continuer avec la Formule Gratuite (0 FCFA)
+                    </button>
+                    <span style={{ display: 'block', fontSize: '0.7rem', color: '#94A3B8', marginTop: '2px' }}>
+                      Vous pourrez passer à la formule Pro ou Business plus tard depuis vos paramètres.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* ======================================================== */}
+              {/* STEP 2: EN ATTENTE DE VALIDATION OPÉRATEUR               */}
+              {/* ======================================================== */}
+              {paymentStep === 'waiting' && (
+                <div style={{ textAlign: 'center', padding: '16px 8px' }}>
+                  <div
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '50%',
+                      background: '#EFF6FF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px auto',
+                      color: '#0062FF',
+                    }}
+                  >
+                    <RefreshCw size={32} className="animate-spin" />
+                  </div>
+
+                  <h3 style={{ margin: '0 0 6px 0', fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>
+                    Autorisation requise sur votre téléphone
+                  </h3>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '0.84rem', color: '#64748B', lineHeight: 1.5 }}>
+                    Référence de la transaction : <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{currentPaymentRef}</strong>
+                  </p>
+
+                  {/* Operator specific syntax guidance */}
+                  <div
+                    style={{
+                      padding: '16px',
+                      background: '#F8FAFC',
+                      borderRadius: '14px',
+                      border: '1px solid #E2E8F0',
+                      textAlign: 'left',
+                      marginBottom: '20px',
+                      fontSize: '0.84rem',
+                      lineHeight: 1.5,
+                      color: '#334155',
+                    }}
+                  >
+                    {moyenPaiement === 'orange' && (
+                      <div>
+                        <strong>Instructions Orange Money :</strong>
+                        <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px' }}>
+                          <li>Tapez <strong>#150*50#</strong> sur votre téléphone pour générer votre code d'autorisation.</li>
+                          <li>Ou validez la notification push reçue sur l'application Orange Money.</li>
+                          <li>Montant : <strong>{finalAmount.toLocaleString('fr-FR')} FCFA</strong>.</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {moyenPaiement === 'mtn' && (
+                      <div>
+                        <strong>Instructions MTN Mobile Money :</strong>
+                        <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px' }}>
+                          <li>Consultez votre téléphone et approuvez la demande de débit de <strong>{finalAmount.toLocaleString('fr-FR')} FCFA</strong>.</li>
+                          <li>Ou composez <strong>*126#</strong> (Rubrique Approbations en attente).</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {moyenPaiement === 'wave' && (
+                      <div>
+                        <strong>Instructions Wave :</strong>
+                        <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px' }}>
+                          <li>Ouvrez l'application Wave sur votre smartphone.</li>
+                          <li>Confirmez le débit sécurisé de <strong>{finalAmount.toLocaleString('fr-FR')} FCFA</strong>.</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    {moyenPaiement === 'card' && (
+                      <div>
+                        <strong>Instructions Carte Bancaire 3D-Secure :</strong>
+                        <ul style={{ margin: '6px 0 0 0', paddingLeft: '20px' }}>
+                          <li>Validez l'authentification forte (SMS ou application bancaire).</li>
+                          <li>La vérification se fait en temps réel.</li>
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={handleCheckVerification}
+                      disabled={isVerifying}
+                      style={{
+                        padding: '12px 20px',
+                        borderRadius: '12px',
+                        background: '#0062FF',
+                        color: '#FFFFFF',
+                        fontWeight: 700,
+                        fontSize: '0.88rem',
+                        border: 'none',
+                        cursor: isVerifying ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      {isVerifying ? (
+                        <>
+                          <RefreshCw size={16} className="animate-spin" />
+                          <span>Vérification auprès de la passerelle...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={16} />
+                          <span>J'ai confirmé sur mon téléphone • Vérifier</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Developer/Testing Simulation Button */}
+                    <button
+                      type="button"
+                      onClick={handleSimulatePaymentSuccess}
+                      disabled={isVerifying}
+                      style={{
+                        padding: '10px 16px',
+                        borderRadius: '10px',
+                        background: '#F1F5F9',
+                        color: '#334155',
+                        fontWeight: 700,
+                        fontSize: '0.78rem',
+                        border: '1px dashed #CBD5E1',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ⚡ Simuler / Valider le paiement immédiatement (Mode Test)
+                    </button>
+
+                    {/* Escape hatch while waiting */}
+                    <button
+                      type="button"
+                      onClick={handleBypassToFree}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748B',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: '6px',
+                      }}
+                    >
+                      Abandonner le paiement et continuer avec la Formule Gratuite
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ======================================================== */}
+              {/* STEP 3: SUCCÈS & REDIRECTION DIRECTE AU TABLEAU DE BORD  */}
+              {/* ======================================================== */}
+              {paymentStep === 'success' && (
+                <div style={{ textAlign: 'center', padding: '20px 8px' }}>
+                  <div
+                    style={{
+                      width: '72px',
+                      height: '72px',
+                      borderRadius: '50%',
+                      background: '#DCFCE7',
+                      color: '#16A34A',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px auto',
+                      boxShadow: '0 8px 24px rgba(22, 163, 74, 0.25)',
+                    }}
+                  >
+                    <CheckCircle2 size={44} />
+                  </div>
+
+                  <h3 style={{ margin: '0 0 8px 0', fontSize: '1.3rem', fontWeight: 800, color: '#0F172A' }}>
+                    Paiement Validé avec Succès ! 🎉
+                  </h3>
+                  <p style={{ margin: '0 0 16px 0', fontSize: '0.88rem', color: '#475569', lineHeight: 1.5 }}>
+                    Votre paiement a bien été enregistré. Votre forfait <strong>{selectedPlan === 'business' ? 'Plan Business' : 'Plan Pro'}</strong> est maintenant actif et prêt à l'emploi.
+                  </p>
+
+                  <div
+                    style={{
+                      padding: '12px 18px',
+                      background: '#F0FDF4',
+                      borderRadius: '12px',
+                      border: '1px solid #BBF7D0',
+                      display: 'inline-block',
+                      marginBottom: '24px',
+                      textAlign: 'left',
+                      fontSize: '0.82rem',
+                    }}
+                  >
+                    <div>Formule activée : <strong>{selectedPlan === 'business' ? 'Plan Business (Multi-boutiques)' : 'Plan Pro (Croissance)'}</strong></div>
+                    <div>Statut de l'abonnement : <strong style={{ color: '#16A34A' }}>ACTIF</strong></div>
+                    <div>Référence transaction : <code style={{ fontSize: '0.78rem' }}>{verifiedPayment?.reference || currentPaymentRef}</code></div>
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => handleFinish(selectedPlan, currentPaymentRef)}
+                      disabled={loading}
+                      style={{
+                        width: '100%',
+                        padding: '14px 24px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #16A34A 0%, #15803D 100%)',
+                        color: '#FFFFFF',
+                        fontSize: '0.98rem',
+                        fontWeight: 800,
+                        border: 'none',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 16px rgba(22, 163, 74, 0.35)',
+                      }}
+                    >
+                      {loading ? (
+                        'Accès à votre espace...'
+                      ) : (
+                        <>
+                          <span>Accéder à mon Commerce & Lancer le Tableau de Bord</span>
+                          <Rocket size={18} />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

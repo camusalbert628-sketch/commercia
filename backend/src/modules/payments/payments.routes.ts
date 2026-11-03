@@ -289,10 +289,12 @@ router.post('/confirm-sandbox', authenticate, async (req: AuthRequest, res: Resp
       throw new AppError('Opération interdite en production. Seuls les webhooks signés cryptographiquement valident les transactions réelles.', 403);
     }
 
-    // Seul un Super Administrateur peut déclencher une confirmation sandbox manuelle en développement
-    const user = await req.prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user || !user.isAdmin) {
-      throw new AppError('Accès strictement réservé aux Super Administrateurs.', 403);
+    // Le propriétaire de la transaction OU un Super Administrateur peut déclencher une confirmation sandbox en développement
+    if (payment.userId !== req.userId) {
+      const user = await req.prisma.user.findUnique({ where: { id: req.userId } });
+      if (!user || !user.isAdmin) {
+        throw new AppError('Accès strictement réservé au propriétaire de la transaction ou aux Super Administrateurs.', 403);
+      }
     }
 
     // Idempotence : si déjà complété et qu'on redemande success, pas de double activation

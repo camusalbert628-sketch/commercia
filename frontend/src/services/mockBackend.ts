@@ -592,11 +592,13 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
     };
 
     // Selected plan from onboarding step
-    // Preserve real user subscription or default strictly to Free unless user has an active paid sub
+    const chosenPlan = body?.plan || currentUser?.subscription?.planName || 'free';
+    const paidViaRef = Boolean(body?.paymentRef);
     const existingPlan = currentUser?.subscription?.planName || 'free';
-    const isPro = (existingPlan === 'pro' || existingPlan === 'business') && currentUser?.subscription?.status === 'active';
+    const isPro = (currentUser?.subscription?.status === 'active' && (existingPlan === 'pro' || existingPlan === 'business')) || (paidViaRef && (chosenPlan === 'pro' || chosenPlan === 'business'));
+    const finalPlanName = isPro ? (chosenPlan === 'business' || existingPlan === 'business' ? 'business' : 'pro') : 'free';
     const planMeta = isPro
-      ? (existingPlan === 'business'
+      ? (finalPlanName === 'business'
           ? { planName: 'business', planDisplayName: 'Plan Business (Multi-boutiques)', features: ['Multi-boutiques & rôles', 'Rapports PDF', 'Copilote IA illimité'] }
           : { planName: 'pro', planDisplayName: 'Plan Pro (Croissance)', features: ['Ventes illimitées', 'Stock & Alertes', 'Carnet Dettes', 'Copilote IA'] })
       : { planName: 'free', planDisplayName: 'Gratuit', features: ['15 ventes/jour', 'Calcul de base'] };
@@ -1422,6 +1424,17 @@ export async function handleMockRequest(endpoint: string, method: string, body?:
               features: ['Ventes & Dépenses illimitées', 'Gestion de stock & alertes', 'Carnet dettes clients', 'Copilote IA COMMERCIA'],
             };
             localStorage.setItem('commercia_user', JSON.stringify(u));
+            try {
+              localStorage.setItem('commercia_subscription_state', JSON.stringify({
+                etat: 'ACTIF',
+                planId: `plan-${targetPlan}`,
+                dateDebut: new Date().toISOString(),
+                dateFinPeriode: endDate,
+                joursRestants: duration,
+                modeFacturation: isYearly ? 'ANNUEL' : 'MENSUEL',
+                modulesDebloques: ['stock_inventaire', 'ventes_caisse', 'dettes_creances', 'tresorerie_pro', 'ia_copilote'],
+              }));
+            } catch (e) { /* ignore */ }
             const users = getUsersDb();
             const uIdx = users.findIndex(x => x.id === u.id);
             if (uIdx !== -1) {
