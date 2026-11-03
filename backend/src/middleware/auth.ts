@@ -146,10 +146,15 @@ export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFu
       });
     }
 
-    // 4. Exigence de la Session Administrative Renforcée (Double vérification Google + Code Gmail)
+    // 4. Exigence de la Session Administrative Renforcée (Cookie HttpOnly sécurisé ou Jeton d'en-tête + Protection CSRF)
+    const cookieToken = AdminSecurityService.extractAdminCookie(req.headers.cookie);
     const adminSessionToken =
+      cookieToken ||
       (req.headers['x-admin-session-token'] as string) ||
       (req.headers['x-admin-token'] as string);
+
+    const csrfTokenHeader = (req.headers['x-csrf-token'] as string) || undefined;
+    const isMutatingMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes((req.method || 'GET').toUpperCase());
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
     const userAgent = (req.headers['user-agent'] as string) || 'unknown';
@@ -164,7 +169,7 @@ export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFu
           step: 'admin_api_access',
           ipAddress: clientIp,
           userAgent,
-          failureReason: 'Accès refusé : Jeton de session administrative renforcée manquant',
+          failureReason: 'Accès refusé : Session administrative renforcée manquante',
         },
       }).catch(() => {});
 
@@ -178,7 +183,9 @@ export const requireAdmin = async (req: AuthRequest, res: Response, next: NextFu
     const sessionValidation = await AdminSecurityService.validateAdminSessionToken(
       req.prisma,
       adminSessionToken,
-      user.id
+      user.id,
+      csrfTokenHeader,
+      isMutatingMethod && Boolean(csrfTokenHeader)
     );
 
     if (!sessionValidation.isValid) {

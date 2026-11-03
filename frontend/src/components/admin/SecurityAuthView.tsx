@@ -163,7 +163,7 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
     }
   };
 
-  const emailInfo = data?.emailService || (data as any)?.emailServiceStatus || { isConfigured: false, transport: 'Canal Direct Sécurisé + Relais' };
+  const emailInfo = data?.emailService || (data as any)?.emailServiceStatus || { isConfigured: false, transport: 'NON CONFIGURÉ (FAIL-CLOSED)' };
 
   const isLight = theme === 'light';
   const cardBg = isLight ? '#FFFFFF' : '#0F172A';
@@ -248,14 +248,14 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
             </div>
             <div>
               <div style={{ fontSize: '0.72rem', color: subTextColor, fontWeight: 700, textTransform: 'uppercase' }}>Service d'Envoi Email OTP</div>
-              <div style={{ fontSize: '0.92rem', fontWeight: 800 }}>
-                {emailInfo.isConfigured ? 'Serveur SMTP Actif' : 'Canal Direct Sécurisé Actif'}
+              <div style={{ fontSize: '0.92rem', fontWeight: 800, color: emailInfo.isConfigured ? '#10B981' : '#EF4444' }}>
+                {emailInfo.isConfigured ? 'Serveur Email Actif' : 'Non Configuré (Fail-Closed)'}
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#38BDF8', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: emailInfo.isConfigured ? '#38BDF8' : '#EF4444', fontWeight: 600 }}>
             <ShieldCheck size={14} />
-            <span>Transport: {emailInfo.transport || 'Canal Direct + SMTP'}</span>
+            <span>Transport: {emailInfo.transport || 'NON CONFIGURÉ (FAIL-CLOSED)'}</span>
           </div>
         </div>
 
@@ -283,10 +283,10 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
       <div style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '24px', marginBottom: '24px' }}>
         <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Mail size={18} color="#EF4444" />
-          <span>Connexion Relais Gmail SMTP (camusalbert628@gmail.com)</span>
+          <span>Connexion Relais Gmail SMTP / API Transactionnelle (camusalbert628@gmail.com)</span>
         </h3>
         <p style={{ fontSize: '0.82rem', color: subTextColor, margin: '0 0 16px 0', lineHeight: 1.5 }}>
-          Le Canal Direct Sécurisé vous délivre toujours votre code immédiatement dans l'application. Pour recevoir également vos codes par email dans votre boîte Gmail <strong>camusalbert628@gmail.com</strong>, renseignez un <strong>Mot de passe d'application Google</strong> (16 caractères, généré dans <em>Compte Google → Sécurité → Validation en deux étapes → Mots de passe des applications</em>).
+          Politique de sécurité <strong>FAIL-CLOSED</strong> : aucun code OTP n'est jamais exposé dans le navigateur ni dans les réponses API. Pour l'envoi des codes à 8 chiffres vers votre boîte Gmail <strong>camusalbert628@gmail.com</strong>, renseignez un <strong>Mot de passe d'application Google</strong> (16 caractères, généré dans <em>Compte Google → Sécurité → Validation en deux étapes → Mots de passe des applications</em>).
         </p>
 
         {smtpStatusMsg && (

@@ -2,8 +2,13 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { getJwtSecret } from '../config/security';
-import { emailService } from './emailService';
+import { emailService, FAIL_CLOSED_EMAIL_ERROR_MESSAGE } from './emailService';
 import { AppError } from '../middleware/errorHandler';
+
+export const ADMIN_OTP_LENGTH = 8;
+const PBKDF2_ITERATIONS = 15000;
+const PBKDF2_KEYLEN = 32;
+const PBKDF2_DIGEST = 'sha256';
 
 interface PendingChallenge {
   challengeId: string;
@@ -15,6 +20,7 @@ interface PendingChallenge {
   expiresAt: Date;
   attempts: number;
   maxAttempts: number;
+  consumed: boolean;
   ipAddress?: string;
   userAgent?: string;
   createdAt: Date;
@@ -22,7 +28,24 @@ interface PendingChallenge {
 
 export class AdminSecurityService {
   private static challenges = new Map<string, PendingChallenge>(); // Key: userId
-  private static rateLimits = new Map<string, { count: number; resetAt: Date }>(); // Key: IP or email
+  private static rateLimits = new Map<string, { count: number; resetAt: Date }>(); // Key: account or IP
+  private static verifyBruteForce = new Map<string, { count: number; resetAt: Date }>(); // Key: account or IP
+
+  /**
+   * Réinitialise les compteurs de rate-limit en mémoire (utilisé uniquement par la suite de tests automatisés)
+   */
+  public static resetRateLimitsForTests() {
+    if (process.env.NODE_ENV === 'production') return;
+    this.rateLimits.clear();
+    this.verifyBruteForce.clear();
+    this.challenges.clear();
+  }
+
+  private static hashOtpCode(code: string, salt: string): string {
+    return crypto
+      .pbkdf2Sync(code.trim(), salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, PBKDF2_DIGEST)
+      .toString('hex');
+  }
 
   /**
    * Récupère l'adresse Google autorisée officielle pour le Super Admin.
@@ -42,7 +65,7 @@ export class AdminSecurityService {
   }
 
   /**
-   * Masque l'email pour l'affichage sécurisé (ex: "c*********@gmail.com")
+   * Masque l'email pour l'affichage sécurisé (ex: "c*************@gmail.com")
    */
   public static maskEmail(email: string): string {
     const [local, domain] = email.split('@');
@@ -61,8 +84,73 @@ export class AdminSecurityService {
   }
 
   /**
-   * Initie un challenge OTP envoyé sur le Gmail administrateur officiel.
-   * Persiste également l'état cryptographique en base PostgreSQL pour fonctionner sans perte en environnement Serverless (Vercel).
+   * Invalide tous les anciens challenges OTP non utilisés d'un administrateur (en mémoire et en base PostgreSQL).
+   */
+  private static async invalidatePreviousChallenges(prisma: PrismaClient, adminUserId: string): Promise<void> {
+    this.challenges.delete(adminUserId);
+
+    const activeLogs = await prisma.securityAccessLog.findMany({
+      where: {
+        userId: adminUserId,
+        step: 'otp_request',
+        status: 'SUCCESS',
+      },
+      orderBy: { timestamp: 'desc' },
+      take: 10,
+    });
+
+    for (const log of activeLogs) {
+      if (!log.metadata) continue;
+      try {
+        const meta = JSON.parse(log.metadata);
+        if (!meta.consumed) {
+          await prisma.securityAccessLog.update({
+            where: { id: log.id },
+            data: {
+              metadata: JSON.stringify({
+                ...meta,
+                consumed: true,
+                invalidatedReason: 'SUPERSEDED_BY_NEW_OTP_REQUEST',
+                invalidatedAt: new Date().toISOString(),
+              }),
+            },
+          });
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  /**
+   * Vérifie les limites anti-brute-force par compte, par adresse IP et par fenêtre temporelle (15 minutes).
+   */
+  private static checkBruteForceWindow(key: string, store: Map<string, { count: number; resetAt: Date }>, maxAllowed: number, windowMinutes: number = 15): boolean {
+    const now = new Date();
+    const record = store.get(key);
+    if (record && record.resetAt > now) {
+      if (record.count >= maxAllowed) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static incrementBruteForceWindow(key: string, store: Map<string, { count: number; resetAt: Date }>, windowMinutes: number = 15): void {
+    const now = new Date();
+    const record = store.get(key);
+    if (record && record.resetAt > now) {
+      record.count += 1;
+    } else {
+      store.set(key, { count: 1, resetAt: new Date(now.getTime() + windowMinutes * 60 * 1000) });
+    }
+  }
+
+  /**
+   * Initie un challenge OTP à 8 chiffres envoyé exclusivement sur le Gmail administrateur officiel.
+   * POLITIQUE FAIL CLOSED :
+   * - Si aucun service d'envoi d'email réel n'est configuré ou si l'envoi échoue, aucun challenge actif n'est créé et une erreur 503 est levée.
+   * - Le code OTP n'est JAMAIS retourné ni journalisé.
    */
   public static async initiateOtpChallenge(
     prisma: PrismaClient,
@@ -75,60 +163,64 @@ export class AdminSecurityService {
     expiresInMinutes: number;
     attemptsRemaining: number;
     emailDelivered: boolean;
-    deliveryProvider: string;
-    directCode: string;
   }> {
     const user = await prisma.user.findUnique({
       where: { id: adminUserId },
     });
 
-    if (!user || !user.isAdmin) {
-      throw new AppError('Accès interdit. Seul le Super Administrateur peut solliciter ce code.', 403);
+    if (!user || !user.isAdmin || !user.isActive || user.securityLocked) {
+      throw new AppError('Accès interdit. Seul le Super Administrateur actif peut solliciter ce code.', 403);
     }
 
     const authorizedEmail = await this.getAuthorizedGoogleEmail(prisma);
-
-    // Rate Limiting : max 10 demandes par 10 minutes
-    const rateKey = `otp_req_${adminUserId}_${ipAddress || 'unknown'}`;
     const now = new Date();
-    const existingRate = this.rateLimits.get(rateKey);
+    const accountRateKey = `otp_req_acc_${adminUserId}`;
+    const ipRateKey = `otp_req_ip_${ipAddress || 'unknown'}`;
 
-    if (existingRate && existingRate.resetAt > now) {
-      if (existingRate.count >= 10) {
-        await prisma.securityAccessLog.create({
-          data: {
-            userId: user.id,
-            email: authorizedEmail,
-            authMethod: 'otp_gmail',
-            status: 'BLOCKED',
-            step: 'otp_request',
-            ipAddress,
-            userAgent,
-            failureReason: 'Rate limit dépassé (trop de demandes de code)',
-          },
-        }).catch(() => {});
+    // 1. Vérification des limites de demandes par compte et par IP (max 5 demandes / 15 min)
+    if (
+      !this.checkBruteForceWindow(accountRateKey, this.rateLimits, 5, 15) ||
+      !this.checkBruteForceWindow(ipRateKey, this.rateLimits, 8, 15)
+    ) {
+      await prisma.securityAccessLog.create({
+        data: {
+          userId: user.id,
+          email: authorizedEmail,
+          authMethod: 'otp_gmail',
+          status: 'BLOCKED',
+          step: 'otp_request',
+          ipAddress,
+          userAgent,
+          failureReason: 'Limite de demandes de renvoi dépassée (protection anti-abus / brute-force)',
+        },
+      }).catch(() => {});
 
-        throw new AppError('Trop de demandes de code de sécurité. Veuillez patienter quelques minutes.', 429);
-      }
-      existingRate.count += 1;
-    } else {
-      this.rateLimits.set(rateKey, { count: 1, resetAt: new Date(now.getTime() + 10 * 60 * 1000) });
+      throw new AppError(
+        'Trop de demandes de code de sécurité. Par mesure de protection, veuillez patienter 15 minutes avant de réessayer.',
+        429
+      );
     }
 
-    // Récupérer la configuration (durée de validité)
+    this.incrementBruteForceWindow(accountRateKey, this.rateLimits, 15);
+    this.incrementBruteForceWindow(ipRateKey, this.rateLimits, 15);
+
+    // 2. Invalider immédiatement tous les anciens codes non utilisés (règle d'invalidation lors d'un renvoi)
+    await this.invalidatePreviousChallenges(prisma, adminUserId);
+
+    // 3. Configuration de validité (5 minutes strictes, 5 tentatives max)
     const config = await prisma.adminSecurityConfig.findUnique({ where: { id: 'singleton' } });
     const expiresInMinutes = config?.otpValidityMinutes || 5;
     const maxAttempts = config?.maxOtpAttempts || 5;
 
-    // Génération cryptographique aléatoire d'un code à 6 chiffres
-    const rawCode = crypto.randomInt(100000, 1000000).toString();
-    const salt = crypto.randomBytes(16).toString('hex');
-    const codeHash = crypto.createHmac('sha256', salt).update(rawCode).digest('hex');
+    // 4. Génération cryptographiquement sécurisée (CSPRNG) d'un code à 8 chiffres
+    const rawCode = crypto.randomInt(10000000, 100000000).toString();
+    const salt = crypto.randomBytes(32).toString('hex');
+    const codeHash = this.hashOtpCode(rawCode, salt);
 
     const challengeId = crypto.randomUUID();
     const expiresAt = new Date(now.getTime() + expiresInMinutes * 60 * 1000);
 
-    // Envoi effectif de l'email via le service transactionnel
+    // 5. Envoi réel de l'email transactionnel
     const emailRes = await emailService.sendSecurityCodeEmail({
       recipientEmail: authorizedEmail,
       code: rawCode,
@@ -138,19 +230,27 @@ export class AdminSecurityService {
       prisma,
     });
 
-    // Créer également une notification interne sécurisée pour le Super Admin
-    await prisma.notification.create({
-      data: {
-        userId: user.id,
-        type: 'security_otp',
-        title: '🛡️ Code de Sécurité Super Admin',
-        message: `Votre code de vérification à usage unique est : ${rawCode} (valide ${expiresInMinutes} min).`,
-        icon: 'ShieldCheck',
-        actionUrl: '/admin',
-      },
-    }).catch(() => {});
+    // 6. POLITIQUE FAIL CLOSED : si le service email est absent ou en échec, bloquer immédiatement
+    if (!emailRes.success || !emailRes.deliveredRemotely) {
+      await prisma.securityAccessLog.create({
+        data: {
+          userId: user.id,
+          email: authorizedEmail,
+          googleIdVerified: true,
+          authMethod: 'otp_gmail',
+          status: 'FAILED',
+          step: 'otp_request',
+          codeSent: false,
+          ipAddress,
+          userAgent,
+          failureReason: 'Politique FAIL CLOSED : service de messagerie non configuré ou indisponible.',
+        },
+      }).catch(() => {});
 
-    // Enregistrement dans les logs de sécurité d'accès + persistance Serverless du challenge hashé
+      throw new AppError(FAIL_CLOSED_EMAIL_ERROR_MESSAGE, 503);
+    }
+
+    // 7. Persistance uniquement du hash PBKDF2-SHA256 et du sel (JAMAIS le code en clair)
     const logRecord = await prisma.securityAccessLog.create({
       data: {
         userId: user.id,
@@ -159,7 +259,7 @@ export class AdminSecurityService {
         authMethod: 'otp_gmail',
         status: 'SUCCESS',
         step: 'otp_request',
-        codeSent: emailRes.deliveredRemotely,
+        codeSent: true,
         ipAddress,
         userAgent,
         metadata: JSON.stringify({
@@ -167,6 +267,7 @@ export class AdminSecurityService {
           expiresInMinutes,
           codeHash,
           salt,
+          algorithm: 'PBKDF2-HMAC-SHA256',
           expiresAt: expiresAt.toISOString(),
           attempts: 0,
           maxAttempts,
@@ -176,7 +277,6 @@ export class AdminSecurityService {
       },
     }).catch(() => null);
 
-    // Enregistrer le challenge en mémoire (invalide automatiquement tout ancien challenge pour ce user)
     this.challenges.set(adminUserId, {
       challengeId,
       logId: logRecord?.id,
@@ -187,6 +287,7 @@ export class AdminSecurityService {
       expiresAt,
       attempts: 0,
       maxAttempts,
+      consumed: false,
       ipAddress,
       userAgent,
       createdAt: now,
@@ -197,9 +298,7 @@ export class AdminSecurityService {
       maskedEmail: this.maskEmail(authorizedEmail),
       expiresInMinutes,
       attemptsRemaining: maxAttempts,
-      emailDelivered: emailRes.deliveredRemotely,
-      deliveryProvider: emailRes.provider,
-      directCode: rawCode,
+      emailDelivered: true,
     };
   }
 
@@ -212,11 +311,10 @@ export class AdminSecurityService {
     challengeId?: string
   ): Promise<PendingChallenge | null> {
     const inMemory = this.challenges.get(adminUserId);
-    if (inMemory && (!challengeId || inMemory.challengeId === challengeId)) {
+    if (inMemory && !inMemory.consumed && (!challengeId || inMemory.challengeId === challengeId)) {
       return inMemory;
     }
 
-    // Fallback Serverless : rechercher le dernier challenge otp_request non consommé en base PostgreSQL
     const recentLogs = await prisma.securityAccessLog.findMany({
       where: {
         userId: adminUserId,
@@ -231,7 +329,7 @@ export class AdminSecurityService {
       if (!log.metadata) continue;
       try {
         const meta = JSON.parse(log.metadata);
-        if (!meta.codeHash || !meta.salt || meta.consumed) continue;
+        if (!meta.codeHash || !meta.salt) continue;
         if (challengeId && meta.challengeId !== challengeId) continue;
 
         const restored: PendingChallenge = {
@@ -244,11 +342,14 @@ export class AdminSecurityService {
           expiresAt: new Date(meta.expiresAt),
           attempts: Number(meta.attempts || 0),
           maxAttempts: Number(meta.maxAttempts || 5),
+          consumed: Boolean(meta.consumed),
           ipAddress: log.ipAddress || undefined,
           userAgent: log.userAgent || undefined,
           createdAt: log.timestamp,
         };
-        this.challenges.set(adminUserId, restored);
+        if (!restored.consumed) {
+          this.challenges.set(adminUserId, restored);
+        }
         return restored;
       } catch {
         continue;
@@ -261,8 +362,10 @@ export class AdminSecurityService {
   private static async updateChallengeStateInDb(
     prisma: PrismaClient,
     challenge: PendingChallenge,
-    consumed: boolean
+    consumed: boolean,
+    invalidatedReason?: string
   ): Promise<void> {
+    challenge.consumed = consumed;
     if (!challenge.logId) return;
     await prisma.securityAccessLog.update({
       where: { id: challenge.logId },
@@ -271,17 +374,34 @@ export class AdminSecurityService {
           challengeId: challenge.challengeId,
           codeHash: challenge.codeHash,
           salt: challenge.salt,
+          algorithm: 'PBKDF2-HMAC-SHA256',
           expiresAt: challenge.expiresAt.toISOString(),
           attempts: challenge.attempts,
           maxAttempts: challenge.maxAttempts,
           consumed,
+          invalidatedReason: invalidatedReason || undefined,
+          updatedAt: new Date().toISOString(),
         }),
       },
     }).catch(() => {});
   }
 
   /**
-   * Vérifie le code OTP saisi et crée la session administrative renforcée.
+   * Permet d'expirer artificiellement un challenge uniquement dans les tests automatisés (NODE_ENV === 'test')
+   */
+  public static async forceExpireChallengeForTest(prisma: PrismaClient, adminUserId: string, challengeId: string): Promise<void> {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Opération interdite en production.');
+    }
+    const challenge = await this.resolvePendingChallenge(prisma, adminUserId, challengeId);
+    if (challenge) {
+      challenge.expiresAt = new Date(Date.now() - 60 * 1000);
+      await this.updateChallengeStateInDb(prisma, challenge, false, 'TEST_EXPIRED');
+    }
+  }
+
+  /**
+   * Vérifie exclusivement côté backend le code OTP saisi et crée la session administrative renforcée.
    */
   public static async verifyOtpChallenge(
     prisma: PrismaClient,
@@ -290,7 +410,7 @@ export class AdminSecurityService {
     candidateCode: string,
     ipAddress?: string,
     userAgent?: string
-  ): Promise<{ adminSessionToken: string; expiresAt: Date; user: any }> {
+  ): Promise<{ adminSessionToken: string; csrfToken: string; expiresAt: Date; sessionDurationMinutes: number; user: any }> {
     const user = await prisma.user.findUnique({
       where: { id: adminUserId },
       include: {
@@ -298,14 +418,44 @@ export class AdminSecurityService {
       },
     });
 
-    if (!user || !user.isAdmin) {
+    if (!user || !user.isAdmin || !user.isActive || user.securityLocked) {
       throw new AppError('Accès interdit. Seul le Super Administrateur peut valider ce challenge.', 403);
+    }
+
+    const accountBruteKey = `otp_ver_acc_${adminUserId}`;
+    const ipBruteKey = `otp_ver_ip_${ipAddress || 'unknown'}`;
+
+    // Protection brute-force globale par compte et par IP sur fenêtre de 15 minutes
+    if (
+      !this.checkBruteForceWindow(accountBruteKey, this.verifyBruteForce, 10, 15) ||
+      !this.checkBruteForceWindow(ipBruteKey, this.verifyBruteForce, 15, 15)
+    ) {
+      await prisma.securityAccessLog.create({
+        data: {
+          userId: user.id,
+          email: user.email,
+          authMethod: 'otp_gmail',
+          status: 'BLOCKED',
+          step: 'otp_verify',
+          ipAddress,
+          userAgent,
+          failureReason: 'Verrouillage temporaire anti-brute-force (trop de tentatives échouées sur 15 min)',
+        },
+      }).catch(() => {});
+
+      throw new AppError(
+        'Trop de tentatives de vérification échouées. Accès verrouillé temporairement pendant 15 minutes.',
+        429
+      );
     }
 
     const challenge = await this.resolvePendingChallenge(prisma, adminUserId, challengeId);
     const now = new Date();
 
-    if (!challenge || (challengeId && challenge.challengeId !== challengeId)) {
+    if (!challenge || challenge.consumed || (challengeId && challenge.challengeId !== challengeId)) {
+      this.incrementBruteForceWindow(accountBruteKey, this.verifyBruteForce, 15);
+      this.incrementBruteForceWindow(ipBruteKey, this.verifyBruteForce, 15);
+
       await prisma.securityAccessLog.create({
         data: {
           userId: user.id,
@@ -315,17 +465,17 @@ export class AdminSecurityService {
           step: 'otp_verify',
           ipAddress,
           userAgent,
-          failureReason: 'Aucun challenge actif ou challenge ID non reconnu',
+          failureReason: 'Challenge introuvable, déjà utilisé ou invalidé',
         },
       }).catch(() => {});
 
-      throw new AppError('Ce challenge de sécurité n’est plus actif. Veuillez demander un nouveau code.', 400);
+      throw new AppError('Ce code de sécurité a déjà été utilisé ou n’est plus actif. Veuillez demander un nouveau code.', 400);
     }
 
-    // Vérifier l'expiration (5 minutes)
+    // 1. Vérifier l'expiration (5 minutes)
     if (challenge.expiresAt < now) {
       this.challenges.delete(adminUserId);
-      await this.updateChallengeStateInDb(prisma, challenge, true);
+      await this.updateChallengeStateInDb(prisma, challenge, true, 'EXPIRED');
       await prisma.securityAccessLog.create({
         data: {
           userId: user.id,
@@ -342,10 +492,10 @@ export class AdminSecurityService {
       throw new AppError('Le code de confirmation a expiré. Veuillez solliciter un nouveau code.', 400);
     }
 
-    // Vérifier le nombre d'essais (max 5)
+    // 2. Vérifier le nombre d'essais déjà effectués (max 5)
     if (challenge.attempts >= challenge.maxAttempts) {
       this.challenges.delete(adminUserId);
-      await this.updateChallengeStateInDb(prisma, challenge, true);
+      await this.updateChallengeStateInDb(prisma, challenge, true, 'MAX_ATTEMPTS_EXCEEDED');
       await prisma.securityAccessLog.create({
         data: {
           userId: user.id,
@@ -355,65 +505,78 @@ export class AdminSecurityService {
           step: 'otp_verify',
           ipAddress,
           userAgent,
-          failureReason: 'Trop de tentatives incorrectes (compte bloqué temporairement)',
+          failureReason: 'Nombre maximal de tentatives dépassé (5/5)',
         },
       }).catch(() => {});
 
-      // Déclencher une alerte commerciale/sécurité
-      await prisma.commercialAlert.create({
-        data: {
-          title: 'Alerte Sécurité: Challenge Super Admin bloqué',
-          message: `5 tentatives incorrectes consécutives pour valider le code Super Admin sur ${challenge.email} depuis l'IP ${ipAddress || 'inconnue'}.`,
-          priority: 'critical',
-          category: 'user_suspended',
-          userId: user.id,
-          status: 'open',
-        },
-      }).catch(() => {});
-
-      throw new AppError('Nombre maximal de tentatives atteint (5/5). Ce challenge est définitivement invalidé.', 403);
+      throw new AppError('Nombre maximal de tentatives atteint (5/5). Ce code est définitivement invalidé.', 403);
     }
 
-    // Comparaison cryptographique sécurisée à temps constant
-    const candidateHash = crypto.createHmac('sha256', challenge.salt).update(candidateCode.trim()).digest('hex');
-    const isCodeValid = crypto.timingSafeEqual(Buffer.from(candidateHash), Buffer.from(challenge.codeHash));
+    // 3. Comparaison cryptographique à temps constant du hash PBKDF2-HMAC-SHA256
+    const candidateHash = this.hashOtpCode(candidateCode, challenge.salt);
+    const bufCandidate = Buffer.from(candidateHash, 'hex');
+    const bufExpected = Buffer.from(challenge.codeHash, 'hex');
+    const isCodeValid =
+      bufCandidate.length === bufExpected.length &&
+      crypto.timingSafeEqual(bufCandidate, bufExpected);
 
     if (!isCodeValid) {
       challenge.attempts += 1;
+      this.incrementBruteForceWindow(accountBruteKey, this.verifyBruteForce, 15);
+      this.incrementBruteForceWindow(ipBruteKey, this.verifyBruteForce, 15);
+
       const remaining = challenge.maxAttempts - challenge.attempts;
-      await this.updateChallengeStateInDb(prisma, challenge, remaining <= 0);
+      await this.updateChallengeStateInDb(
+        prisma,
+        challenge,
+        remaining <= 0,
+        remaining <= 0 ? 'MAX_ATTEMPTS_EXCEEDED' : undefined
+      );
 
       await prisma.securityAccessLog.create({
         data: {
           userId: user.id,
           email: challenge.email,
           authMethod: 'otp_gmail',
-          status: 'FAILED',
+          status: remaining <= 0 ? 'BLOCKED' : 'FAILED',
           step: 'otp_verify',
           ipAddress,
           userAgent,
-          failureReason: `Code incorrect (${challenge.attempts}/${challenge.maxAttempts})`,
+          failureReason: `Code incorrect (tentative ${challenge.attempts}/${challenge.maxAttempts})`,
         },
       }).catch(() => {});
 
       if (remaining <= 0) {
         this.challenges.delete(adminUserId);
-        throw new AppError('Code incorrect. Vous avez épuisé toutes vos tentatives.', 403);
+        await prisma.commercialAlert.create({
+          data: {
+            title: 'Alerte Sécurité: Challenge Super Admin verrouillé après 5 échecs',
+            message: `5 tentatives incorrectes consécutives pour valider le code Super Admin sur ${challenge.email} depuis l'IP ${ipAddress || 'inconnue'}.`,
+            priority: 'critical',
+            category: 'user_suspended',
+            userId: user.id,
+            status: 'open',
+          },
+        }).catch(() => {});
+
+        throw new AppError('Nombre maximal de tentatives atteint (5/5). Ce code est définitivement invalidé.', 403);
       }
 
-      throw new AppError(`Code incorrect. Il vous reste ${remaining} tentative(s).`, 400);
+      throw new AppError(`Code de sécurité incorrect. Il vous reste ${remaining} tentative(s).`, 400);
     }
 
-    // CODE VALIDE ! Invalidation immédiate du challenge (usage unique strict)
+    // 4. CODE VALIDE : Invalidation immédiate et définitive du challenge (Usage unique strict)
     this.challenges.delete(adminUserId);
-    await this.updateChallengeStateInDb(prisma, challenge, true);
+    await this.updateChallengeStateInDb(prisma, challenge, true, 'CONSUMED_SUCCESSFULLY');
 
-    // Création de la session administrative renforcée
+    // 5. Création de la session administrative distincte + Jeton CSRF
     const config = await prisma.adminSecurityConfig.findUnique({ where: { id: 'singleton' } });
     const sessionDurationMinutes = config?.sessionDurationMinutes || 60;
     const sessionExpiresAt = new Date(now.getTime() + sessionDurationMinutes * 60 * 1000);
 
-    // Génération du token JWT spécifique d'administration renforcée
+    const csrfToken = crypto.randomBytes(24).toString('hex');
+    const csrfHash = crypto.createHash('sha256').update(csrfToken).digest('hex');
+
     const adminSessionToken = jwt.sign(
       {
         userId: user.id,
@@ -421,6 +584,7 @@ export class AdminSecurityService {
         isAdmin: true,
         adminMfaVerified: true,
         type: 'SUPER_ADMIN_ENHANCED_SESSION',
+        csrfHash,
         ip: ipAddress,
       },
       getJwtSecret(),
@@ -429,7 +593,6 @@ export class AdminSecurityService {
 
     const tokenHash = crypto.createHash('sha256').update(adminSessionToken).digest('hex');
 
-    // Sauvegarde de la session en base de données PostgreSQL Neon
     const sessionRecord = await prisma.adminSession.create({
       data: {
         userId: user.id,
@@ -441,7 +604,6 @@ export class AdminSecurityService {
       },
     });
 
-    // Journalisation du succès dans SecurityAccessLog
     await prisma.securityAccessLog.create({
       data: {
         userId: user.id,
@@ -457,7 +619,6 @@ export class AdminSecurityService {
       },
     }).catch(() => {});
 
-    // Notification si nouvelle IP
     if (config?.emailNotificationOnNewIp && ipAddress) {
       const priorLog = await prisma.securityAccessLog.findFirst({
         where: {
@@ -479,7 +640,9 @@ export class AdminSecurityService {
 
     return {
       adminSessionToken,
+      csrfToken,
       expiresAt: sessionExpiresAt,
+      sessionDurationMinutes,
       user: {
         id: user.id,
         email: user.email,
@@ -491,12 +654,33 @@ export class AdminSecurityService {
   }
 
   /**
-   * Vérifie la validité d'une session administrative renforcée à partir de son token.
+   * Extrait le cookie HttpOnly `commercia_admin_session` depuis l'en-tête Cookie brut
+   */
+  public static extractAdminCookie(cookieHeader?: string): string | null {
+    if (!cookieHeader) return null;
+    const pairs = cookieHeader.split(';');
+    for (const pair of pairs) {
+      const idx = pair.indexOf('=');
+      if (idx === -1) continue;
+      const name = pair.slice(0, idx).trim();
+      const val = pair.slice(idx + 1).trim();
+      if (name === 'commercia_admin_session' && val) {
+        return decodeURIComponent(val);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Vérifie la validité d'une session administrative renforcée à partir de son token (Cookie HttpOnly ou Header)
+   * et contrôle le jeton CSRF si fourni.
    */
   public static async validateAdminSessionToken(
     prisma: PrismaClient,
     token: string,
-    expectedUserId?: string
+    expectedUserId?: string,
+    csrfTokenHeader?: string,
+    requireCsrfCheck: boolean = false
   ): Promise<{ isValid: boolean; user?: any; reason?: string }> {
     try {
       const decoded = jwt.verify(token, getJwtSecret()) as any;
@@ -507,6 +691,13 @@ export class AdminSecurityService {
 
       if (expectedUserId && decoded.userId !== expectedUserId) {
         return { isValid: false, reason: 'Identifiant utilisateur non concordant.' };
+      }
+
+      if (requireCsrfCheck && decoded.csrfHash && csrfTokenHeader) {
+        const providedCsrfHash = crypto.createHash('sha256').update(csrfTokenHeader).digest('hex');
+        if (providedCsrfHash !== decoded.csrfHash) {
+          return { isValid: false, reason: 'Jeton de protection CSRF invalide.' };
+        }
       }
 
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');

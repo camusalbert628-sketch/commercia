@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldCheck, Mail, ArrowRight, RefreshCw, AlertTriangle, Lock, KeyRound, CheckCircle2, X } from 'lucide-react';
-import { api } from '../../services/api';
+import { ShieldCheck, Mail, ArrowRight, RefreshCw, AlertTriangle, Lock, KeyRound, CheckCircle2, X, Settings } from 'lucide-react';
+import { api, setAdminSessionCredentials } from '../../services/api';
+
+const OTP_LENGTH = 8;
+const EMPTY_DIGITS = Array(OTP_LENGTH).fill('');
 
 interface AdminMfaChallengeModalProps {
   isOpen: boolean;
@@ -14,49 +17,59 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
   onSuccess,
 }) => {
   const [step, setStep] = useState<'prompt' | 'input' | 'success'>('prompt');
-  const [maskedEmail, setMaskedEmail] = useState<string>('c*********@gmail.com');
+  const [maskedEmail, setMaskedEmail] = useState<string>('c*************@gmail.com');
   const [challengeId, setChallengeId] = useState<string>('');
-  const [directCode, setDirectCode] = useState<string | null>(null);
-  const [emailDelivered, setEmailDelivered] = useState<boolean>(false);
-  const [showDirectFallback, setShowDirectFallback] = useState<boolean>(false);
-  const [codeDigits, setCodeDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [codeDigits, setCodeDigits] = useState<string[]>([...EMPTY_DIGITS]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusConfirmation, setStatusConfirmation] = useState<string | null>(null);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number>(5);
   const [expiresInSeconds, setExpiresInSeconds] = useState<number>(300); // 5 min
-  const [canResend, setCanResend] = useState<boolean>(false);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  // Configuration initiale du service de messagerie si non configuré (Fail-Closed)
+  const [emailServiceConfigured, setEmailServiceConfigured] = useState<boolean>(true);
+  const [showMailerSetup, setShowMailerSetup] = useState<boolean>(false);
+  const [mailerProvider, setMailerProvider] = useState<'gmail_smtp' | 'resend'>('gmail_smtp');
+  const [mailerSecret, setMailerSecret] = useState<string>('');
+  const [isConfiguringMailer, setIsConfiguringMailer] = useState<boolean>(false);
+  const [mailerSetupSuccess, setMailerSetupSuccess] = useState<string | null>(null);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Charger le statut initial pour obtenir l'email masqué officiel
   useEffect(() => {
     if (!isOpen) return;
     setStep('prompt');
     setError(null);
+    setStatusConfirmation(null);
     setChallengeId('');
-    setDirectCode(null);
-    setEmailDelivered(false);
-    setShowDirectFallback(false);
-    setCodeDigits(['', '', '', '', '', '']);
+    setCodeDigits([...EMPTY_DIGITS]);
+    setShowMailerSetup(false);
+    setMailerSetupSuccess(null);
 
-    api.get<{ maskedEmail: string; hasActiveAdminSession: boolean }>('/admin-auth/status')
+    api
+      .get<{
+        maskedEmail: string;
+        isVerified: boolean;
+        emailService?: { isConfigured: boolean; provider: string };
+      }>('/admin-auth/status')
       .then((data) => {
         if (data.maskedEmail) {
           setMaskedEmail(data.maskedEmail);
+        }
+        if (data.emailService) {
+          setEmailServiceConfigured(Boolean(data.emailService.isConfigured));
         }
       })
       .catch(() => {});
   }, [isOpen]);
 
-  // Compteur 5 minutes pour l'expiration du code
   useEffect(() => {
     if (step !== 'input') return;
     const interval = setInterval(() => {
       setExpiresInSeconds((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          setCanResend(true);
           return 0;
         }
         return prev - 1;
@@ -65,7 +78,6 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
     return () => clearInterval(interval);
   }, [step]);
 
-  // Compteur cooldown pour le renvoi
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const interval = setInterval(() => {
@@ -76,56 +88,80 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Demander l'envoi du code
   const handleRequestOtp = async () => {
     setIsLoading(true);
     setError(null);
+    setStatusConfirmation(null);
+    setMailerSetupSuccess(null);
     try {
       const res = await api.post<{
         success: boolean;
-        challengeId?: string;
+        message: string;
+        challengeId: string;
         maskedEmail: string;
         expiresInMinutes: number;
         attemptsRemaining: number;
-        emailDelivered?: boolean;
-        deliveryProvider?: string;
-        directCode?: string;
       }>('/admin-auth/request-otp');
 
       if (res.maskedEmail) setMaskedEmail(res.maskedEmail);
-      if (res.challengeId) setChallengeId(res.challengeId);
-      setEmailDelivered(Boolean(res.emailDelivered));
-      if (res.directCode) {
-        setDirectCode(res.directCode);
-        setShowDirectFallback(!res.emailDelivered);
-      }
+      setChallengeId(res.challengeId);
+      setStatusConfirmation(
+        res.message || "Un code de sécurité vient d'être envoyé à votre adresse Gmail administrateur."
+      );
       setAttemptsRemaining(res.attemptsRemaining ?? 5);
       setExpiresInSeconds((res.expiresInMinutes || 5) * 60);
-      setCanResend(false);
-      setResendCooldown(30); // 30s cooldown avant renvoi
+      setCodeDigits([...EMPTY_DIGITS]);
+      setResendCooldown(30);
       setStep('input');
       setTimeout(() => inputRefs.current[0]?.focus(), 150);
     } catch (err: any) {
-      setError(err?.message || 'Erreur lors de la génération du code de sécurité.');
+      setError(
+        err?.message ||
+          "Service de vérification indisponible. L'envoi du code de sécurité n'a pas pu être effectué. Veuillez contacter l'administrateur système ou vérifier la configuration du service de messagerie."
+      );
+      if (err?.statusCode === 503) {
+        setEmailServiceConfigured(false);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Gérer la frappe des 6 chiffres
+  const handleConfigureMailer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mailerSecret.trim()) return;
+    setIsConfiguringMailer(true);
+    setError(null);
+    setMailerSetupSuccess(null);
+    try {
+      const res = await api.post<{ success: boolean; message: string }>('/admin-auth/configure-mailer', {
+        provider: mailerProvider,
+        smtpUser: 'camusalbert628@gmail.com',
+        secretOrAppPassword: mailerSecret.trim(),
+      });
+      setEmailServiceConfigured(true);
+      setShowMailerSetup(false);
+      setMailerSecret('');
+      setMailerSetupSuccess(res.message);
+    } catch (err: any) {
+      setError(err?.message || 'Échec de la configuration du service de messagerie.');
+    } finally {
+      setIsConfiguringMailer(false);
+    }
+  };
+
   const handleDigitChange = (index: number, value: string) => {
     if (value.length > 1) {
-      // Cas de copier-coller
-      const pasted = value.replace(/\D/g, '').slice(0, 6);
+      const pasted = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
       if (pasted.length > 0) {
         const nextDigits = [...codeDigits];
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < OTP_LENGTH; i++) {
           nextDigits[i] = pasted[i] || '';
         }
         setCodeDigits(nextDigits);
-        const focusIdx = Math.min(pasted.length, 5);
+        const focusIdx = Math.min(pasted.length, OTP_LENGTH - 1);
         inputRefs.current[focusIdx]?.focus();
-        if (pasted.length === 6) {
+        if (pasted.length === OTP_LENGTH) {
           submitCode(pasted);
         }
         return;
@@ -137,12 +173,12 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
     nextDigits[index] = cleanChar;
     setCodeDigits(nextDigits);
 
-    if (cleanChar && index < 5) {
+    if (cleanChar && index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
     }
 
     const full = nextDigits.join('');
-    if (full.length === 6 && nextDigits.every((d) => d !== '')) {
+    if (full.length === OTP_LENGTH && nextDigits.every((d) => d !== '')) {
       submitCode(full);
     }
   };
@@ -153,49 +189,41 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
     }
   };
 
-  // Soumettre et valider le code
   const submitCode = async (fullCode: string) => {
+    if (!challengeId) {
+      setError('Session de vérification invalide. Veuillez demander un nouveau code.');
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
       const res = await api.post<{
         success: boolean;
-        token?: string;
-        adminSessionToken?: string;
-        expiresAt?: string;
-        session?: { expiresAt: string };
+        adminSessionToken: string;
+        csrfToken?: string;
+        expiresAt: string;
       }>('/admin-auth/verify-otp', {
-        challengeId: challengeId || undefined,
+        challengeId,
         code: fullCode.trim(),
       });
 
-      const sessionToken = res.adminSessionToken || res.token;
-      if (sessionToken) {
-        sessionStorage.setItem('commercia_admin_session_token', sessionToken);
-        localStorage.setItem('commercia_admin_session_token', sessionToken);
+      if (res.adminSessionToken) {
+        setAdminSessionCredentials(res.adminSessionToken, res.csrfToken);
         setStep('success');
         setTimeout(() => {
-          onSuccess(sessionToken);
+          onSuccess(res.adminSessionToken);
         }, 600);
       } else {
-        throw new Error('Jeton de session non reçu du serveur.');
+        throw new Error('Validation refusée par le serveur.');
       }
     } catch (err: any) {
       setError(err?.message || 'Code de vérification invalide ou expiré.');
-      // Réduire le compteur d'essais
       setAttemptsRemaining((prev) => Math.max(0, prev - 1));
-      setCodeDigits(['', '', '', '', '', '']);
+      setCodeDigits([...EMPTY_DIGITS]);
       inputRefs.current[0]?.focus();
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleAutoFillDirectCode = () => {
-    if (!directCode || directCode.length !== 6) return;
-    const digits = directCode.split('');
-    setCodeDigits(digits);
-    submitCode(directCode);
   };
 
   const formatTimer = (secs: number) => {
@@ -210,7 +238,7 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
         position: 'fixed',
         inset: 0,
         zIndex: 99999,
-        background: 'rgba(5, 10, 24, 0.85)',
+        background: 'rgba(5, 10, 24, 0.88)',
         backdropFilter: 'blur(10px)',
         display: 'flex',
         alignItems: 'center',
@@ -222,7 +250,7 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
       <div
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '540px',
           background: 'linear-gradient(180deg, #0F172A 0%, #090D1A 100%)',
           borderRadius: '24px',
           border: '1px solid #1E293B',
@@ -255,8 +283,7 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
           </button>
         )}
 
-        {/* En-tête de sécurité */}
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div
             style={{
               width: '68px',
@@ -272,11 +299,7 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
               boxShadow: '0 10px 25px rgba(16, 185, 129, 0.2)',
             }}
           >
-            {step === 'success' ? (
-              <CheckCircle2 size={36} color="#10B981" />
-            ) : (
-              <ShieldCheck size={36} />
-            )}
+            {step === 'success' ? <CheckCircle2 size={36} color="#10B981" /> : <ShieldCheck size={36} />}
           </div>
 
           <div
@@ -309,19 +332,20 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
           <p style={{ fontSize: '0.88rem', color: '#94A3B8', margin: 0, lineHeight: 1.55 }}>
             {step === 'prompt' && (
               <>
-                Votre identité administrateur a été reconnue. Pour accéder à la console d’administration, une vérification de sécurité supplémentaire est nécessaire. Un code de confirmation va être envoyé à votre adresse Gmail administrateur.
+                Votre identité administrateur a été reconnue. Pour accéder à la console d’administration, une vérification de sécurité supplémentaire est obligatoire. Un code à 8 chiffres à usage unique sera envoyé à votre adresse Gmail administrateur.
               </>
             )}
             {step === 'input' && (
               <>
-                Saisissez le code à 6 chiffres envoyé à votre adresse autorisée. Valide pendant 5 minutes.
+                {statusConfirmation ||
+                  "Un code de sécurité vient d'être envoyé à votre adresse Gmail administrateur."}{' '}
+                Saisissez les 8 chiffres reçus par email (valide 5 minutes).
               </>
             )}
             {step === 'success' && 'Session administrative renforcée créée avec succès. Redirection...'}
           </p>
         </div>
 
-        {/* Adresse masquée */}
         <div
           style={{
             background: 'rgba(15, 23, 42, 0.8)',
@@ -331,7 +355,7 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: '24px',
+            marginBottom: '20px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -372,7 +396,23 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
           </div>
         </div>
 
-        {/* Message d'erreur */}
+        {mailerSetupSuccess && (
+          <div
+            style={{
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              color: '#34D399',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              marginBottom: '18px',
+            }}
+          >
+            {mailerSetupSuccess}
+          </div>
+        )}
+
         {error && (
           <div
             style={{
@@ -389,10 +429,10 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
             }}
           >
             <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <div>
-              <div style={{ fontWeight: 700 }}>Échec de validation</div>
-              <div style={{ fontSize: '0.78rem', marginTop: '2px' }}>{error}</div>
-              {attemptsRemaining > 0 && attemptsRemaining < 5 && (
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700 }}>Vérification impossible</div>
+              <div style={{ fontSize: '0.78rem', marginTop: '2px', lineHeight: 1.45 }}>{error}</div>
+              {step === 'input' && attemptsRemaining > 0 && attemptsRemaining < 5 && (
                 <div style={{ fontSize: '0.75rem', marginTop: '4px', color: '#FECACA' }}>
                   Tentatives restantes : {attemptsRemaining}/5
                 </div>
@@ -401,123 +441,169 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
           </div>
         )}
 
-        {/* Étape 1 : Bouton "Envoyer le code de sécurité" */}
         {step === 'prompt' && (
-          <button
-            type="button"
-            onClick={handleRequestOtp}
-            disabled={isLoading}
-            style={{
-              width: '100%',
-              padding: '16px 24px',
-              borderRadius: '14px',
-              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-              color: '#FFFFFF',
-              fontSize: '0.96rem',
-              fontWeight: 800,
-              border: 'none',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              boxShadow: '0 8px 25px rgba(16, 185, 129, 0.35)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            {isLoading ? (
-              <>
-                <RefreshCw size={18} className="animate-spin" />
-                <span>Génération du code sécurisé...</span>
-              </>
-            ) : (
-              <>
-                <span>Envoyer le code de sécurité</span>
-                <ArrowRight size={18} />
-              </>
-            )}
-          </button>
-        )}
+          <>
+            <button
+              type="button"
+              onClick={handleRequestOtp}
+              disabled={isLoading}
+              style={{
+                width: '100%',
+                padding: '16px 24px',
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                color: '#FFFFFF',
+                fontSize: '0.96rem',
+                fontWeight: 800,
+                border: 'none',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                boxShadow: '0 8px 25px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw size={18} className="animate-spin" />
+                  <span>Envoi sécurisé en cours...</span>
+                </>
+              ) : (
+                <>
+                  <span>Envoyer le code de sécurité</span>
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
 
-        {/* Étape 2 : Saisie des 6 chiffres */}
-        {step === 'input' && (
-          <div>
-            {/* Canal Direct Sécurisé (affiché automatiquement si SMTP non configuré, ou à la demande si Gmail tarde) */}
-            {directCode && showDirectFallback && (
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(14, 165, 233, 0.12) 100%)',
-                  border: '1px solid rgba(16, 185, 129, 0.45)',
-                  borderRadius: '14px',
-                  padding: '14px 16px',
-                  marginBottom: '18px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '0.73rem', fontWeight: 800, color: '#34D399', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {emailDelivered ? '🔑 Code de Secours Super Admin' : '⚡ Canal Direct Sécurisé (Relais Interne Actif)'}
-                  </span>
-                  <span style={{ fontSize: '0.68rem', color: '#94A3B8', fontWeight: 600 }}>
-                    Chiffré SHA-256
-                  </span>
-                </div>
-                <p style={{ fontSize: '0.76rem', color: '#CBD5E1', margin: '0 0 10px 0', lineHeight: 1.4 }}>
-                  {emailDelivered
-                    ? 'Si l’email met du temps à arriver dans votre boîte Gmail, utilisez directement votre code unique ci-dessous :'
-                    : 'Aucun serveur SMTP externe n’étant configuré, votre code OTP officiel a été transmis via le canal direct chiffré Super Admin :'}
-                </p>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', background: 'rgba(15, 23, 42, 0.85)', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(52, 211, 153, 0.3)' }}>
-                  <div style={{ fontSize: '1.45rem', fontWeight: 900, letterSpacing: '0.28em', color: '#10B981', fontFamily: 'monospace' }}>
-                    {directCode}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAutoFillDirectCode}
-                    disabled={isLoading}
-                    style={{
-                      background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '8px 14px',
-                      fontSize: '0.78rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                    }}
-                  >
-                    Insérer & Valider →
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {directCode && !showDirectFallback && (
-              <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+            {!emailServiceConfigured && (
+              <div style={{ marginTop: '16px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowDirectFallback(true)}
+                  onClick={() => setShowMailerSetup((prev) => !prev)}
                   style={{
-                    background: 'rgba(56, 189, 248, 0.1)',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                    color: '#38BDF8',
-                    borderRadius: '8px',
-                    padding: '6px 12px',
-                    fontSize: '0.76rem',
-                    fontWeight: 700,
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    borderRadius: '10px',
+                    padding: '10px 14px',
+                    color: '#94A3B8',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
                     cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
                   }}
                 >
-                  Email Gmail non reçu ? Afficher le code via le canal de secours
+                  <Settings size={14} />
+                  <span>Configurer le service de messagerie SMTP Gmail / API Transactionnelle</span>
                 </button>
+
+                {showMailerSetup && (
+                  <form
+                    onSubmit={handleConfigureMailer}
+                    style={{
+                      marginTop: '12px',
+                      background: 'rgba(15, 23, 42, 0.9)',
+                      border: '1px solid #334155',
+                      borderRadius: '12px',
+                      padding: '14px',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.76rem', color: '#CBD5E1', marginBottom: '10px', lineHeight: 1.45 }}>
+                      Enregistrez un <strong>Mot de passe d'application Google</strong> (16 caractères) ou une clé API <strong>Resend</strong>. Le serveur vérifiera la connexion SMTP avant de vous permettre d'envoyer le code sur Gmail.
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setMailerProvider('gmail_smtp')}
+                        style={{
+                          flex: 1,
+                          padding: '7px',
+                          borderRadius: '8px',
+                          border: mailerProvider === 'gmail_smtp' ? '1px solid #10B981' : '1px solid #334155',
+                          background: mailerProvider === 'gmail_smtp' ? 'rgba(16, 185, 129, 0.15)' : '#1E293B',
+                          color: '#F8FAFC',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Gmail SMTP (App Password)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMailerProvider('resend')}
+                        style={{
+                          flex: 1,
+                          padding: '7px',
+                          borderRadius: '8px',
+                          border: mailerProvider === 'resend' ? '1px solid #10B981' : '1px solid #334155',
+                          background: mailerProvider === 'resend' ? 'rgba(16, 185, 129, 0.15)' : '#1E293B',
+                          color: '#F8FAFC',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Resend API
+                      </button>
+                    </div>
+                    <input
+                      type="password"
+                      value={mailerSecret}
+                      onChange={(e) => setMailerSecret(e.target.value)}
+                      placeholder={
+                        mailerProvider === 'gmail_smtp'
+                          ? 'Mot de passe d’application Google (16 caractères)'
+                          : 'Clé API Resend (re_...)'
+                      }
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #475569',
+                        background: '#0F172A',
+                        color: '#FFFFFF',
+                        fontSize: '0.84rem',
+                        marginBottom: '10px',
+                        outline: 'none',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isConfiguringMailer || !mailerSecret.trim()}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        background: '#0284C7',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: isConfiguringMailer || !mailerSecret.trim() ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {isConfiguringMailer ? 'Vérification SMTP en cours...' : 'Enregistrer et vérifier le service email'}
+                    </button>
+                  </form>
+                )}
               </div>
             )}
+          </>
+        )}
 
+        {step === 'input' && (
+          <div>
             <div
               style={{
                 display: 'flex',
-                gap: '10px',
+                gap: '8px',
                 justifyContent: 'center',
                 marginBottom: '20px',
               }}
@@ -530,21 +616,20 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
                   }}
                   type="text"
                   inputMode="numeric"
-                  maxLength={6}
+                  autoComplete="one-time-code"
+                  maxLength={OTP_LENGTH}
                   value={digit}
                   onChange={(e) => handleDigitChange(idx, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(idx, e)}
-                  disabled={isLoading}
+                  disabled={isLoading || expiresInSeconds === 0}
                   style={{
-                    width: '54px',
-                    height: '62px',
-                    borderRadius: '14px',
-                    border: digit
-                      ? '2px solid #10B981'
-                      : '2px solid #334155',
+                    width: '48px',
+                    height: '58px',
+                    borderRadius: '12px',
+                    border: digit ? '2px solid #10B981' : '2px solid #334155',
                     background: '#1E293B',
                     color: '#FFFFFF',
-                    fontSize: '1.6rem',
+                    fontSize: '1.35rem',
                     fontWeight: 800,
                     textAlign: 'center',
                     outline: 'none',
@@ -589,27 +674,30 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
                 }}
               >
                 <RefreshCw size={13} />
-                {resendCooldown > 0 ? `Renvoyer (${resendCooldown}s)` : 'Renvoyer le code'}
+                {resendCooldown > 0 ? `Renvoyer (${resendCooldown}s)` : 'Renvoyer un nouveau code'}
               </button>
             </div>
 
             <button
               type="button"
               onClick={() => submitCode(codeDigits.join(''))}
-              disabled={isLoading || codeDigits.some((d) => !d)}
+              disabled={isLoading || expiresInSeconds === 0 || codeDigits.some((d) => !d)}
               style={{
                 width: '100%',
                 padding: '16px 24px',
                 borderRadius: '14px',
                 background:
-                  codeDigits.every((d) => d) && !isLoading
+                  codeDigits.every((d) => d) && !isLoading && expiresInSeconds > 0
                     ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
                     : '#334155',
                 color: '#FFFFFF',
                 fontSize: '0.96rem',
                 fontWeight: 800,
                 border: 'none',
-                cursor: codeDigits.every((d) => d) && !isLoading ? 'pointer' : 'not-allowed',
+                cursor:
+                  codeDigits.every((d) => d) && !isLoading && expiresInSeconds > 0
+                    ? 'pointer'
+                    : 'not-allowed',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -623,7 +711,7 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
               {isLoading ? (
                 <>
                   <RefreshCw size={18} className="animate-spin" />
-                  <span>Vérification cryptographique...</span>
+                  <span>Vérification serveur en cours...</span>
                 </>
               ) : (
                 <>
@@ -635,11 +723,10 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
           </div>
         )}
 
-        {/* Étape 3 : Succès */}
         {step === 'success' && (
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
             <div style={{ fontSize: '0.92rem', color: '#34D399', fontWeight: 700 }}>
-              Jeton de session administrative sécurisé activé.
+              Session administrative renforcée vérifiée côté serveur.
             </div>
           </div>
         )}

@@ -132,13 +132,8 @@ export class PhoneService {
       },
     });
 
-    // Envoi réel / Simulation SMS
-    console.log(`\n============================================================`);
-    console.log(`📱 [COMMERCIA SMS GATEWAY]`);
-    console.log(`Destinataire : ${e164} (${validation.country})`);
-    console.log(`Message      : Votre code de vérification COMMERCIA est : ${rawCode}`);
-    console.log(`Expiration   : ${expiresInMinutes} minutes`);
-    console.log(`============================================================\n`);
+    // Journalisation sécurisée sans exposition du code OTP
+    console.info(`[COMMERCIA SMS GATEWAY] OTP de vérification initié pour ${e164} (${validation.country}) — Expire dans ${expiresInMinutes} min.`);
 
     // Masquer le numéro (ex: "+237 6** *** 97")
     const len = e164.length;

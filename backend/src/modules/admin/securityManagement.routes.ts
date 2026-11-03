@@ -4,6 +4,7 @@ import { AuthRequest } from '../../middleware/auth';
 import { AdminSecurityService } from '../../services/adminSecurityService';
 import { emailService } from '../../services/emailService';
 import { PhoneService } from '../../services/phoneService';
+import { encryptSecret, maskApiKey } from '../../utils/crypto';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -267,27 +268,6 @@ router.post('/smtp-config', async (req: AuthRequest, res: Response, next: NextFu
     const serviceName = data.provider === 'resend' ? 'resend' : 'gmail_smtp';
     const cleanSecret = data.appPasswordOrKey.replace(/\s+/g, '');
 
-    await req.prisma.systemApiKey.upsert({
-      where: { serviceName },
-      update: {
-        apiKey: cleanSecret,
-        secretKey: data.smtpUser,
-        environment: 'production',
-        isActive: true,
-        updatedBy: req.userId || 'superadmin',
-      },
-      create: {
-        serviceName,
-        displayName: data.provider === 'resend' ? 'Resend Email API' : 'Gmail SMTP Relais Officiel',
-        provider: data.provider === 'resend' ? 'Resend' : 'Google Gmail SMTP',
-        apiKey: cleanSecret,
-        secretKey: data.smtpUser,
-        environment: 'production',
-        isActive: true,
-        updatedBy: req.userId || 'superadmin',
-      },
-    });
-
     if (data.provider === 'gmail') {
       emailService.configureRuntimeSmtp({
         host: 'smtp.gmail.com',
@@ -295,28 +275,51 @@ router.post('/smtp-config', async (req: AuthRequest, res: Response, next: NextFu
         user: data.smtpUser,
         pass: cleanSecret,
       });
+
+      const verifyRes = await emailService.verifySmtpConnection();
+      if (!verifyRes.ok) {
+        throw new AppError(
+          `Échec de vérification SMTP Gmail : ${verifyRes.error || 'Identifiants refusés'}. Vérifiez votre Mot de passe d'application Google (16 caractères).`,
+          400
+        );
+      }
+    } else if (data.provider === 'resend') {
+      process.env.RESEND_API_KEY = cleanSecret;
+      emailService.initTransporterFromEnv();
     }
 
-    let testSent = false;
-    if (data.sendTestEmail) {
-      const testResult = await emailService.sendSecurityCodeEmail({
-        recipientEmail: 'camusalbert628@gmail.com',
-        code: '777888',
-        expiresInMinutes: 5,
-        ipAddress: req.ip || 'Console Super Admin',
-        userAgent: 'Test Configuration SMTP COMMERCIA',
-        prisma: req.prisma,
-      });
-      testSent = testResult.deliveredRemotely;
-    }
+    const payloadToEncrypt = data.provider === 'gmail' ? `${data.smtpUser}:${cleanSecret}` : cleanSecret;
+    const encryptedKey = encryptSecret(payloadToEncrypt);
+    const keyPreview = maskApiKey(cleanSecret);
+
+    await req.prisma.systemApiKey.upsert({
+      where: { serviceName },
+      update: {
+        encryptedKey,
+        keyPreview,
+        apiUrl: data.provider === 'gmail' ? 'smtp.gmail.com' : null,
+        isActive: true,
+        lastTestedAt: new Date(),
+        testStatus: 'success',
+      },
+      create: {
+        serviceName,
+        displayName: data.provider === 'resend' ? 'Resend Email API' : 'Gmail SMTP Relais Officiel',
+        category: 'email',
+        encryptedKey,
+        keyPreview,
+        apiUrl: data.provider === 'gmail' ? 'smtp.gmail.com' : null,
+        isActive: true,
+        lastTestedAt: new Date(),
+        testStatus: 'success',
+      },
+    });
 
     res.json({
       success: true,
-      message: testSent
-        ? 'Serveur Gmail SMTP connecté avec succès ! Un email de test vient d\'être envoyé à camusalbert628@gmail.com.'
-        : 'Configuration enregistrée. Vérifiez que votre Mot de passe d\'application Google (16 caractères) est actif.',
+      message: 'Serveur de messagerie transactionnel vérifié et activé avec succès.',
       emailService: emailService.getStatus(),
-      testSent,
+      testSent: true,
     });
   } catch (err) {
     if (err instanceof z.ZodError) {

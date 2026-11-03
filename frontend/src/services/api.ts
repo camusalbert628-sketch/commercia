@@ -10,9 +10,31 @@ export class ApiError extends Error {
   }
 }
 
+let inMemoryAdminSessionToken: string | null = null;
+let inMemoryAdminCsrfToken: string | null = null;
+
+export function setAdminSessionCredentials(sessionToken: string | null, csrfToken?: string | null) {
+  inMemoryAdminSessionToken = sessionToken;
+  inMemoryAdminCsrfToken = csrfToken || null;
+  if (typeof window !== 'undefined') {
+    if (sessionToken) {
+      sessionStorage.setItem('commercia_admin_session_token', sessionToken);
+    } else {
+      sessionStorage.removeItem('commercia_admin_session_token');
+    }
+    localStorage.removeItem('commercia_admin_session_token');
+  }
+}
+
+function getCookieValue(name: string): string | null {
+  if (typeof document === 'undefined' || !document.cookie) return null;
+  const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('accessToken');
-  
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -27,19 +49,24 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['x-business-id'] = activeBusinessId;
   }
 
-  const adminSessionToken = sessionStorage.getItem('commercia_admin_session_token') || localStorage.getItem('commercia_admin_session_token');
+  const adminSessionToken = inMemoryAdminSessionToken || sessionStorage.getItem('commercia_admin_session_token');
   if (adminSessionToken) {
     headers['x-admin-session-token'] = adminSessionToken;
+  }
+
+  const csrfToken = inMemoryAdminCsrfToken || getCookieValue('commercia_admin_csrf');
+  if (csrfToken && options.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method.toUpperCase())) {
+    headers['x-csrf-token'] = csrfToken;
   }
 
   try {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
     if (response.status === 401) {
-      // Tentative de rafraîchissement de jeton
       const refreshToken = localStorage.getItem('refreshToken');
       if (refreshToken && endpoint !== '/auth/refresh') {
         try {
@@ -47,20 +74,25 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refreshToken }),
+            credentials: 'include',
           });
           if (refreshRes.ok) {
             const tokens = await refreshRes.json();
             localStorage.setItem('accessToken', tokens.accessToken);
             localStorage.setItem('refreshToken', tokens.refreshToken);
             headers['Authorization'] = `Bearer ${tokens.accessToken}`;
-            const retryRes = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+            const retryRes = await fetch(`${BASE_URL}${endpoint}`, {
+              ...options,
+              headers,
+              credentials: 'include',
+            });
             if (!retryRes.ok) {
               const errData = await retryRes.json().catch(() => ({}));
               throw new ApiError(errData.error || errData.message || 'Erreur requête', retryRes.status);
             }
             return retryRes.json();
           }
-        } catch (e) {
+        } catch {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
           if (window.location.pathname !== '/login') {
@@ -112,4 +144,3 @@ export const api = {
     }),
   delete: <T>(endpoint: string, headers?: Record<string, string>) => request<T>(endpoint, { method: 'DELETE', headers }),
 };
-
