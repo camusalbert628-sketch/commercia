@@ -920,6 +920,25 @@ export const AuthPage: React.FC = () => {
                 </span>
               </div>
 
+              <div
+                style={{
+                  background: '#EFF6FF',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  border: '1px solid #BFDBFE',
+                  fontSize: '0.76rem',
+                  color: '#1E40AF',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                }}
+              >
+                <span style={{ fontSize: '0.95rem', lineHeight: 1 }}>💡</span>
+                <span>
+                  <strong>Console Google Cloud :</strong> L'origine <code>https://mycommercia.vercel.app</code> doit être enregistrée dans les <strong>Origines JavaScript autorisées</strong> de votre Client ID OAuth Google.
+                </span>
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
                 <button
                   type="button"
