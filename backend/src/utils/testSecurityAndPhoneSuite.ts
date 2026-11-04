@@ -50,7 +50,7 @@ async function runTestSuite() {
     const origInfo = console.info;
     const origWarn = console.warn;
 
-    let interceptedMail: { to: string; code: string; subject: string } | null = null as { to: string; code: string; subject: string } | null;
+    let interceptedMail = null as { to: string; code: string; subject: string } | null;
     emailService.setIsolatedTestSink((payload) => {
       interceptedMail = payload;
     });
@@ -87,9 +87,9 @@ async function runTestSuite() {
     // TEST 1 : Envoi d'un code OTP de 8 chiffres vers l'adresse Gmail autorisée
     assert(
       Boolean(interceptedMail) &&
-        interceptedMail!.to.toLowerCase() === authorizedEmail.toLowerCase() &&
-        /^\d{8}$/.test(dispatchedCode) &&
-        ADMIN_OTP_LENGTH === 8,
+      interceptedMail!.to.toLowerCase() === authorizedEmail.toLowerCase() &&
+      /^\d{8}$/.test(dispatchedCode) &&
+      ADMIN_OTP_LENGTH === 8,
       `[TEST 1] Envoi du code OTP cryptographique à 8 chiffres vers Gmail (${authorizedEmail})`
     );
 
@@ -98,8 +98,8 @@ async function runTestSuite() {
     const serializedStatusResponse = JSON.stringify(emailService.getStatus());
     assert(
       !serializedApiResponse.includes(dispatchedCode) &&
-        !('directCode' in (challengeResponse as any)) &&
-        !serializedStatusResponse.includes(dispatchedCode),
+      !('directCode' in (challengeResponse as any)) &&
+      !serializedStatusResponse.includes(dispatchedCode),
       '[TEST 2] Absence stricte du code OTP dans toutes les réponses API (initiateOtpChallenge & getStatus)'
     );
 
@@ -114,10 +114,10 @@ async function runTestSuite() {
     );
     assert(
       !modalSource.includes('directCode') &&
-        !modalSource.includes('CANAL DIRECT') &&
-        !modalSource.includes('Insérer & Valider') &&
-        !modalSource.includes('handleAutoFillDirectCode') &&
-        !securityViewSource.includes('Canal Direct Sécurisé'),
+      !modalSource.includes('CANAL DIRECT') &&
+      !modalSource.includes('Insérer & Valider') &&
+      !modalSource.includes('handleAutoFillDirectCode') &&
+      !securityViewSource.includes('Canal Direct Sécurisé'),
       '[TEST 3] Absence totale de code OTP, d’encadré Canal Direct et d’auto-insertion dans le DOM React'
     );
 
@@ -128,14 +128,14 @@ async function runTestSuite() {
     );
     assert(
       !modalSource.includes('localStorage.setItem') &&
-        !apiSource.includes('directCode'),
+      !apiSource.includes('directCode'),
       '[TEST 4] Absence totale de stockage du code OTP dans localStorage'
     );
 
     // TEST 5 : Absence de code dans sessionStorage
     assert(
       !modalSource.includes('sessionStorage.setItem') &&
-        !modalSource.includes('directCode'),
+      !modalSource.includes('directCode'),
       '[TEST 5] Absence totale de stockage du code OTP dans sessionStorage'
     );
 
@@ -150,10 +150,10 @@ async function runTestSuite() {
     const allConsoleOutput = capturedConsoleLogs.join('\n');
     assert(
       !allConsoleOutput.includes(dispatchedCode) &&
-        Boolean(latestDbLog?.metadata) &&
-        !latestDbLog!.metadata!.includes(dispatchedCode) &&
-        latestDbLog!.metadata!.includes('PBKDF2-HMAC-SHA256') &&
-        otpNotificationsCount === 0,
+      Boolean(latestDbLog?.metadata) &&
+      !latestDbLog!.metadata!.includes(dispatchedCode) &&
+      latestDbLog!.metadata!.includes('PBKDF2-HMAC-SHA256') &&
+      otpNotificationsCount === 0,
       '[TEST 6] Absence totale du code OTP dans les logs console, SecurityAccessLog (hash PBKDF2 seul) et Notifications'
     );
 
@@ -194,8 +194,8 @@ async function runTestSuite() {
     );
     assert(
       Boolean(verifiedSession.adminSessionToken) &&
-        Boolean(verifiedSession.csrfToken) &&
-        sessionCheck.isValid === true,
+      Boolean(verifiedSession.csrfToken) &&
+      sessionCheck.isValid === true,
       '[TEST 7] Code correct à 8 chiffres validé côté serveur, cookie HttpOnly & jeton CSRF vérifiés'
     );
 
@@ -325,7 +325,7 @@ async function runTestSuite() {
         return this;
       },
     };
-    await requireAdmin(mockReqAdminNoMfa, mockResAdminNoMfa, () => {});
+    await requireAdmin(mockReqAdminNoMfa, mockResAdminNoMfa, () => { });
     assert(
       directAdminBlockedStatus === 403 && directAdminBlockedBody?.code === 'ADMIN_MFA_CHALLENGE_REQUIRED',
       '[TEST 13] Tentative d’accès direct à /admin avec un JWT simple (sans MFA validé) bloquée en 403'
@@ -354,7 +354,7 @@ async function runTestSuite() {
           return this;
         },
       };
-      await requireAdmin(mockReqNonAdmin, mockResNonAdmin, () => {});
+      await requireAdmin(mockReqNonAdmin, mockResNonAdmin, () => { });
     }
     assert(
       nonAdminBlockedStatus === 403 && nonAdminBlockedBody?.code === 'FORBIDDEN_SUPER_ADMIN_REQUIRED',

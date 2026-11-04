@@ -58,7 +58,11 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
           setMaskedEmail(data.maskedEmail);
         }
         if (data.emailService) {
-          setEmailServiceConfigured(Boolean(data.emailService.isConfigured));
+          const configured = Boolean(data.emailService.isConfigured);
+          setEmailServiceConfigured(configured);
+          if (!configured) {
+            setShowMailerSetup(true);
+          }
         }
       })
       .catch(() => {});
@@ -119,8 +123,9 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
         err?.message ||
           "Service de vérification indisponible. L'envoi du code de sécurité n'a pas pu être effectué. Veuillez contacter l'administrateur système ou vérifier la configuration du service de messagerie."
       );
-      if (err?.statusCode === 503) {
+      if (err?.statusCode === 503 || !emailServiceConfigured) {
         setEmailServiceConfigured(false);
+        setShowMailerSetup(true);
       }
     } finally {
       setIsLoading(false);
@@ -143,6 +148,10 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
       setShowMailerSetup(false);
       setMailerSecret('');
       setMailerSetupSuccess(res.message);
+      // Déclencher automatiquement l'envoi réel de l'OTP après configuration réussie
+      setTimeout(() => {
+        handleRequestOtp();
+      }, 300);
     } catch (err: any) {
       setError(err?.message || 'Échec de la configuration du service de messagerie.');
     } finally {
@@ -514,8 +523,24 @@ export const AdminMfaChallengeModal: React.FC<AdminMfaChallengeModalProps> = ({
                       padding: '14px',
                     }}
                   >
-                    <div style={{ fontSize: '0.76rem', color: '#CBD5E1', marginBottom: '10px', lineHeight: 1.45 }}>
-                      Enregistrez un <strong>Mot de passe d'application Google</strong> (16 caractères) ou une clé API <strong>Resend</strong>. Le serveur vérifiera la connexion SMTP avant de vous permettre d'envoyer le code sur Gmail.
+                    <div style={{ fontSize: '0.76rem', color: '#CBD5E1', marginBottom: '10px', lineHeight: 1.5 }}>
+                      Enregistrez un <strong>Mot de passe d'application Google</strong> (16 caractères) pour <strong>camusalbert628@gmail.com</strong> ou une clé API <strong>Resend</strong>.
+                      {mailerProvider === 'gmail_smtp' && (
+                        <div style={{ marginTop: '6px', padding: '8px 10px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.25)', color: '#E2E8F0' }}>
+                          1. Ouvrez{' '}
+                          <a
+                            href="https://myaccount.google.com/apppasswords"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#34D399', fontWeight: 700, textDecoration: 'underline' }}
+                          >
+                            myaccount.google.com/apppasswords
+                          </a>
+                          <br />
+                          2. Créez un mot de passe nommé <strong>COMMERCIA</strong>.<br />
+                          3. Collez les 16 caractères ci-dessous : le code à 8 chiffres sera immédiatement envoyé sur votre Gmail.
+                        </div>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                       <button

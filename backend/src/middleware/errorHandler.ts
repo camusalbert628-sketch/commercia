@@ -20,7 +20,7 @@ export const errorHandler = (
   _next: NextFunction
 ) => {
   const status = (err as any).statusCode || (err instanceof AppError ? err.statusCode : undefined);
-  if (status && status < 500) {
+  if (status && (status < 500 || err instanceof AppError || (err as any).isOperational)) {
     return res.status(status).json({
       error: err.message,
       statusCode: status,
