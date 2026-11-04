@@ -52,6 +52,9 @@ import {
   CheckCircle2,
   Tag,
   Award,
+  ArrowLeft,
+  ArrowRight,
+  Store,
 } from 'lucide-react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -1028,12 +1031,13 @@ export const AdminPage: React.FC = () => {
             {isSidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
 
-          {/* Badge Officiel COMMERCIA */}
-          <div
+          {/* Badge Officiel COMMERCIA avec lien retour Espace Commercial */}
+          <button
+            onClick={() => navigate('/dashboard')}
             style={{
               background: '#2563EB',
               color: '#FFFFFF',
-              padding: '5px 9px',
+              padding: '5px 10px',
               borderRadius: '6px',
               fontWeight: 800,
               fontSize: '11px',
@@ -1042,11 +1046,15 @@ export const AdminPage: React.FC = () => {
               alignItems: 'center',
               gap: '6px',
               flexShrink: 0,
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'opacity 0.15s ease',
             }}
+            title="Retourner à l'espace commercial principal (/dashboard)"
           >
             <ShieldAlert size={14} />
             <span>COMMERCIA</span>
-          </div>
+          </button>
 
           {/* Fil d'Ariane (Breadcrumbs) et Titre de la page */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
@@ -1239,6 +1247,31 @@ export const AdminPage: React.FC = () => {
           >
             <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
             <span>{refreshing ? 'Actualisation...' : 'Rafraîchir'}</span>
+          </button>
+
+          {/* Bouton direct vers le Compte Admin Commercial (possédant le bouton vert vers le Super Admin) */}
+          <button
+            onClick={() => navigate('/dashboard')}
+            style={{
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+              color: '#FFFFFF',
+              border: 'none',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.4)',
+              transition: 'all 0.15s ease',
+            }}
+            title="Revenir directement à l'espace commercial (compte administrateur avec le bouton vert Administration SaaS)"
+          >
+            <ArrowLeft size={14} />
+            <Store size={14} />
+            <span>Compte Admin (Commercial)</span>
           </button>
 
           {/* Profil Super Administrateur */}
@@ -1444,6 +1477,33 @@ export const AdminPage: React.FC = () => {
               </div>
             );
           })}
+
+          {/* Bouton retour vers le compte Admin Commercial en bas de la sidebar */}
+          <div style={{ marginTop: 'auto', paddingTop: '14px', borderTop: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}` }}>
+            <button
+              onClick={() => navigate('/dashboard')}
+              style={{
+                width: '100%',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.12) 100%)',
+                color: '#10B981',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                padding: isSidebarCollapsed ? '10px 0' : '9px 12px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
+                gap: '8px',
+                transition: 'all 0.15s ease',
+              }}
+              title="Retourner à l'espace commercial principal (/dashboard où se trouve le bouton vert Administration SaaS)"
+            >
+              <ArrowLeft size={15} style={{ flexShrink: 0 }} />
+              {!isSidebarCollapsed && <span>Compte Commercial</span>}
+            </button>
+          </div>
         </aside>
 
         {/* ESPACE DE TRAVAIL CENTRAL */}
