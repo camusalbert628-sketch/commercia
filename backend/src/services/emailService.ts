@@ -33,9 +33,9 @@ export const ADMIN_OTP_EMAIL_SUBJECT = 'COMMERCIA — Votre code de vérificatio
 
 export function buildAdminOtpPlainText(code: string): string {
   return [
-    "Une tentative d'accès à la console d'administration de COMMERCIA a été initiée.",
-    '',
     `Votre code de sécurité est : ${code}`,
+    '',
+    "Une tentative d'accès à la console d'administration de COMMERCIA a été initiée.",
     '',
     "Ce code est valable pendant 5 minutes et ne peut être utilisé qu'une seule fois.",
     '',
@@ -88,6 +88,9 @@ class EmailService {
     const raw = (process.env.ADMIN_OTP_FROM_EMAIL || '').trim();
     if (raw.includes('<') && raw.includes('>')) {
       return raw;
+    }
+    if (raw.toLowerCase().includes('onboarding@resend.dev')) {
+      return 'onboarding@resend.dev';
     }
     return `COMMERCIA Security <${raw}>`;
   }
@@ -184,39 +187,27 @@ class EmailService {
 <head>
   <meta charset="UTF-8">
   <title>${subject}</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0B1120; margin: 0; padding: 24px; color: #F1F5F9; }
-    .card { max-width: 540px; margin: 0 auto; background: #0F172A; border: 1px solid #1E293B; border-radius: 16px; padding: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
-    .logo { font-size: 22px; font-weight: 800; color: #10B981; letter-spacing: -0.02em; margin-bottom: 20px; }
-    .badge { display: inline-block; background: rgba(16, 185, 129, 0.2); border: 1px solid #10B981; color: #34D399; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.8px; margin-bottom: 16px; }
-    h1 { font-size: 20px; font-weight: 800; color: #FFFFFF; margin: 0 0 12px 0; }
-    p { font-size: 14px; line-height: 1.6; color: #CBD5E1; margin: 0 0 16px 0; }
-    .code-box { background: #090D16; border: 2px solid #10B981; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0; }
-    .code { font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 900; letter-spacing: 8px; color: #10B981; }
-    .meta { font-size: 12px; color: #64748B; background: #1E293B; padding: 12px; border-radius: 8px; margin-top: 20px; }
-    .footer { font-size: 12px; color: #94A3B8; text-align: center; margin-top: 24px; font-weight: 600; }
-  </style>
 </head>
-<body>
-  <div class="card">
-    <div class="badge">PROTECTION DE L'ADMINISTRATION SAAS</div>
-    <div class="logo">COMMERCIA</div>
-    <h1>Votre code de vérification administrateur</h1>
-    <p>Une tentative d'accès à la console d'administration de COMMERCIA a été initiée.</p>
-    <div class="code-box">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0B1120; margin: 0; padding: 24px; color: #F1F5F9;">
+  <div style="max-width: 540px; margin: 0 auto; background: #0F172A; border: 1px solid #1E293B; border-radius: 16px; padding: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); color: #F1F5F9;">
+    <div style="display: inline-block; background: rgba(16, 185, 129, 0.2); border: 1px solid #10B981; color: #34D399; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.8px; margin-bottom: 16px;">PROTECTION DE L'ADMINISTRATION SAAS</div>
+    <div style="font-size: 22px; font-weight: 800; color: #10B981; letter-spacing: -0.02em; margin-bottom: 20px;">COMMERCIA</div>
+    <h1 style="font-size: 20px; font-weight: 800; color: #FFFFFF; margin: 0 0 12px 0;">Votre code de vérification administrateur</h1>
+    <p style="font-size: 14px; line-height: 1.6; color: #CBD5E1; margin: 0 0 16px 0;">Une tentative d'accès à la console d'administration de COMMERCIA a été initiée.</p>
+    <div style="background: #090D16; border: 2px solid #10B981; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
       <div style="font-size: 12px; color: #94A3B8; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Votre code de sécurité est :</div>
-      <div class="code">${code}</div>
+      <div style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #10B981; margin: 10px 0;">${code}</div>
       <div style="font-size: 12px; color: #EF4444; font-weight: 700; margin-top: 8px;">Valable pendant ${expiresInMinutes} minutes — Usage unique</div>
     </div>
-    <p>Ce code est valable pendant 5 minutes et ne peut être utilisé qu'une seule fois.</p>
-    <p><strong>Ne communiquez jamais ce code à une autre personne.</strong></p>
-    <p>Si vous n'êtes pas à l'origine de cette tentative, ignorez ce message et vérifiez la sécurité de votre compte.</p>
-    <div class="meta">
+    <p style="font-size: 14px; line-height: 1.6; color: #CBD5E1; margin: 0 0 16px 0;">Ce code est valable pendant 5 minutes et ne peut être utilisé qu'une seule fois.</p>
+    <p style="font-size: 14px; line-height: 1.6; color: #CBD5E1; margin: 0 0 16px 0;"><strong style="color: #FFFFFF;">Ne communiquez jamais ce code à une autre personne.</strong></p>
+    <p style="font-size: 14px; line-height: 1.6; color: #CBD5E1; margin: 0 0 16px 0;">Si vous n'êtes pas à l'origine de cette tentative, ignorez ce message et vérifiez la sécurité de votre compte.</p>
+    <div style="font-size: 12px; color: #64748B; background: #1E293B; padding: 12px; border-radius: 8px; margin-top: 20px;">
       ${ipAddress ? `<div><strong>Adresse IP :</strong> ${ipAddress}</div>` : ''}
       ${userAgent ? `<div><strong>Environnement :</strong> ${userAgent.substring(0, 70)}</div>` : ''}
       <div><strong>Horodatage UTC :</strong> ${new Date().toUTCString()}</div>
     </div>
-    <div class="footer">
+    <div style="font-size: 12px; color: #94A3B8; text-align: center; margin-top: 24px; font-weight: 600;">
       COMMERCIA — Protection de l'administration SaaS.
     </div>
   </div>
