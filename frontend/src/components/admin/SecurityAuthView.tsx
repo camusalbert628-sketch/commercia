@@ -77,15 +77,10 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
   // Formulaire de configuration
-  const [sessionDuration, setSessionDuration] = useState<number>(480);
+  const [sessionDuration, setSessionDuration] = useState<number>(60);
   const [otpValidity, setOtpValidity] = useState<number>(5);
   const [maxAttempts, setMaxAttempts] = useState<number>(5);
   const [requireMfaSensitive, setRequireMfaSensitive] = useState<boolean>(true);
-
-  // Configuration SMTP Gmail en direct
-  const [smtpAppPassword, setSmtpAppPassword] = useState<string>('');
-  const [isSavingSmtp, setIsSavingSmtp] = useState<boolean>(false);
-  const [smtpStatusMsg, setSmtpStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -94,7 +89,7 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
       const res = await api.get<SecurityOverview>('/admin/security/overview');
       setData(res);
       if (res.config) {
-        setSessionDuration(res.config.sessionDurationMinutes || 480);
+        setSessionDuration(res.config.sessionDurationMinutes || 60);
         setOtpValidity(res.config.otpValidityMinutes || 5);
         setMaxAttempts(res.config.maxOtpAttempts || 5);
         setRequireMfaSensitive(res.config.requireMfaForSensitive !== false);
@@ -138,28 +133,6 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
       loadData();
     } catch (err: any) {
       alert(err?.message || 'Échec de la révocation.');
-    }
-  };
-
-  const handleSaveSmtpConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!smtpAppPassword.trim()) return;
-    setIsSavingSmtp(true);
-    setSmtpStatusMsg(null);
-    try {
-      const res = await api.post<{ success: boolean; message: string; testSent: boolean }>('/admin/security/smtp-config', {
-        provider: 'gmail',
-        smtpUser: data?.config?.authorizedGoogleEmail || 'camusalbert628@gmail.com',
-        appPasswordOrKey: smtpAppPassword.trim(),
-        sendTestEmail: true,
-      });
-      setSmtpStatusMsg({ type: 'success', text: res.message });
-      setSmtpAppPassword('');
-      loadData();
-    } catch (err: any) {
-      setSmtpStatusMsg({ type: 'error', text: err?.message || 'Erreur lors de la configuration SMTP.' });
-    } finally {
-      setIsSavingSmtp(false);
     }
   };
 
@@ -231,16 +204,16 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
             </div>
             <div>
               <div style={{ fontSize: '0.72rem', color: subTextColor, fontWeight: 700, textTransform: 'uppercase' }}>Identité Google Super Admin</div>
-              <div style={{ fontSize: '0.92rem', fontWeight: 800 }}>{data?.config.authorizedGoogleEmail || 'camusalbert628@gmail.com'}</div>
+              <div style={{ fontSize: '0.92rem', fontWeight: 800 }}>{data?.config.authorizedGoogleEmail || 'c*************@gmail.com'}</div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#10B981', fontWeight: 600 }}>
             <CheckCircle2 size={14} />
-            <span>Compte officiel vérifié côté serveur</span>
+            <span>Compte officiel vérifié côté serveur (sub immuable)</span>
           </div>
         </div>
 
-        {/* Service Email Gmail / SMTP */}
+        {/* Service Email Resend Transactionnel */}
         <div style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
             <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444' }}>
@@ -249,7 +222,7 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
             <div>
               <div style={{ fontSize: '0.72rem', color: subTextColor, fontWeight: 700, textTransform: 'uppercase' }}>Service d'Envoi Email OTP</div>
               <div style={{ fontSize: '0.92rem', fontWeight: 800, color: emailInfo.isConfigured ? '#10B981' : '#EF4444' }}>
-                {emailInfo.isConfigured ? 'Serveur Email Actif' : 'Non Configuré (Fail-Closed)'}
+                {emailInfo.isConfigured ? 'API Resend Active' : 'Non Configuré (Fail-Closed)'}
               </div>
             </div>
           </div>
@@ -274,72 +247,20 @@ export const SecurityAuthView: React.FC<{ theme?: 'dark' | 'light' }> = ({ theme
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#10B981', fontWeight: 600 }}>
             <Activity size={14} />
-            <span>MFA Validé par Jeton Cryptographique</span>
+            <span>Cookie HttpOnly + HMAC-SHA-256</span>
           </div>
         </div>
       </div>
 
-      {/* Configuration Relais Gmail SMTP Direct */}
+      {/* Statut Serveur Resend Transactionnel (Lecture seule côté serveur) */}
       <div style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '24px', marginBottom: '24px' }}>
         <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Mail size={18} color="#EF4444" />
-          <span>Connexion Relais Gmail SMTP / API Transactionnelle (camusalbert628@gmail.com)</span>
+          <Server size={18} color="#10B981" />
+          <span>Service d'Envoi Transactionnel Resend (Configuration Serveur Exclusive)</span>
         </h3>
-        <p style={{ fontSize: '0.82rem', color: subTextColor, margin: '0 0 16px 0', lineHeight: 1.5 }}>
-          Politique de sécurité <strong>FAIL-CLOSED</strong> : aucun code OTP n'est jamais exposé dans le navigateur ni dans les réponses API. Pour l'envoi des codes à 8 chiffres vers votre boîte Gmail <strong>camusalbert628@gmail.com</strong>, renseignez un <strong>Mot de passe d'application Google</strong> (16 caractères, généré dans <em>Compte Google → Sécurité → Validation en deux étapes → Mots de passe des applications</em>).
+        <p style={{ fontSize: '0.82rem', color: subTextColor, margin: '0 0 12px 0', lineHeight: 1.5 }}>
+          Politique de sécurité <strong>FAIL-CLOSED</strong> : aucun secret e-mail ni mot de passe Google n'est jamais demandé ou stocké dans l'interface utilisateur. L'envoi des codes OTP à 8 chiffres vers l'adresse administrateur masquée <strong>{data?.config.authorizedGoogleEmail || 'c*************@gmail.com'}</strong> s'effectue exclusivement côté serveur via les variables d'environnement sécurisées Vercel (<code>RESEND_API_KEY</code>, <code>ADMIN_OTP_FROM_EMAIL</code>, <code>ADMIN_OTP_HASH_SECRET</code>).
         </p>
-
-        {smtpStatusMsg && (
-          <div
-            style={{
-              padding: '12px 14px',
-              borderRadius: '10px',
-              marginBottom: '14px',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              background: smtpStatusMsg.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-              border: `1px solid ${smtpStatusMsg.type === 'success' ? '#10B981' : '#EF4444'}`,
-              color: smtpStatusMsg.type === 'success' ? '#34D399' : '#F87171',
-            }}
-          >
-            {smtpStatusMsg.text}
-          </div>
-        )}
-
-        <form onSubmit={handleSaveSmtpConfig} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            type="password"
-            placeholder="Mot de passe d'application Gmail (ex: xxxx xxxx xxxx xxxx)"
-            value={smtpAppPassword}
-            onChange={(e) => setSmtpAppPassword(e.target.value)}
-            style={{
-              flex: '1 1 280px',
-              padding: '10px 14px',
-              borderRadius: '10px',
-              border: `1px solid ${borderColor}`,
-              background: isLight ? '#FFFFFF' : '#1E293B',
-              color: textColor,
-              fontSize: '0.88rem',
-              outline: 'none',
-            }}
-          />
-          <button
-            type="submit"
-            disabled={isSavingSmtp || !smtpAppPassword.trim()}
-            style={{
-              padding: '10px 20px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-              color: '#FFFFFF',
-              border: 'none',
-              fontSize: '0.86rem',
-              fontWeight: 700,
-              cursor: isSavingSmtp || !smtpAppPassword.trim() ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {isSavingSmtp ? 'Connexion & Test SMTP...' : 'Activer & Tester Gmail SMTP'}
-          </button>
-        </form>
       </div>
 
       {/* Formulaire de configuration de sécurité */}

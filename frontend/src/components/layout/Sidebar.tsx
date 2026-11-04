@@ -34,6 +34,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import { api } from '../../services/api';
 import { getBusinessProfile } from '../../config/businessProfiles';
 import { TradeConfigModal } from '../common/TradeConfigModal';
 import { AdminMfaChallengeModal } from '../admin/AdminMfaChallengeModal';
@@ -566,12 +567,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             <div className="menu-category">Super Administration</div>
             <button
               type="button"
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.preventDefault();
-                const token = sessionStorage.getItem('commercia_admin_session_token');
-                if (token) {
-                  navigate('/admin');
-                } else {
+                try {
+                  const status = await api.get<{ isVerified: boolean }>('/admin-auth/status');
+                  if (status?.isVerified) {
+                    navigate('/admin');
+                  } else {
+                    setShowAdminMfaModal(true);
+                  }
+                } catch {
                   setShowAdminMfaModal(true);
                 }
               }}

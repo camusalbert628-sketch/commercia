@@ -4,7 +4,6 @@ import { AuthRequest } from '../../middleware/auth';
 import { AdminSecurityService } from '../../services/adminSecurityService';
 import { emailService } from '../../services/emailService';
 import { PhoneService } from '../../services/phoneService';
-import { encryptSecret, maskApiKey } from '../../utils/crypto';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
@@ -71,30 +70,42 @@ router.get('/overview', async (req: AuthRequest, res: Response, next: NextFuncti
     });
 
     const emailStatus = emailService.getStatus();
+    const maskedEmail = AdminSecurityService.maskEmail(config.authorizedGoogleEmail);
 
     res.json({
-      config,
+      config: {
+        ...config,
+        authorizedGoogleEmail: maskedEmail,
+      },
       adminUser: superAdminUser ? {
         id: superAdminUser.id,
         email: superAdminUser.email,
         firstName: superAdminUser.firstName,
         lastName: superAdminUser.lastName,
-        adminGoogleEmail: superAdminUser.adminGoogleEmail || config.authorizedGoogleEmail,
+        adminGoogleEmail: maskedEmail,
       } : null,
       superAdminIdentity: {
         existingAdminId: superAdminUser?.id,
         existingAdminEmail: superAdminUser?.email,
-        authorizedGoogleEmail: config.authorizedGoogleEmail,
+        authorizedGoogleEmail: maskedEmail,
         googleLinkStatus: superAdminUser?.adminGoogleEmail ? 'LINKED_VERIFIED' : 'PENDING_GOOGLE_AUTH',
         emailVerified: superAdminUser?.emailVerified,
         lastLoginAt: superAdminUser?.lastLoginAt,
       },
-      emailService: emailStatus,
+      emailService: {
+        ...emailStatus,
+        lastSentCode: emailStatus.lastSentCode
+          ? { email: AdminSecurityService.maskEmail(emailStatus.lastSentCode.email), sentAt: emailStatus.lastSentCode.sentAt }
+          : null,
+      },
       emailServiceStatus: emailStatus,
       activeSessionsCount: activeSessions.length,
       activeSessions,
       criticalAlertsCount: alertsCount,
-      recentLogs,
+      recentLogs: recentLogs.map((l: any) => ({
+        ...l,
+        email: l.email && l.email.includes('@') ? AdminSecurityService.maskEmail(l.email) : l.email,
+      })),
     });
   } catch (err) {
     next(err);
@@ -246,85 +257,6 @@ router.post('/phone-normalize-all', async (req: AuthRequest, res: Response, next
       convertedCount,
     });
   } catch (err) {
-    next(err);
-  }
-});
-
-/**
- * POST /api/admin/security/smtp-config
- * Permet au Super Admin d'enregistrer un Mot de passe d'application Gmail ou une clé Resend
- * directement dans SystemApiKey pour activer l'envoi réel des emails sur camusalbert628@gmail.com.
- */
-const smtpConfigSchema = z.object({
-  provider: z.enum(['gmail', 'resend']).default('gmail'),
-  smtpUser: z.string().email().default('camusalbert628@gmail.com'),
-  appPasswordOrKey: z.string().min(8, 'Le mot de passe d\'application ou la clé API doit contenir au moins 8 caractères.'),
-  sendTestEmail: z.boolean().default(true),
-});
-
-router.post('/smtp-config', async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const data = smtpConfigSchema.parse(req.body);
-    const serviceName = data.provider === 'resend' ? 'resend' : 'gmail_smtp';
-    const cleanSecret = data.appPasswordOrKey.replace(/\s+/g, '');
-
-    if (data.provider === 'gmail') {
-      emailService.configureRuntimeSmtp({
-        host: 'smtp.gmail.com',
-        port: 465,
-        user: data.smtpUser,
-        pass: cleanSecret,
-      });
-
-      const verifyRes = await emailService.verifySmtpConnection();
-      if (!verifyRes.ok) {
-        throw new AppError(
-          `Échec de vérification SMTP Gmail : ${verifyRes.error || 'Identifiants refusés'}. Vérifiez votre Mot de passe d'application Google (16 caractères).`,
-          400
-        );
-      }
-    } else if (data.provider === 'resend') {
-      process.env.RESEND_API_KEY = cleanSecret;
-      emailService.initTransporterFromEnv();
-    }
-
-    const payloadToEncrypt = data.provider === 'gmail' ? `${data.smtpUser}:${cleanSecret}` : cleanSecret;
-    const encryptedKey = encryptSecret(payloadToEncrypt);
-    const keyPreview = maskApiKey(cleanSecret);
-
-    await req.prisma.systemApiKey.upsert({
-      where: { serviceName },
-      update: {
-        encryptedKey,
-        keyPreview,
-        apiUrl: data.provider === 'gmail' ? 'smtp.gmail.com' : null,
-        isActive: true,
-        lastTestedAt: new Date(),
-        testStatus: 'success',
-      },
-      create: {
-        serviceName,
-        displayName: data.provider === 'resend' ? 'Resend Email API' : 'Gmail SMTP Relais Officiel',
-        category: 'email',
-        encryptedKey,
-        keyPreview,
-        apiUrl: data.provider === 'gmail' ? 'smtp.gmail.com' : null,
-        isActive: true,
-        lastTestedAt: new Date(),
-        testStatus: 'success',
-      },
-    });
-
-    res.json({
-      success: true,
-      message: 'Serveur de messagerie transactionnel vérifié et activé avec succès.',
-      emailService: emailService.getStatus(),
-      testSent: true,
-    });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return next(new AppError(err.errors[0].message, 400));
-    }
     next(err);
   }
 });

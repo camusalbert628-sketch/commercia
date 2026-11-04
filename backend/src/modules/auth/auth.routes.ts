@@ -267,40 +267,133 @@ router.post('/login', loginBruteForceMiddleware, async (req: AuthRequest, res: R
   }
 });
 
-// POST /api/auth/google
+// GET /api/auth/google/challenge — Génère un state anti-CSRF et un nonce anti-rejeu OpenID Connect
+router.get('/google/challenge', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const crypto = await import('crypto');
+    const state = crypto.randomBytes(24).toString('hex');
+    const nonce = crypto.randomBytes(24).toString('hex');
+    const redirectUri = (req.query.redirectUri as string) || undefined;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await req.prisma.googleOAuthState.create({
+      data: {
+        state,
+        nonce,
+        redirectUri,
+        ipAddress: clientIp,
+        expiresAt,
+      },
+    });
+
+    res.json({
+      state,
+      nonce,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/google — Authentification Google OpenID Connect (Vérification cryptographique stricte côté serveur)
 const googleAuthSchema = z.object({
-  credential: z.string().optional(),
-  email: z.string().email('Email Google invalide').optional(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  avatarUrl: z.string().optional(),
+  credential: z.string().min(1, 'Jeton cryptographique Google OpenID Connect (credential) obligatoire'),
+  state: z.string().optional(),
+  nonce: z.string().optional(),
+  redirectUri: z.string().optional(),
 });
 
 router.post('/google', async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const data = googleAuthSchema.parse(req.body);
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+  const userAgent = (req.headers['user-agent'] as string) || 'unknown';
 
-    // En production, le jeton cryptographique Google (credential) est STRICTEMENT OBLIGATOIRE
-    if (isProduction && !data.credential) {
+  try {
+    // Rejet immédiat si la requête ne contient pas de credential signé (ne jamais faire confiance à un email ou rôle du navigateur)
+    if (!req.body?.credential || typeof req.body.credential !== 'string') {
+      await req.prisma.securityAccessLog.create({
+        data: {
+          email: 'unverified_client_request',
+          googleIdVerified: false,
+          authMethod: 'google_oauth',
+          status: 'BLOCKED',
+          step: 'oauth',
+          ipAddress: clientIp,
+          userAgent,
+          failureReason: 'Tentative de connexion Google sans jeton cryptographique signé (credential manquant)',
+        },
+      }).catch(() => {});
+
       throw new AppError(
-        'Authentification Google non sécurisée : le jeton cryptographique Google (credential) est obligatoire en production.',
+        'Jeton cryptographique Google OpenID Connect (credential) obligatoire. Aucune adresse e-mail non signée n’est acceptée.',
         401
       );
     }
-    
-    // Vérification cryptographique stricte du jeton Google
-    const verifiedUser = await verifyGoogleIdToken(data.credential, {
-      email: data.email,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      avatarUrl: data.avatarUrl,
-    });
+
+    const data = googleAuthSchema.parse(req.body);
+    let expectedNonce: string | undefined = data.nonce;
+
+    // Vérification du state anti-CSRF et du nonce anti-rejeu lorsqu'un challenge OAuth a été initié
+    if (data.state) {
+      const oauthState = await req.prisma.googleOAuthState.findUnique({
+        where: { state: data.state },
+      });
+
+      if (!oauthState || oauthState.consumedAt !== null || oauthState.expiresAt <= new Date()) {
+        await req.prisma.securityAccessLog.create({
+          data: {
+            email: 'oauth_state_check',
+            googleIdVerified: false,
+            authMethod: 'google_oauth',
+            status: 'BLOCKED',
+            step: 'oauth',
+            ipAddress: clientIp,
+            userAgent,
+            failureReason: 'Paramètre OAuth state invalide, expiré ou déjà consommé (protection CSRF/Replay)',
+          },
+        }).catch(() => {});
+
+        throw new AppError('Session OAuth (state) invalide ou expirée. Veuillez relancer la connexion Google.', 401);
+      }
+
+      const consumed = await req.prisma.googleOAuthState.updateMany({
+        where: { id: oauthState.id, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+
+      if (consumed.count !== 1) {
+        throw new AppError('Rejeu de requête OAuth détecté.', 401);
+      }
+
+      expectedNonce = oauthState.nonce;
+    }
+
+    // Vérification cryptographique stricte du jeton Google (signature, iss, aud, azp, exp, sub, email, email_verified, nonce)
+    let verifiedUser;
+    try {
+      verifiedUser = await verifyGoogleIdToken(data.credential, {
+        expectedNonce,
+        redirectUri: data.redirectUri,
+      });
+    } catch (verifyErr: any) {
+      await req.prisma.securityAccessLog.create({
+        data: {
+          email: 'invalid_google_token',
+          googleIdVerified: false,
+          authMethod: 'google_oauth',
+          status: 'FAILED',
+          step: 'oauth',
+          ipAddress: clientIp,
+          userAgent,
+          failureReason: verifyErr?.message || 'Jeton Google OpenID Connect invalide ou rejeté',
+        },
+      }).catch(() => {});
+      throw verifyErr;
+    }
 
     const email = verifiedUser.email;
     const googleSub = verifiedUser.sub;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
-    const userAgent = (req.headers['user-agent'] as string) || 'unknown';
 
     // 1. Détection de l'identité Google autorisée pour le Super Admin
     const isSuperAdminGoogle = await AdminSecurityService.isAuthorizedSuperAdminEmail(req.prisma, email);
@@ -329,7 +422,33 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
       });
 
       if (existingSuperAdmin) {
-        // Lier l'identité Google vérifiée (Google Sub + Email) au compte Super Admin existant
+        // Vérification stricte de l'identifiant Google immuable `sub` (Section 2)
+        const hasBoundRealSub =
+          Boolean(existingSuperAdmin.googleId) &&
+          !existingSuperAdmin.googleId!.startsWith('dev_sub_');
+
+        if (hasBoundRealSub && existingSuperAdmin.googleId !== googleSub) {
+          await req.prisma.securityAccessLog.create({
+            data: {
+              userId: existingSuperAdmin.id,
+              email,
+              googleIdVerified: false,
+              authMethod: 'google_oauth',
+              status: 'BLOCKED',
+              step: 'oauth',
+              ipAddress: clientIp,
+              userAgent,
+              failureReason: 'Tentative de prise de contrôle bloquée : identifiant Google immuable (sub) non concordant avec le Super Admin lié',
+            },
+          }).catch(() => {});
+
+          throw new AppError(
+            'Accès refusé : l’identifiant Google immuable (sub) ne correspond pas au compte Super Administrateur enregistré.',
+            403
+          );
+        }
+
+        // Liaison initiale contrôlée ou mise à jour de l'horodatage de connexion du Super Admin existant
         await req.prisma.user.update({
           where: { id: existingSuperAdmin.id },
           data: {
@@ -351,8 +470,25 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
         });
       }
     } else if (user) {
-      // Utilisateur existant (non-admin) : synchroniser son identifiant immuable Google
-      if (!user.googleId) {
+      // Un compte non-Super-Admin ne peut JAMAIS obtenir de droits admin via Google OAuth
+      if (user.googleId && !user.googleId.startsWith('dev_sub_') && user.googleId !== googleSub) {
+        await req.prisma.securityAccessLog.create({
+          data: {
+            userId: user.id,
+            email,
+            googleIdVerified: false,
+            authMethod: 'google_oauth',
+            status: 'BLOCKED',
+            step: 'oauth',
+            ipAddress: clientIp,
+            userAgent,
+            failureReason: 'Conflit d’identifiant Google immuable (sub) sur un compte existant',
+          },
+        }).catch(() => {});
+        throw new AppError('L’identifiant Google (sub) ne correspond pas à ce compte.', 403);
+      }
+
+      if (!user.googleId || user.googleId.startsWith('dev_sub_')) {
         await req.prisma.user.update({
           where: { id: user.id },
           data: {
@@ -362,9 +498,7 @@ router.post('/google', async (req: AuthRequest, res: Response, next: NextFunctio
             lastLoginAt: new Date(),
             loginCount: { increment: 1 },
           },
-        }).catch((err: any) => {
-          console.warn('Notice: googleId update skipped', err?.message);
-        });
+        }).catch(() => {});
       }
     }
 

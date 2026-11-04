@@ -1,14 +1,22 @@
+import crypto from 'crypto';
 import { Router, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AuthRequest, authenticate } from '../../middleware/auth';
-import { AdminSecurityService, ADMIN_OTP_LENGTH } from '../../services/adminSecurityService';
-import { emailService } from '../../services/emailService';
-import { encryptSecret, maskApiKey } from '../../utils/crypto';
+import {
+  AdminSecurityService,
+  ADMIN_OTP_LENGTH,
+  ADMIN_OTP_RESEND_COOLDOWN_SECONDS,
+} from '../../services/adminSecurityService';
+import {
+  emailService,
+  EMAIL_SEND_SUCCESS_MESSAGE,
+  EMAIL_NOT_CONFIGURED_MESSAGE,
+} from '../../services/emailService';
 import { AppError } from '../../middleware/errorHandler';
 
 const router = Router();
 
-// Middleware local : vérifie que l'utilisateur est authentifié et possède le drapeau isAdmin en base
+// Middleware local : vérifie côté serveur que l'utilisateur est authentifié et possède le rôle Super Admin en base de données
 const requireBasicAdminIdentity = async (req: AuthRequest, _res: Response, next: NextFunction) => {
   try {
     if (!req.userId) {
@@ -25,6 +33,20 @@ const requireBasicAdminIdentity = async (req: AuthRequest, _res: Response, next:
     }
 
     if (!user.isAdmin) {
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
+      const userAgent = (req.headers['user-agent'] as string) || 'unknown';
+      await req.prisma.securityAccessLog.create({
+        data: {
+          userId: user.id,
+          email: user.email,
+          authMethod: 'direct_api',
+          status: 'BLOCKED',
+          step: 'admin_api_access',
+          ipAddress: clientIp,
+          userAgent,
+          failureReason: 'Tentative d’accès non autorisée à /api/admin-auth par un compte marchand',
+        },
+      }).catch(() => {});
       throw new AppError('Accès réservé exclusivement au Super Administrateur.', 403);
     }
 
@@ -36,11 +58,10 @@ const requireBasicAdminIdentity = async (req: AuthRequest, _res: Response, next:
 
 /**
  * GET /api/admin-auth/status
- * Vérifie l'état actuel de la session administrative renforcée et la disponibilité du service email.
+ * Vérifie l'état actuel de la session administrative privilégiée et la disponibilité de Resend API.
  */
 router.get('/status', authenticate, requireBasicAdminIdentity, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    await emailService.ensureDynamicConfigLoaded(req.prisma);
     const cookieToken = AdminSecurityService.extractAdminCookie(req.headers.cookie);
     const adminToken =
       cookieToken ||
@@ -58,9 +79,11 @@ router.get('/status', authenticate, requireBasicAdminIdentity, async (req: AuthR
         maskedEmail,
         authorizedEmail: maskedEmail,
         otpDigits: ADMIN_OTP_LENGTH,
+        resendCooldownSeconds: ADMIN_OTP_RESEND_COOLDOWN_SECONDS,
         emailService: {
           isConfigured: emailStatus.isConfigured,
           provider: emailStatus.provider,
+          unavailableMessage: emailStatus.isConfigured ? null : EMAIL_NOT_CONFIGURED_MESSAGE,
         },
       });
     }
@@ -73,10 +96,12 @@ router.get('/status', authenticate, requireBasicAdminIdentity, async (req: AuthR
       maskedEmail,
       authorizedEmail: maskedEmail,
       otpDigits: ADMIN_OTP_LENGTH,
+      resendCooldownSeconds: ADMIN_OTP_RESEND_COOLDOWN_SECONDS,
       reason: validation.reason,
       emailService: {
         isConfigured: emailStatus.isConfigured,
         provider: emailStatus.provider,
+        unavailableMessage: emailStatus.isConfigured ? null : EMAIL_NOT_CONFIGURED_MESSAGE,
       },
     });
   } catch (err) {
@@ -86,10 +111,11 @@ router.get('/status', authenticate, requireBasicAdminIdentity, async (req: AuthR
 
 /**
  * POST /api/admin-auth/request-otp
- * Déclenche l'envoi d'un code OTP sécurisé à 8 chiffres sur le Gmail officiel du Super Admin.
+ * Déclenche la génération d'un code OTP CSPRNG à 8 chiffres et son envoi via Resend API
+ * à l'adresse Gmail autorisée du Super Admin.
  * POLITIQUE FAIL CLOSED :
  * - Ne retourne JAMAIS le code OTP dans la réponse JSON.
- * - Retourne une erreur 503 si aucun service d'envoi réel n'est configuré ou si l'envoi échoue.
+ * - Retourne une erreur 503 si Resend n'est pas configuré (ÉTAT 1) ou si l'envoi échoue (ÉTAT 3).
  */
 router.post('/request-otp', authenticate, requireBasicAdminIdentity, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -105,11 +131,13 @@ router.post('/request-otp', authenticate, requireBasicAdminIdentity, async (req:
 
     res.json({
       success: true,
-      message: "Un code de sécurité vient d'être envoyé à votre adresse Gmail administrateur.",
+      state: 'SENT',
+      message: EMAIL_SEND_SUCCESS_MESSAGE,
       challengeId: challenge.challengeId,
       maskedEmail: challenge.maskedEmail,
       expiresInMinutes: challenge.expiresInMinutes,
       attemptsRemaining: challenge.attemptsRemaining,
+      resendCooldownSeconds: challenge.resendCooldownSeconds,
       otpDigits: ADMIN_OTP_LENGTH,
     });
   } catch (err) {
@@ -119,7 +147,8 @@ router.post('/request-otp', authenticate, requireBasicAdminIdentity, async (req:
 
 /**
  * POST /api/admin-auth/verify-otp
- * Valide exclusivement côté backend le code OTP à 8 chiffres saisi et délivre la session administrative renforcée.
+ * Valide exclusivement côté backend le code OTP à 8 chiffres saisi, consomme atomiquement le challenge
+ * et crée la session administrateur privilégiée.
  */
 const verifyOtpSchema = z.object({
   challengeId: z.string().min(1, 'Identifiant du challenge de sécurité manquant'),
@@ -144,16 +173,26 @@ router.post('/verify-otp', authenticate, requireBasicAdminIdentity, async (req: 
       userAgent
     );
 
-    const isProd = process.env.NODE_ENV === 'production';
+    const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
     const maxAgeMs = result.sessionDurationMinutes * 60 * 1000;
 
-    // Cookie de session administrative HttpOnly, Secure, SameSite
+    // Cookie de session administrative privilégiée (__Host- en HTTPS production + cookie standard compatible)
+    if (isProd) {
+      res.cookie('__Host-commercia_admin_session', result.adminSessionToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        maxAge: maxAgeMs,
+        path: '/',
+      });
+    }
+
     res.cookie('commercia_admin_session', result.adminSessionToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
       maxAge: maxAgeMs,
-      path: '/api',
+      path: '/',
     });
 
     // Cookie CSRF associé pour les requêtes mutatives
@@ -182,88 +221,8 @@ router.post('/verify-otp', authenticate, requireBasicAdminIdentity, async (req: 
 });
 
 /**
- * POST /api/admin-auth/configure-mailer
- * Permet à l'administrateur système d'enregistrer ses identifiants SMTP Gmail / OAuth2 / Resend chiffrés AES-256-GCM.
- * Ne crée AUCUNE session administrative et n'expose AUCUN code OTP.
- */
-const configureMailerSchema = z.object({
-  provider: z.enum(['gmail_smtp', 'resend', 'brevo']).default('gmail_smtp'),
-  smtpUser: z.string().email().default('camusalbert628@gmail.com'),
-  secretOrAppPassword: z.string().min(8, "La clé ou le mot de passe d'application doit contenir au moins 8 caractères."),
-  smtpHost: z.string().default('smtp.gmail.com'),
-});
-
-router.post('/configure-mailer', authenticate, requireBasicAdminIdentity, async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const data = configureMailerSchema.parse(req.body);
-    const cleanSecret = data.secretOrAppPassword.replace(/\s+/g, '');
-
-    if (data.provider === 'gmail_smtp') {
-      emailService.configureRuntimeSmtp({
-        host: data.smtpHost,
-        port: 465,
-        user: data.smtpUser,
-        pass: cleanSecret,
-      });
-
-      const verifyRes = await emailService.verifySmtpConnection();
-      if (!verifyRes.ok) {
-        throw new AppError(
-          `Échec de connexion au serveur SMTP (${data.smtpHost}:465) : ${verifyRes.error || 'Identifiants refusés'}. Assurez-vous d'utiliser un Mot de passe d'application Google à 16 caractères.`,
-          400
-        );
-      }
-    } else if (data.provider === 'resend') {
-      process.env.RESEND_API_KEY = cleanSecret;
-      emailService.initTransporterFromEnv();
-    } else if (data.provider === 'brevo') {
-      process.env.BREVO_API_KEY = cleanSecret;
-      emailService.initTransporterFromEnv();
-    }
-
-    const payloadToEncrypt = data.provider === 'gmail_smtp' ? `${data.smtpUser}:${cleanSecret}` : cleanSecret;
-    const encryptedKey = encryptSecret(payloadToEncrypt);
-    const keyPreview = maskApiKey(cleanSecret);
-
-    await req.prisma.systemApiKey.upsert({
-      where: { serviceName: data.provider },
-      update: {
-        encryptedKey,
-        keyPreview,
-        apiUrl: data.provider === 'gmail_smtp' ? data.smtpHost : null,
-        isActive: true,
-        lastTestedAt: new Date(),
-        testStatus: 'success',
-      },
-      create: {
-        serviceName: data.provider,
-        displayName: data.provider === 'gmail_smtp' ? 'Gmail SMTP Transactionnel' : data.provider.toUpperCase(),
-        category: 'email',
-        encryptedKey,
-        keyPreview,
-        apiUrl: data.provider === 'gmail_smtp' ? data.smtpHost : null,
-        isActive: true,
-        lastTestedAt: new Date(),
-        testStatus: 'success',
-      },
-    });
-
-    res.json({
-      success: true,
-      message: 'Service de messagerie transactionnel vérifié et activé. Vous pouvez maintenant demander l’envoi de votre code de sécurité sur Gmail.',
-      emailService: emailService.getStatus(),
-    });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return next(new AppError(err.errors[0].message, 400));
-    }
-    next(err);
-  }
-});
-
-/**
  * POST /api/admin-auth/logout
- * Révoque immédiatement la session administrative renforcée et supprime les cookies.
+ * Révoque immédiatement la session administrative privilégiée côté serveur et détruit les cookies.
  */
 router.post('/logout', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -274,20 +233,30 @@ router.post('/logout', authenticate, async (req: AuthRequest, res: Response, nex
       (req.headers['x-admin-token'] as string);
 
     if (adminToken) {
-      const crypto = await import('crypto');
       const tokenHash = crypto.createHash('sha256').update(adminToken).digest('hex');
-      await req.prisma.adminSession.updateMany({
-        where: { tokenHash },
-        data: { isActive: false, revokedAt: new Date(), revokedBy: req.userId || 'self' },
+      const sessions = await req.prisma.adminSession.findMany({
+        where: { tokenHash, isActive: true },
       });
+
+      for (const s of sessions) {
+        await AdminSecurityService.revokeSession(req.prisma, s.id, req.userId || 'self', 'USER_LOGOUT');
+      }
     }
 
-    const isProd = process.env.NODE_ENV === 'production';
+    const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+    if (isProd) {
+      res.clearCookie('__Host-commercia_admin_session', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'lax',
+        path: '/',
+      });
+    }
     res.clearCookie('commercia_admin_session', {
       httpOnly: true,
       secure: isProd,
       sameSite: isProd ? 'none' : 'lax',
-      path: '/api',
+      path: '/',
     });
     res.clearCookie('commercia_admin_csrf', {
       httpOnly: false,
@@ -296,7 +265,7 @@ router.post('/logout', authenticate, async (req: AuthRequest, res: Response, nex
       path: '/',
     });
 
-    res.json({ success: true, message: 'Session administrative fermée avec succès.' });
+    res.json({ success: true, message: 'Session administrative fermée et révoquée avec succès.' });
   } catch (err) {
     next(err);
   }

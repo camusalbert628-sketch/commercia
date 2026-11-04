@@ -10,20 +10,17 @@ export class ApiError extends Error {
   }
 }
 
+// Jetons conservés exclusivement en mémoire volatile de fermeture (JAMAIS dans localStorage ni sessionStorage)
 let inMemoryAdminSessionToken: string | null = null;
 let inMemoryAdminCsrfToken: string | null = null;
 
 export function setAdminSessionCredentials(sessionToken: string | null, csrfToken?: string | null) {
   inMemoryAdminSessionToken = sessionToken;
   inMemoryAdminCsrfToken = csrfToken || null;
-  if (typeof window !== 'undefined') {
-    if (sessionToken) {
-      sessionStorage.setItem('commercia_admin_session_token', sessionToken);
-    } else {
-      sessionStorage.removeItem('commercia_admin_session_token');
-    }
-    localStorage.removeItem('commercia_admin_session_token');
-  }
+}
+
+export function hasInMemoryAdminSession(): boolean {
+  return Boolean(inMemoryAdminSessionToken);
 }
 
 function getCookieValue(name: string): string | null {
@@ -49,9 +46,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['x-business-id'] = activeBusinessId;
   }
 
-  const adminSessionToken = inMemoryAdminSessionToken || sessionStorage.getItem('commercia_admin_session_token');
-  if (adminSessionToken) {
-    headers['x-admin-session-token'] = adminSessionToken;
+  if (inMemoryAdminSessionToken) {
+    headers['x-admin-session-token'] = inMemoryAdminSessionToken;
   }
 
   const csrfToken = inMemoryAdminCsrfToken || getCookieValue('commercia_admin_csrf');
@@ -95,6 +91,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         } catch {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
+          setAdminSessionCredentials(null, null);
           if (window.location.pathname !== '/login') {
             window.location.href = '/login';
           }
@@ -103,6 +100,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       } else {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        setAdminSessionCredentials(null, null);
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }

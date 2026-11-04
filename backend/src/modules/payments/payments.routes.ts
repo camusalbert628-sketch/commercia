@@ -567,13 +567,8 @@ router.get('/invoice/:id', authenticate, async (req: AuthRequest, res: Response,
 // 9. DÉCLENCHEMENT DE RÉCONCILIATION AUTOMATIQUE
 // POST /api/payments/reconcile
 // =========================================================================
-router.post('/reconcile', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+router.post('/reconcile', authenticate, requireSuperAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const user = await req.prisma.user.findUnique({ where: { id: req.userId } });
-    if (!user || !user.isAdmin) {
-      throw new AppError('Action réservée aux Super Administrateurs.', 403);
-    }
-
     const report = await paymentOrchestrator.reconcilePendingPayments(req.prisma);
     res.json({
       message: `Réconciliation effectuée : ${report.checked} transactions analysées, ${report.resolved} régularisées.`,

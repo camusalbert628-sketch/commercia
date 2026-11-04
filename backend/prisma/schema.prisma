@@ -1161,18 +1161,59 @@ model CommercialAlert {
 // ===================== SÉCURITÉ ADMINISTRATIVE & AUDIT D'ACCÈS =====================
 
 model AdminSession {
-  id         String    @id @default(uuid())
-  userId     String
-  tokenHash  String    @unique
-  ipAddress  String?
-  userAgent  String?
-  expiresAt  DateTime
-  isActive   Boolean   @default(true)
-  revokedAt  DateTime?
-  revokedBy  String?
-  createdAt  DateTime  @default(now())
+  id             String    @id @default(uuid())
+  userId         String
+  tokenHash      String    @unique
+  csrfHash       String?
+  ipAddress      String?
+  userAgent      String?
+  lastActivityAt DateTime  @default(now())
+  expiresAt      DateTime
+  isActive       Boolean   @default(true)
+  revokedAt      DateTime?
+  revokedBy      String?
+  revokedReason  String?
+  createdAt      DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AdminOtpChallenge {
+  id                String    @id @default(uuid())
+  userId            String
+  codeHmac          String    // Empreinte HMAC-SHA-256 calculée avec ADMIN_OTP_HASH_SECRET
+  status            String    @default("PENDING") // PENDING | CONSUMED | INVALIDATED | EXPIRED | LOCKED | SEND_FAILED
+  attempts          Int       @default(0)
+  maxAttempts       Int       @default(5)
+  createdAt         DateTime  @default(now())
+  expiresAt         DateTime
+  validatedAt       DateTime?
+  invalidatedReason String?
+  ipAddress         String?
+  userAgent         String?
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+model AdminRateLimit {
+  key         String    @id
+  count       Int       @default(0)
+  windowStart DateTime  @default(now())
+  expiresAt   DateTime
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
+
+model GoogleOAuthState {
+  id          String    @id @default(uuid())
+  state       String    @unique
+  nonce       String    @unique
+  redirectUri String?
+  ipAddress   String?
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
 }
 
 model SecurityAccessLog {

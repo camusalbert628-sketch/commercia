@@ -71,11 +71,26 @@ export const AuthPage: React.FC = () => {
   const [googleNameInput, setGoogleNameInput] = useState('');
   const [googleError, setGoogleError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+  const oauthChallengeRef = useRef<{ state: string; nonce: string } | null>(null);
 
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '210731042943-aaap4r2isg8upmn22qapoifnd15703tn.apps.googleusercontent.com';
+
+  // Récupère un challenge OAuth (state + nonce) côté serveur contre CSRF et rejeu
+  useEffect(() => {
+    api.get<{ state: string; nonce: string }>('/auth/google/challenge')
+      .then((res) => {
+        if (res?.state && res?.nonce) {
+          oauthChallengeRef.current = { state: res.state, nonce: res.nonce };
+          renderGoogleButtons();
+        }
+      })
+      .catch(() => {
+        // Fallback silencieux si le réseau est temporairement indisponible au chargement initial
+      });
+  }, []);
 
   const handleGoogleCredentialResponse = async (response: any) => {
     if (!response || !response.credential) {
@@ -91,9 +106,12 @@ export const AuthPage: React.FC = () => {
       setGoogleError('');
       setError('');
 
-      // Envoi du véritable credential cryptographique Google au backend HTTPS
+      // Envoi du véritable credential cryptographique Google + state/nonce au backend HTTPS
       const res = await api.post<any>('/auth/google', {
         credential: response.credential,
+        state: oauthChallengeRef.current?.state,
+        nonce: oauthChallengeRef.current?.nonce,
+        redirectUri: window.location.origin,
       });
 
       setShowGoogleModal(false);
@@ -123,6 +141,7 @@ export const AuthPage: React.FC = () => {
       google.accounts.id.initialize({
         client_id: googleClientId,
         callback: handleGoogleCredentialResponse,
+        nonce: oauthChallengeRef.current?.nonce,
         auto_select: false,
         cancel_on_tap_outside: true,
       });
@@ -198,6 +217,7 @@ export const AuthPage: React.FC = () => {
       google.accounts.id.initialize({
         client_id: googleClientId,
         callback: handleGoogleCredentialResponse,
+        nonce: oauthChallengeRef.current?.nonce,
         login_hint: hintEmail ? hintEmail.trim().toLowerCase() : undefined,
         auto_select: false,
         cancel_on_tap_outside: true,
@@ -225,10 +245,6 @@ export const AuthPage: React.FC = () => {
   const handleGoogleSignInClick = () => {
     setError('');
     setGoogleError('');
-    if (!googleEmailInput) {
-      setGoogleEmailInput('camusalbert628@gmail.com');
-      setGoogleNameInput('Super Administrateur');
-    }
     setShowGoogleModal(true);
     setTimeout(() => {
       renderGoogleButtons();
@@ -240,7 +256,7 @@ export const AuthPage: React.FC = () => {
     const trimmed = googleEmailInput.trim().toLowerCase();
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!trimmed || !emailRegex.test(trimmed)) {
-      setGoogleError('Veuillez entrer une adresse Google valide (ex: camusalbert628@gmail.com).');
+      setGoogleError('Veuillez entrer une adresse Google valide (ex: votre-nom@gmail.com).');
       return;
     }
 
@@ -826,14 +842,14 @@ export const AuthPage: React.FC = () => {
                     fontSize: '1rem',
                   }}
                 >
-                  CA
+                  G
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.94rem' }}>
-                    Compte Super Admin Officiel
+                    Authentification Google OpenID Connect
                   </div>
                   <div style={{ color: '#059669', fontSize: '0.82rem', fontWeight: 600 }}>
-                    camusalbert628@gmail.com
+                    Vérification cryptographique par jeton signé
                   </div>
                 </div>
               </div>
@@ -843,7 +859,7 @@ export const AuthPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => triggerGoogleAuthWithHint('camusalbert628@gmail.com')}
+                onClick={() => triggerGoogleAuthWithHint()}
                 disabled={googleLoading}
                 style={{
                   width: '100%',
@@ -862,7 +878,7 @@ export const AuthPage: React.FC = () => {
                   boxShadow: 'none',
                 }}
               >
-                {googleLoading ? 'Connexion en cours...' : '⚡ Continuer avec camusalbert628@gmail.com'}
+                {googleLoading ? 'Connexion en cours...' : '⚡ Ouvrir le sélecteur de compte Google'}
                 <ArrowRight size={16} />
               </button>
             </div>

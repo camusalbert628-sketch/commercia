@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { User } from '../types';
-import { api } from '../services/api';
+import { api, setAdminSessionCredentials } from '../services/api';
 
 interface AuthState {
   user: User | null;
@@ -150,12 +150,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    api.post('/admin-auth/logout').catch(() => {});
+    setAdminSessionCredentials(null, null);
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('activeBusinessId');
     localStorage.removeItem('commercia_active_business_id');
     localStorage.removeItem('commercia_user');
-    sessionStorage.removeItem('commercia_admin_session_token');
     set({
       user: null,
       isAuthenticated: false,
