@@ -42,6 +42,7 @@ const MobileMoneyPage = lazy(() => import('./pages/MobileMoneyPage').then(m => (
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const GuidePage = lazy(() => import('./pages/GuidePage').then(m => ({ default: m.GuidePage })));
 const MessagesPage = lazy(() => import('./pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
+const MyPromotionsPage = lazy(() => import('./pages/MyPromotionsPage').then(m => ({ default: m.MyPromotionsPage })));
 
 function PageLoadingFallback() {
   return (
@@ -413,6 +414,22 @@ export function App() {
             element={
               <ProtectedRoute>
                 <MessagesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/promotions"
+            element={
+              <ProtectedRoute>
+                <MyPromotionsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mes-offres"
+            element={
+              <ProtectedRoute>
+                <MyPromotionsPage />
               </ProtectedRoute>
             }
           />

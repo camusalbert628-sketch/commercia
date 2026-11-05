@@ -33,6 +33,7 @@ import {
   Lock,
   Check,
   Mail,
+  Gift,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../services/api';
@@ -606,6 +607,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
         >
           <Crown size={18} />
           <span>{isPro ? 'Mon Abonnement Pro' : 'Découvrir les offres Pro'}</span>
+        </NavLink>
+
+        <NavLink
+          to="/promotions"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Gift size={18} color="#F59E0B" />
+          <span>Mes Offres Promo</span>
         </NavLink>
 
         {user?.isAdmin && (

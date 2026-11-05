@@ -80,21 +80,20 @@ export async function verifyPromoCodeWithServer(
     });
     return res;
   } catch (err: any) {
-    // Si offline ou fallback local
-    const fallback = validatePromoCode(cleanCode);
-    const basePrice = planName === 'business'
-      ? (billingCycle === 'annuel' || billingCycle === 'yearly' ? 120000 : 12000)
-      : (billingCycle === 'annuel' || billingCycle === 'yearly' ? 45000 : 4500);
+    const errorMsg =
+      err.response?.data?.error ||
+      err.response?.data?.message ||
+      err.message ||
+      'Code promotionnel non applicable ou non éligible à votre compte.';
 
-    const discounted = calculateDiscountedPrice(basePrice, cleanCode);
     return {
-      isValid: fallback.isValid,
+      isValid: false,
       code: cleanCode,
-      discountType: fallback.rule?.type || 'percent',
-      discountValue: fallback.rule?.value || 0,
-      discountAmount: discounted.discountAmount,
-      finalAmount: discounted.finalPrice,
-      message: fallback.message,
+      discountType: 'percent',
+      discountValue: 0,
+      discountAmount: 0,
+      finalAmount: 0,
+      message: errorMsg,
     };
   }
 }

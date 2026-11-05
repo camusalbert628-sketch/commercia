@@ -67,6 +67,7 @@ model User {
   sentCommunications     CommunicationMessage[] @relation("SentCommunications")
   receivedCommunications CommunicationMessage[] @relation("ReceivedCommunications")
   messageDeliveries      CommunicationRecipient[]
+  promoBeneficiaries     PromotionBeneficiary[]
   adminSessions          AdminSession[]
   securityAccessLogs     SecurityAccessLog[]
 }
@@ -504,7 +505,9 @@ model PaymentProviderConfig {
 model PromotionCode {
   id               String   @id @default(uuid())
   code             String   @unique
+  name             String?  // Nom de la campagne promotionnelle
   description      String?
+  distributionType String   @default("broadcast") // personal, group, broadcast
   discountType     String   @default("percent") // percent, fixed
   discountValue    Float
   minOrderAmount   Float    @default(0)
@@ -516,11 +519,34 @@ model PromotionCode {
   validUntil       DateTime?
   applicablePlans  String   @default("[\"pro\",\"business\"]") // JSON array
   applicableCycles String   @default("[\"monthly\",\"yearly\"]") // JSON array
+  allowNew         Boolean  @default(true) // Nouveaux abonnements
+  allowRenewal     Boolean  @default(true) // Renouvellements
+  status           String   @default("active") // draft, scheduled, active, expired, disabled
   isActive         Boolean  @default(true)
+  createdBy        String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  redemptions PromotionRedemption[]
+  beneficiaries PromotionBeneficiary[]
+  redemptions   PromotionRedemption[]
+}
+
+model PromotionBeneficiary {
+  id                    String    @id @default(uuid())
+  promoCodeId           String
+  userId                String
+  notified              Boolean   @default(false)
+  dismissedNotification Boolean   @default(false)
+  viewedAt              DateTime?
+  usedAt                DateTime?
+  createdAt             DateTime  @default(now())
+
+  promoCode PromotionCode @relation(fields: [promoCodeId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([promoCodeId, userId])
+  @@index([userId])
+  @@index([promoCodeId])
 }
 
 model PromotionRedemption {

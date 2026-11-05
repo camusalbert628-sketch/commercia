@@ -193,6 +193,42 @@ export class PaymentOrchestrator {
       /* ignore */
     }
 
+    // Vérification stricte des bénéficiaires autorisés pour les codes personnels et groupés
+    if (promo.distributionType === 'personal' || promo.distributionType === 'group') {
+      if (!userId) {
+        return {
+          isValid: false,
+          code: cleanCode,
+          discountType: promo.discountType as any,
+          discountValue: promo.discountValue,
+          discountAmount: 0,
+          finalAmount: basePrice,
+          message: 'Veuillez vous connecter pour utiliser ce code promotionnel réservé.',
+        };
+      }
+
+      const isBeneficiary = await prisma.promotionBeneficiary.findUnique({
+        where: {
+          promoCodeId_userId: {
+            promoCodeId: promo.id,
+            userId,
+          },
+        },
+      });
+
+      if (!isBeneficiary) {
+        return {
+          isValid: false,
+          code: cleanCode,
+          discountType: promo.discountType as any,
+          discountValue: promo.discountValue,
+          discountAmount: 0,
+          finalAmount: basePrice,
+          message: 'Ce code promotionnel est personnel ou réservé à des commerçants sélectionnés. Votre compte n\'est pas éligible à cette offre.',
+        };
+      }
+    }
+
     // Vérification quota par utilisateur
     if (userId) {
       const userRedemptions = await prisma.promotionRedemption.count({
@@ -475,6 +511,10 @@ export class PaymentOrchestrator {
         await prisma.promotionCode.update({
           where: { id: promo.id },
           data: { currentUses: { increment: 1 } },
+        });
+        await prisma.promotionBeneficiary.updateMany({
+          where: { promoCodeId: promo.id, userId: payment.userId },
+          data: { usedAt: new Date() },
         });
       }
     }

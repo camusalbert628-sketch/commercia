@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Crown,
   CheckCircle,
@@ -52,6 +53,7 @@ interface PaymentItem {
 }
 
 export const SubscriptionPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { user, fetchMe } = useAuthStore();
   const [payments, setPayments] = useState<PaymentItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,6 +67,15 @@ export const SubscriptionPage: React.FC = () => {
   const [momoPhone, setMomoPhone] = useState(user?.phone || '');
   const [promoCode, setPromoCode] = useState('');
   const [promoMessage, setPromoMessage] = useState('');
+
+  // Initialisation automatique du code promo transmis via l'URL
+  useEffect(() => {
+    const promoFromUrl = searchParams.get('promo');
+    if (promoFromUrl) {
+      setPromoCode(promoFromUrl.trim().toUpperCase());
+      setShowPayModal(true);
+    }
+  }, [searchParams]);
 
   // Card specific states (Visa / Mastercard)
   const [cardNumber, setCardNumber] = useState('');

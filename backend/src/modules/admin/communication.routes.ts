@@ -25,11 +25,12 @@ router.get('/communication/users', async (req: AuthRequest, res: Response, next)
         lastName: true,
         phone: true,
         isActive: true,
+        isSuspended: true,
         createdAt: true,
         subscription: {
           select: {
             status: true,
-            plan: { select: { name: true, priceXAF: true } },
+            plan: { select: { name: true, priceMonthly: true } },
           },
         },
         businesses: {
@@ -57,6 +58,8 @@ router.get('/communication/users', async (req: AuthRequest, res: Response, next)
           businessName,
           plan: planName,
           isActive: u.isActive,
+          isSuspended: Boolean(u.isSuspended),
+          accountStatus: u.isSuspended ? 'suspendu' : (!u.isActive ? 'inactif' : 'actif'),
           createdAt: u.createdAt,
         };
       })
@@ -70,7 +73,9 @@ router.get('/communication/users', async (req: AuthRequest, res: Response, next)
           u.email.toLowerCase().includes(search) ||
           u.businessName.toLowerCase().includes(search) ||
           u.id.toLowerCase().includes(search) ||
-          (u.phone && u.phone.toLowerCase().includes(search))
+          (u.phone && u.phone.toLowerCase().includes(search)) ||
+          u.plan.toLowerCase().includes(search) ||
+          u.accountStatus.toLowerCase().includes(search)
         );
       });
 

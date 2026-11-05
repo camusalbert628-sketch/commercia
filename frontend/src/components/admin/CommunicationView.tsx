@@ -43,6 +43,8 @@ interface MerchantUser {
   businessName: string;
   plan: string;
   isActive: boolean;
+  isSuspended?: boolean;
+  accountStatus?: string;
   createdAt: string;
 }
 
@@ -173,8 +175,12 @@ export const CommunicationView: React.FC<CommunicationViewProps> = ({ adminTheme
   // Filtrage local dynamique des utilisateurs
   const filteredUsers = useMemo(() => {
     return usersList.filter((u) => {
-      if (userPlanFilter !== 'all' && u.plan.toLowerCase() !== userPlanFilter.toLowerCase()) {
-        return false;
+      if (userPlanFilter !== 'all') {
+        if (userPlanFilter === 'active' && u.accountStatus === 'suspendu') return false;
+        if (userPlanFilter === 'suspended' && u.accountStatus !== 'suspendu') return false;
+        if (['free', 'pro', 'business'].includes(userPlanFilter) && u.plan.toLowerCase() !== userPlanFilter.toLowerCase()) {
+          return false;
+        }
       }
       if (!userSearch.trim()) return true;
       const s = userSearch.toLowerCase();
@@ -183,15 +189,31 @@ export const CommunicationView: React.FC<CommunicationViewProps> = ({ adminTheme
         u.email.toLowerCase().includes(s) ||
         u.businessName.toLowerCase().includes(s) ||
         u.id.toLowerCase().includes(s) ||
-        (u.phone && u.phone.includes(s))
+        (u.phone && u.phone.toLowerCase().includes(s)) ||
+        u.plan.toLowerCase().includes(s)
       );
     });
   }, [usersList, userSearch, userPlanFilter]);
 
+  // Actions de sélection pour le Mode B
+  const handleSelectAllFilteredB = () => {
+    const visibleIds = filteredUsers.map((u) => u.id);
+    setSelectedUserIdsB((prev) => Array.from(new Set([...prev, ...visibleIds])));
+  };
+
+  const handleSelectAllEligibleB = () => {
+    const allIds = usersList.map((u) => u.id);
+    setSelectedUserIdsB(allIds);
+  };
+
+  const handleClearSelectionB = () => {
+    setSelectedUserIdsB([]);
+  };
+
   // Sélectionner / Désélectionner tous les utilisateurs visibles pour le Mode B
   const handleToggleSelectAllB = () => {
     const visibleIds = filteredUsers.map((u) => u.id);
-    const allSelected = visibleIds.every((id) => selectedUserIdsB.includes(id));
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedUserIdsB.includes(id));
     if (allSelected) {
       setSelectedUserIdsB((prev) => prev.filter((id) => !visibleIds.includes(id)));
     } else {
@@ -461,23 +483,40 @@ export const CommunicationView: React.FC<CommunicationViewProps> = ({ adminTheme
               ) : (
                 filteredUsers.map((u) => {
                   const isSelected = selectedUserA?.id === u.id;
+                  const isSuspended = u.accountStatus === 'suspendu' || u.isSuspended;
                   return (
                     <div
                       key={u.id}
                       onClick={() => setSelectedUserA(u)}
                       style={{
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        marginBottom: '6px',
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        marginBottom: '8px',
                         cursor: 'pointer',
                         border: `1px solid ${isSelected ? '#0062FF' : borderCol}`,
-                        background: isSelected ? (isLight ? '#EFF6FF' : 'rgba(0,98,255,0.15)') : 'transparent',
+                        background: isSelected ? (isLight ? '#EFF6FF' : 'rgba(0,98,255,0.15)') : (isLight ? '#FFFFFF' : '#0F172A'),
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 700, fontSize: '13px', color: textPrimary }}>
-                          {u.fullName}
-                        </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 800, fontSize: '13px', color: textPrimary }}>
+                            {u.fullName}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '9.5px',
+                              fontWeight: 800,
+                              padding: '1px 5px',
+                              borderRadius: '4px',
+                              background: isSuspended ? '#EF4444' : '#10B981',
+                              color: '#FFFFFF',
+                              textTransform: 'uppercase',
+                            }}
+                          >
+                            {isSuspended ? 'Suspendu' : 'Actif'}
+                          </span>
+                        </div>
                         <span
                           style={{
                             fontSize: '10px',
@@ -492,11 +531,15 @@ export const CommunicationView: React.FC<CommunicationViewProps> = ({ adminTheme
                           {u.plan}
                         </span>
                       </div>
-                      <div style={{ fontSize: '11.5px', color: '#0062FF', fontWeight: 600, marginTop: '2px' }}>
-                        {u.businessName}
+                      <div style={{ fontSize: '11.5px', color: '#0062FF', fontWeight: 700 }}>
+                        {u.businessName || 'Boutique sans nom'}
                       </div>
-                      <div style={{ fontSize: '11px', color: textSecondary, marginTop: '2px' }}>
+                      <div style={{ fontSize: '11px', color: textSecondary, marginTop: '2px', wordBreak: 'break-all' }}>
                         {u.email}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '10.5px', color: textSecondary }}>
+                        <span>{u.phone ? `📞 ${u.phone}` : '📞 Aucun tél'}</span>
+                        <span style={{ fontFamily: 'monospace' }}>ID: #{u.id.slice(0, 8)}</span>
                       </div>
                     </div>
                   );
@@ -691,74 +734,142 @@ export const CommunicationView: React.FC<CommunicationViewProps> = ({ adminTheme
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={handleToggleSelectAllB}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#0062FF',
-                  fontSize: '11.5px',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
-              >
-                {filteredUsers.length > 0 && filteredUsers.every((u) => selectedUserIdsB.includes(u.id))
-                  ? 'Tout désélectionner'
-                  : 'Tout sélectionner'}
-              </button>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleSelectAllFilteredB}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#0062FF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Filtrés ({filteredUsers.length})
+                </button>
+                <span style={{ color: textSecondary, fontSize: '11px' }}>•</span>
+                <button
+                  type="button"
+                  onClick={handleSelectAllEligibleB}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#0062FF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Tous ({usersList.length})
+                </button>
+                {selectedUserIdsB.length > 0 && (
+                  <>
+                    <span style={{ color: textSecondary, fontSize: '11px' }}>•</span>
+                    <button
+                      type="button"
+                      onClick={handleClearSelectionB}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#EF4444',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Effacer
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             <div style={{ maxHeight: '420px', overflowY: 'auto' }}>
-              {filteredUsers.map((u) => {
-                const isChecked = selectedUserIdsB.includes(u.id);
-                return (
-                  <div
-                    key={u.id}
-                    onClick={() => handleToggleUserB(u.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      marginBottom: '6px',
-                      cursor: 'pointer',
-                      border: `1px solid ${isChecked ? '#0062FF' : borderCol}`,
-                      background: isChecked ? (isLight ? '#EFF6FF' : 'rgba(0,98,255,0.12)') : 'transparent',
-                    }}
-                  >
-                    {isChecked ? (
-                      <CheckSquare size={18} color="#0062FF" />
-                    ) : (
-                      <Square size={18} color="#94A3B8" />
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 700, fontSize: '13px', color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {u.fullName}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: '10px',
-                            fontWeight: 800,
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            background: u.plan === 'business' ? '#7C3AED' : u.plan === 'pro' ? '#0062FF' : '#64748B',
-                            color: '#FFFFFF',
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          {u.plan}
-                        </span>
+              {filteredUsers.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: textSecondary, fontSize: '12px' }}>
+                  Aucun commerçant correspondant aux critères.
+                </div>
+              ) : (
+                filteredUsers.map((u) => {
+                  const isChecked = selectedUserIdsB.includes(u.id);
+                  const isSuspended = u.accountStatus === 'suspendu' || u.isSuspended;
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={() => handleToggleUserB(u.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 14px',
+                        borderRadius: '10px',
+                        marginBottom: '8px',
+                        cursor: 'pointer',
+                        border: `1px solid ${isChecked ? '#0062FF' : borderCol}`,
+                        background: isChecked ? (isLight ? '#EFF6FF' : 'rgba(0,98,255,0.12)') : (isLight ? '#FFFFFF' : '#0F172A'),
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        {isChecked ? (
+                          <CheckSquare size={19} color="#0062FF" />
+                        ) : (
+                          <Square size={19} color="#94A3B8" />
+                        )}
                       </div>
-                      <div style={{ fontSize: '11px', color: textSecondary, marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {u.businessName} • {u.email}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '13px', color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {u.fullName}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                fontWeight: 800,
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                background: isSuspended ? '#EF4444' : '#10B981',
+                                color: '#FFFFFF',
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              {isSuspended ? 'Suspendu' : 'Actif'}
+                            </span>
+                          </div>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              background: u.plan === 'business' ? '#7C3AED' : u.plan === 'pro' ? '#0062FF' : '#64748B',
+                              color: '#FFFFFF',
+                              textTransform: 'uppercase',
+                            }}
+                          >
+                            {u.plan}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#0062FF', fontWeight: 700 }}>
+                          {u.businessName || 'Boutique sans nom'}
+                        </div>
+                        <div style={{ fontSize: '11px', color: textSecondary, marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {u.email}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', fontSize: '10.5px', color: textSecondary }}>
+                          <span>{u.phone ? `📞 ${u.phone}` : '📞 Aucun tél'}</span>
+                          <span style={{ fontFamily: 'monospace' }}>#{u.id.slice(0, 8)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 

@@ -115,6 +115,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [unreadAdminMessages, setUnreadAdminMessages] = useState<number>(0);
+  const [dashboardPromo, setDashboardPromo] = useState<any | null>(null);
+  const [hidePromoBanner, setHidePromoBanner] = useState<boolean>(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -365,6 +367,35 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     };
   }, [refreshKey]);
 
+  // Chargement de l'offre promotionnelle active du commerçant
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPromotions = async () => {
+      try {
+        const res = await api.get<{ success: boolean; activeDashboardPromo?: any }>('/subscription/my-promotions');
+        if (isMounted && res.activeDashboardPromo) {
+          setDashboardPromo(res.activeDashboardPromo);
+        }
+      } catch {
+        // Ignorer en mode silencieux
+      }
+    };
+    fetchPromotions();
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshKey]);
+
+  const handleDismissPromoBanner = async () => {
+    if (!dashboardPromo) return;
+    setHidePromoBanner(true);
+    try {
+      await api.patch(`/subscription/my-promotions/${dashboardPromo.id}/dismiss`, {});
+    } catch {
+      // Ignorer silencieusement
+    }
+  };
+
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -523,6 +554,121 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <span>Consulter ma messagerie</span>
               <span style={{ fontSize: '1.1rem' }}>→</span>
             </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Bannière Visuelle Indépendante : OFFRE PROMOTIONNELLE SPÉCIALE */}
+      {dashboardPromo && !hidePromoBanner && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 40%, #4F46E5 70%, #7C3AED 100%)',
+            border: '2px solid #A855F7',
+            borderRadius: '16px',
+            padding: '16px 22px',
+            marginBottom: '20px',
+            color: '#FFFFFF',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            boxShadow: '0 8px 24px rgba(124, 58, 237, 0.35)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', zIndex: 1 }}>
+            <div
+              style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.4rem',
+                color: '#FFFFFF',
+                boxShadow: '0 0 16px rgba(245, 158, 11, 0.6)',
+                flexShrink: 0,
+              }}
+            >
+              🎁
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontWeight: 900,
+                    fontSize: '1.05rem',
+                    letterSpacing: '0.02em',
+                    color: '#FDE047',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  UNE OFFRE SPÉCIALE VOUS EST RÉSERVÉE !
+                </span>
+                <span
+                  style={{
+                    background: '#F59E0B',
+                    color: '#1E1B4B',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    fontSize: '0.74rem',
+                    fontWeight: 900,
+                  }}
+                >
+                  {dashboardPromo.discountType === 'percent'
+                    ? `-${dashboardPromo.discountValue}%`
+                    : `-${dashboardPromo.discountValue.toLocaleString('fr-FR')} FCFA`}
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#EDE9FE', lineHeight: 1.4 }}>
+                COMMERCIA vous offre une réduction exclusive sur votre abonnement avec le code <strong style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px', color: '#FFFFFF' }}>{dashboardPromo.code}</strong>.
+                {dashboardPromo.validUntil && ` Valable jusqu'au ${new Date(dashboardPromo.validUntil).toLocaleDateString('fr-FR')}.`}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', zIndex: 1 }}>
+            <Link
+              to="/promotions"
+              style={{
+                background: '#FFFFFF',
+                color: '#4F46E5',
+                padding: '10px 18px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              }}
+            >
+              <span>Consulter mon offre</span>
+              <span style={{ fontSize: '1.1rem' }}>→</span>
+            </Link>
+            <button
+              onClick={handleDismissPromoBanner}
+              style={{
+                background: 'rgba(255,255,255,0.15)',
+                border: 'none',
+                color: '#FFFFFF',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+              title="Masquer la notification"
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
       )}
