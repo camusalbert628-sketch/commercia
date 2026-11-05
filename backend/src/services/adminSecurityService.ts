@@ -15,7 +15,7 @@ export const ADMIN_OTP_MAX_ATTEMPTS = 5;
 export const ADMIN_OTP_RESEND_COOLDOWN_SECONDS = 60;
 export const ADMIN_OTP_MAX_RESENDS_PER_HOUR = 3; // 1 envoi initial + 3 renvois = 4 envois max par heure
 export const ADMIN_SESSION_ABSOLUTE_MINUTES = 60;
-export const ADMIN_SESSION_INACTIVITY_MINUTES = 15;
+export const ADMIN_SESSION_INACTIVITY_MINUTES = 10;
 
 export class AdminSecurityService {
   // Option de test uniquement (strictement inactive en production) pour tester les envois successifs sans attendre 60s

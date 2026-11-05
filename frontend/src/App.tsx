@@ -13,6 +13,7 @@ import { CommerciaChatbot } from './components/chatbot/CommerciaChatbot';
 import { OfflineSyncBanner } from './components/common/OfflineSyncBanner';
 import { ProRouteGuard } from './components/common/ProRouteGuard';
 import { AdminRouteGuard } from './components/AdminRouteGuard';
+import { GlobalInactivityManager } from './components/common/GlobalInactivityManager';
 
 // Lazy-loaded pages for mobile performance and fast initial load
 const AuthPage = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })));
@@ -181,6 +182,7 @@ export function App() {
   return (
     <ModalProvider>
       <BrowserRouter>
+        <GlobalInactivityManager />
         <Suspense fallback={<PageLoadingFallback />}>
           <Routes>
             <Route

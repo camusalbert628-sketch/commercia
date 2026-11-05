@@ -58,7 +58,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { api, ApiError } from '../services/api';
+import { api, ApiError, setAdminSessionCredentials } from '../services/api';
 import { MerchantsDirectoryView } from '../components/admin/MerchantsDirectoryView';
 import { MerchantProfileModal } from '../components/admin/MerchantProfileModal';
 import { ProfitabilityView } from '../components/admin/ProfitabilityView';
@@ -215,6 +215,22 @@ export const AdminPage: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Révocation absolue de la session Super Admin dès qu'on quitte l'interface
+  useEffect(() => {
+    return () => {
+      setAdminSessionCredentials(null, null);
+      api.post('/admin-auth/logout').catch(() => {});
+    };
+  }, []);
+
+  const handleExitToCommercial = useCallback(async () => {
+    setAdminSessionCredentials(null, null);
+    try {
+      await api.post('/admin-auth/logout');
+    } catch {}
+    navigate('/dashboard');
+  }, [navigate]);
 
   // Thème Admin (Clair / Sombre avec persistance, détection préférences système)
   const [adminTheme, setAdminTheme] = useState<'dark' | 'light'>(() => {
@@ -1033,7 +1049,7 @@ export const AdminPage: React.FC = () => {
 
           {/* Badge Officiel COMMERCIA avec lien retour Espace Commercial */}
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={handleExitToCommercial}
             style={{
               background: '#2563EB',
               color: '#FFFFFF',
@@ -1251,7 +1267,7 @@ export const AdminPage: React.FC = () => {
 
           {/* Bouton direct vers le Compte Admin Commercial (possédant le bouton vert vers le Super Admin) */}
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={handleExitToCommercial}
             style={{
               background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
               color: '#FFFFFF',
@@ -1481,7 +1497,7 @@ export const AdminPage: React.FC = () => {
           {/* Bouton retour vers le compte Admin Commercial en bas de la sidebar */}
           <div style={{ marginTop: 'auto', paddingTop: '14px', borderTop: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}` }}>
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={handleExitToCommercial}
               style={{
                 width: '100%',
                 background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.12) 100%)',

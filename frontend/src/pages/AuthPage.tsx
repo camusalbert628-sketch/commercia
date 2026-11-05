@@ -16,7 +16,18 @@ export const AuthPage: React.FC = () => {
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState('');
+  const [inactivityNotice, setInactivityNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    try {
+      const notice = sessionStorage.getItem('commercia_inactivity_logout_notice');
+      if (notice) {
+        setInactivityNotice(notice);
+        sessionStorage.removeItem('commercia_inactivity_logout_notice');
+      }
+    } catch (_) {}
+  }, []);
 
   // Helper pour traiter et compresser la photo de profil sélectionnée
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -454,6 +465,27 @@ export const AuthPage: React.FC = () => {
             </span>
             <div style={{ flex: 1, height: '1px', background: '#E2E8F0' }} />
           </div>
+
+          {inactivityNotice && (
+            <div
+              style={{
+                padding: '12px 16px',
+                background: '#FEF3C7',
+                color: '#92400E',
+                borderRadius: '10px',
+                marginBottom: '18px',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                border: '1px solid #FCD34D',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <ShieldAlert size={18} color="#D97706" style={{ flexShrink: 0 }} />
+              <span>{inactivityNotice}</span>
+            </div>
+          )}
 
           {error && (
             <div

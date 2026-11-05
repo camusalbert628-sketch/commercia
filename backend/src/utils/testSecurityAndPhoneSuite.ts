@@ -476,7 +476,7 @@ async function runTestSuite() {
       '[SESSION-1] Cookie `__Host-commercia_admin_session` validé et protection CSRF vérifiée en temps constant'
     );
 
-    // SESSION-2 : Expiration automatique par inactivité (> 15 minutes sans requête)
+    // SESSION-2 : Expiration automatique par inactivité (> 10 minutes sans requête)
     await AdminSecurityService.forceInactivitySessionForTest(prisma, activeToken);
     const inactiveCheck = await AdminSecurityService.validateAdminSessionToken(
       prisma,
@@ -487,7 +487,7 @@ async function runTestSuite() {
     );
     assert(
       inactiveCheck.isValid === false && Boolean(inactiveCheck.reason?.includes('inactivité')),
-      '[SESSION-2] Session administrative automatiquement révoquée après 15 minutes d’inactivité'
+      '[SESSION-2] Session administrative automatiquement révoquée après 10 minutes d’inactivité'
     );
 
     // Créer une nouvelle session pour tester la révocation manuelle et l'expiration absolue

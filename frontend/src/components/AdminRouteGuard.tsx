@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ShieldAlert, ArrowLeft, Lock, ShieldX } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { api } from '../services/api';
+import { api, setAdminSessionCredentials, hasInMemoryAdminSession } from '../services/api';
 import { AdminMfaChallengeModal } from './admin/AdminMfaChallengeModal';
 
 interface AdminRouteGuardProps {
@@ -164,6 +164,14 @@ export const AdminRouteGuard: React.FC<AdminRouteGuardProps> = ({ children }) =>
   const [isVerifyingServer, setIsVerifyingServer] = useState<boolean>(true);
   const [isServerAdminConfirmed, setIsServerAdminConfirmed] = useState<boolean>(false);
 
+  // Révocation absolue dès qu'on quitte la console Super Admin par n'importe quel moyen
+  useEffect(() => {
+    return () => {
+      setAdminSessionCredentials(null, null);
+      api.post('/admin-auth/logout').catch(() => {});
+    };
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -186,21 +194,19 @@ export const AdminRouteGuard: React.FC<AdminRouteGuardProps> = ({ children }) =>
         return;
       }
 
-      // 2. Contrôle serveur en temps réel (empêche toute manipulation du localStorage)
+      // 2. Contrôle serveur en temps réel avec exigence de jeton volatile en mémoire
       try {
         const check = await api.get<{ authorized: boolean; user: any }>('/admin/verify-access');
         if (isMounted) {
-          if (check?.authorized && check?.user?.isAdmin) {
+          if (check?.authorized && check?.user?.isAdmin && hasInMemoryAdminSession()) {
             setIsServerAdminConfirmed(true);
           } else {
             setIsServerAdminConfirmed(false);
-            await fetchMe();
           }
         }
       } catch (err) {
         if (isMounted) {
           setIsServerAdminConfirmed(false);
-          // Si le serveur rejette avec 403, signaler et réinitialiser
           api.post('/admin/report-unauthorized-access', {
             path: location.pathname,
           }).catch(() => {});

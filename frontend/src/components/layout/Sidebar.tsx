@@ -567,18 +567,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
             <div className="menu-category">Super Administration</div>
             <button
               type="button"
-              onClick={async (e) => {
+              onClick={(e) => {
                 e.preventDefault();
-                try {
-                  const status = await api.get<{ isVerified: boolean }>('/admin-auth/status');
-                  if (status?.isVerified) {
-                    navigate('/admin');
-                  } else {
-                    setShowAdminMfaModal(true);
-                  }
-                } catch {
-                  setShowAdminMfaModal(true);
-                }
+                // Règle stricte : chaque tentative d'accès à l'Administration SaaS déclenche obligatoirement le défi de sécurité 2FA
+                setShowAdminMfaModal(true);
               }}
               className="nav-item admin-saas-beveled-btn"
               style={{
