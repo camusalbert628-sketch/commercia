@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2, HardDrive, RotateCw, ShieldAlert } from 'lucide-react';
+import { Bell, Plus, Minus, Store, BookOpen, Users, ChevronDown, Check, Building2, HardDrive, RotateCw, ShieldAlert, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { useModals } from '../../context/ModalContext';
@@ -20,6 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
   const { openChatbot } = useModals();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showBusinessDropdown, setShowBusinessDropdown] = useState(false);
   const [showTeamModal, setShowTeamModal] = useState(false);
@@ -61,9 +62,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
 
   const fetchNotifications = async () => {
     try {
-      const data = await api.get<{ notifications: NotificationItem[]; unreadCount: number }>('/notifications');
-      setNotifications(data.notifications || []);
-      setUnreadCount(data.unreadCount || 0);
+      const [notifsData, msgData] = await Promise.all([
+        api.get<{ notifications: NotificationItem[]; unreadCount: number }>('/notifications').catch(() => ({ notifications: [], unreadCount: 0 })),
+        api.get<{ unreadCount: number }>('/messages/unread-count').catch(() => ({ unreadCount: 0 })),
+      ]);
+      setNotifications(notifsData.notifications || []);
+      setUnreadCount(notifsData.unreadCount || 0);
+      setUnreadMessagesCount(msgData.unreadCount || 0);
     } catch (e) {
       // ignore
     }
@@ -437,6 +442,48 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
           </button>
         )}
 
+        {/* Messagerie Interne COMMERCIA */}
+        <button
+          onClick={() => navigate('/messages')}
+          title="Messagerie Interne COMMERCIA"
+          style={{
+            position: 'relative',
+            background: '#F1F5F9',
+            border: 'none',
+            padding: '10px',
+            borderRadius: '10px',
+            color: '#334155',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Mail size={18} />
+          {unreadMessagesCount > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                background: '#DC2626',
+                color: 'white',
+                borderRadius: '9999px',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                width: '18px',
+                height: '18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 6px rgba(220, 38, 38, 0.4)',
+              }}
+            >
+              {unreadMessagesCount}
+            </span>
+          )}
+        </button>
+
         {/* Notifications */}
         <div style={{ position: 'relative' }}>
           <button
@@ -533,6 +580,30 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSaleModal, onOpenExpenseMo
                     </div>
                   ))
                 )}
+              </div>
+
+              {/* Accès direct à la messagerie complète */}
+              <div style={{ padding: '10px 16px', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', textAlign: 'center' }}>
+                <button
+                  onClick={() => {
+                    setShowNotifications(false);
+                    navigate('/messages');
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#0062FF',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <Mail size={13} />
+                  <span>Ouvrir ma boîte de messagerie complète →</span>
+                </button>
               </div>
             </div>
           )}
