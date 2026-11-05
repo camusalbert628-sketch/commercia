@@ -147,14 +147,14 @@ export async function getUserSubscriptionDetails(
     isPro: hasValidProAccess,
     isAdmin: user.isAdmin,
     status: user.isAdmin ? 'active' : (hasValidProAccess ? 'active' : (currentStatus === 'expired' ? 'expired' : 'free')),
-    planName: user.isAdmin ? (sub.plan?.name as any || 'pro') : (hasValidProAccess ? (sub.plan?.name as any) : 'free'),
-    planDisplayName: user.isAdmin ? 'Administrateur' : (hasValidProAccess ? sub.plan?.displayName : 'Gratuit'),
+    planName: user.isAdmin ? ('admin' as any) : (hasValidProAccess ? (sub.plan?.name as any) : 'free'),
+    planDisplayName: user.isAdmin ? 'Super Administrateur' : (hasValidProAccess ? sub.plan?.displayName : 'Gratuit'),
     startDate: sub.startDate,
-    endDate: sub.endDate,
-    daysRemaining,
+    endDate: user.isAdmin ? null : sub.endDate,
+    daysRemaining: user.isAdmin ? 999999 : daysRemaining,
     features: parsedFeatures,
     limits: parsedLimits,
-    lastPaymentId: sub.lastPaymentId,
+    lastPaymentId: user.isAdmin ? null : sub.lastPaymentId,
   };
 }
 

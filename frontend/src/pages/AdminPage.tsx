@@ -4203,7 +4203,7 @@ export const AdminPage: React.FC = () => {
                         {(subscriptionsOverview?.metrics?.mrr || 0).toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 600 }}>FCFA</span>
                       </div>
                       <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '12px', marginTop: '6px' }}>
-                        Flux mensuels récurrents calculés en base
+                        Flux récurrents marchands réels (admin exclu)
                       </div>
                     </div>
 
@@ -4237,7 +4237,7 @@ export const AdminPage: React.FC = () => {
                         {(subscriptionsOverview?.metrics?.arr || 0).toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 600 }}>FCFA</span>
                       </div>
                       <div style={{ color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '12px', marginTop: '6px' }}>
-                        Base 12 mois annualisée
+                        Base 12 mois marchands réels
                       </div>
                     </div>
 
@@ -4344,8 +4344,13 @@ export const AdminPage: React.FC = () => {
                           <tbody>
                             {(!subscriptionsOverview?.subscriptions || subscriptionsOverview.subscriptions.length === 0) ? (
                               <tr>
-                                <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
-                                  Aucun abonnement trouvé en base de données.
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '36px 20px', color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                                  <div style={{ fontWeight: 700, fontSize: '13.5px', marginBottom: '4px', color: adminTheme === 'light' ? '#334155' : '#E2E8F0' }}>
+                                    Aucun abonnement marchand payant actif pour le moment
+                                  </div>
+                                  <div style={{ fontSize: '12px' }}>
+                                    Les licences des commerçants apparaîtront ici dès confirmation de paiement. Le compte administrateur est exclu des métriques de vente SaaS.
+                                  </div>
                                 </td>
                               </tr>
                             ) : (

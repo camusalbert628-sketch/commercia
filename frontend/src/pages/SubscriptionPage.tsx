@@ -321,7 +321,92 @@ export const SubscriptionPage: React.FC = () => {
     <div className="page-wrapper" style={{ width: '100%', maxWidth: '100%' }}>
 
       {/* 1. STATUS BANNER */}
-      {isFree && (
+      {user?.isAdmin && (
+        <div style={{
+          background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
+          border: '1.5px solid #6366F1',
+          borderRadius: '16px',
+          padding: '24px',
+          marginBottom: '28px',
+          boxShadow: '0 4px 16px rgba(99, 102, 241, 0.12)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '16px',
+                background: 'linear-gradient(135deg, #4F46E5 0%, #4338CA 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                boxShadow: '0 6px 18px rgba(79, 70, 229, 0.35)',
+              }}>
+                <ShieldCheck size={32} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h2 style={{ fontSize: '1.4rem', margin: 0, fontWeight: 800, color: '#312E81' }}>
+                    Compte Super Administrateur (Accès Intégral Illimité)
+                  </h2>
+                  <span style={{
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    background: '#4F46E5',
+                    color: '#FFFFFF',
+                  }}>
+                    ● ADMINISTRATEUR SYSTÈME
+                  </span>
+                </div>
+                <p style={{ color: '#4338CA', fontSize: '0.9rem', margin: '4px 0 0 0' }}>
+                  Ce compte dispose d'un accès universel permanent et natif à tous les modules métiers COMMERCIA. Aucun abonnement commercial n'est requis ni facturé.
+                </p>
+              </div>
+            </div>
+
+            <a
+              href="/admin"
+              className="btn btn-primary"
+              style={{ background: '#4F46E5', borderColor: '#4F46E5', textDecoration: 'none', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <ShieldCheck size={16} />
+              <span>Console Super Admin</span>
+            </a>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', borderTop: '1px solid rgba(99, 102, 241, 0.25)', paddingTop: '18px' }}>
+            <div>
+              <div style={{ fontSize: '0.78rem', color: '#4338CA', textTransform: 'uppercase', fontWeight: 600 }}>Formule</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#312E81' }}>
+                Administration Système
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.78rem', color: '#4338CA', textTransform: 'uppercase', fontWeight: 600 }}>Date d'échéance</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#312E81' }}>
+                Permanent (Accès Illimité)
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.78rem', color: '#4338CA', textTransform: 'uppercase', fontWeight: 600 }}>Facturation</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#4F46E5' }}>
+                0 FCFA (Non facturé)
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '0.78rem', color: '#4338CA', textTransform: 'uppercase', fontWeight: 600 }}>Statut Système</div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#4338CA' }}>
+                Privilèges Super Admin Actifs
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!user?.isAdmin && isFree && (
         <div style={{
           background: 'linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%)',
           border: '1.5px solid #BFDBFE',
@@ -396,7 +481,7 @@ export const SubscriptionPage: React.FC = () => {
         </div>
       )}
 
-      {isPro && (
+      {!user?.isAdmin && isPro && (
         <div style={{
           background: 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)',
           border: '1.5px solid #10B981',

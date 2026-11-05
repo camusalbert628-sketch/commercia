@@ -202,19 +202,19 @@ router.get('/merchants', async (req: AuthRequest, res: Response, next) => {
     const totalPages = Math.ceil(totalRecords / limit) || 1;
     const paginatedRecords = filtered.slice((page - 1) * limit, page * limit);
 
-    // Métriques globales du tableau
+    // Métriques globales du tableau (exclusion stricte des comptes administrateurs)
     const summary = {
-      totalUsers: allUsers.length,
-      payingUsers: allUsers.filter((u: any) => u.subscription?.plan && u.subscription.plan.name !== 'free').length,
-      freeUsers: allUsers.filter((u: any) => !u.subscription?.plan || u.subscription.plan.name === 'free').length,
-      activePaid: computedMerchants.filter((m: any) => m.status === 'ACTIF' && m.planKey !== 'free').length,
-      expiringSoon: computedMerchants.filter((m: any) => m.status === 'À RENOUVELER').length,
-      inGrace: computedMerchants.filter((m: any) => m.status === 'EN GRÂCE').length,
-      expiredCount: computedMerchants.filter((m: any) => m.status === 'NON RENOUVELÉ').length,
-      suspendedCount: computedMerchants.filter((m: any) => m.status.startsWith('SUSPENDU')).length,
-      securityLockedCount: computedMerchants.filter((m: any) => m.status === 'BLOQUÉ POUR RAISON DE SÉCURITÉ').length,
-      totalGrossRevenue: computedMerchants.reduce((sum: number, m: any) => sum + m.totalPaid, 0),
-      totalNetRevenue: computedMerchants.reduce((sum: number, m: any) => sum + m.netRevenue, 0),
+      totalUsers: allUsers.filter((u: any) => !u.isAdmin).length,
+      payingUsers: allUsers.filter((u: any) => !u.isAdmin && u.subscription?.plan && u.subscription.plan.name !== 'free' && u.subscription.plan.name !== 'admin').length,
+      freeUsers: allUsers.filter((u: any) => !u.isAdmin && (!u.subscription?.plan || u.subscription.plan.name === 'free')).length,
+      activePaid: computedMerchants.filter((m: any) => !m.isAdmin && m.status === 'ACTIF' && m.planKey !== 'free' && m.planKey !== 'admin').length,
+      expiringSoon: computedMerchants.filter((m: any) => !m.isAdmin && m.status === 'À RENOUVELER').length,
+      inGrace: computedMerchants.filter((m: any) => !m.isAdmin && m.status === 'EN GRÂCE').length,
+      expiredCount: computedMerchants.filter((m: any) => !m.isAdmin && m.status === 'NON RENOUVELÉ').length,
+      suspendedCount: computedMerchants.filter((m: any) => !m.isAdmin && m.status.startsWith('SUSPENDU')).length,
+      securityLockedCount: computedMerchants.filter((m: any) => !m.isAdmin && m.status === 'BLOQUÉ POUR RAISON DE SÉCURITÉ').length,
+      totalGrossRevenue: computedMerchants.filter((m: any) => !m.isAdmin).reduce((sum: number, m: any) => sum + m.totalPaid, 0),
+      totalNetRevenue: computedMerchants.filter((m: any) => !m.isAdmin).reduce((sum: number, m: any) => sum + m.netRevenue, 0),
     };
 
     res.json({

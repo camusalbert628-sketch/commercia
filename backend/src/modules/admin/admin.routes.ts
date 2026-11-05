@@ -106,12 +106,14 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
         _count: { id: true },
       }),
       req.prisma.payment.findMany({
+        where: { user: { isAdmin: false } },
         orderBy: { createdAt: 'desc' },
         take: 20,
         include: { user: { select: { email: true, firstName: true, lastName: true } } },
       }),
       req.prisma.subscription.findMany({
-        include: { plan: true, user: { select: { email: true, firstName: true, lastName: true } } },
+        where: { user: { isAdmin: false } },
+        include: { plan: true, user: { select: { email: true, firstName: true, lastName: true, isAdmin: true } } },
       }),
       req.prisma.user.findMany({
         take: 50,
@@ -1206,6 +1208,7 @@ router.get('/subscriptions', async (req: AuthRequest, res, next) => {
   try {
     const [subs, plans, payments] = await Promise.all([
       req.prisma.subscription.findMany({
+        where: { user: { isAdmin: false } },
         include: {
           plan: true,
           user: {
@@ -1215,6 +1218,7 @@ router.get('/subscriptions', async (req: AuthRequest, res, next) => {
               firstName: true,
               lastName: true,
               phone: true,
+              isAdmin: true,
               createdAt: true,
               businesses: { include: { business: true } },
             },
@@ -1222,13 +1226,17 @@ router.get('/subscriptions', async (req: AuthRequest, res, next) => {
         },
         orderBy: { updatedAt: 'desc' },
       }),
-      req.prisma.plan.findMany({ orderBy: { sortOrder: 'asc' } }),
+      req.prisma.plan.findMany({
+        where: { name: { not: 'admin' } },
+        orderBy: { sortOrder: 'asc' },
+      }),
       req.prisma.payment.findMany({
+        where: { user: { isAdmin: false } },
         take: 50,
         orderBy: { createdAt: 'desc' },
         include: {
           plan: true,
-          user: { select: { email: true, firstName: true, lastName: true } },
+          user: { select: { email: true, firstName: true, lastName: true, isAdmin: true } },
         },
       }),
     ]);
@@ -1240,7 +1248,7 @@ router.get('/subscriptions', async (req: AuthRequest, res, next) => {
     let expiredCount = 0;
 
     const formattedSubs = subs.map((s: any) => {
-      const isPaid = s.status === 'active' && s.plan && s.plan.name !== 'free';
+      const isPaid = s.status === 'active' && s.plan && s.plan.name !== 'free' && s.plan.name !== 'admin';
       const isExpired = s.status === 'expired' || (s.endDate && new Date(s.endDate) < new Date());
       const monthlyPrice = Number(s.plan?.priceMonthly || 0);
 

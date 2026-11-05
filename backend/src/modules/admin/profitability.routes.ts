@@ -35,9 +35,10 @@ router.get('/analytics/profitability', async (req: AuthRequest, res: Response, n
         break;
     }
 
-    // Récupération de tous les utilisateurs et abonnements
+    // Récupération de tous les utilisateurs et abonnements marchands (exclusion stricte des comptes admin)
     const [allUsers, allSubscriptions, periodPayments, allCompletedPayments, salesAgg] = await Promise.all([
       req.prisma.user.findMany({
+        where: { isAdmin: false },
         include: {
           businesses: { include: { business: true } },
           subscription: { include: { plan: true } },
@@ -45,16 +46,18 @@ router.get('/analytics/profitability', async (req: AuthRequest, res: Response, n
         },
       }),
       req.prisma.subscription.findMany({
+        where: { user: { isAdmin: false } },
         include: { plan: true },
       }),
       req.prisma.payment.findMany({
         where: {
           status: 'completed',
+          user: { isAdmin: false },
           createdAt: { gte: periodStart },
         },
       }),
       req.prisma.payment.findMany({
-        where: { status: 'completed' },
+        where: { status: 'completed', user: { isAdmin: false } },
       }),
       req.prisma.sale.aggregate({
         _sum: { totalAmount: true },
@@ -72,7 +75,7 @@ router.get('/analytics/profitability', async (req: AuthRequest, res: Response, n
     let mrr = 0;
 
     for (const sub of allSubscriptions) {
-      const isPaid = sub.plan && sub.plan.name !== 'free';
+      const isPaid = sub.plan && sub.plan.name !== 'free' && sub.plan.name !== 'admin';
       if (isPaid) {
         payingUsers++;
         if (sub.status === 'active' || sub.status === 'in_grace') {

@@ -547,7 +547,22 @@ async function runTestSuite() {
     );
 
     // SESSION-5 : Tentative d'accès aux API administratives par un compte marchand -> 403
-    const nonAdminUser = await prisma.user.findFirst({ where: { isAdmin: false } });
+    let nonAdminUser = await prisma.user.findFirst({ where: { isAdmin: false } });
+    let createdTempNonAdmin = false;
+    if (!nonAdminUser) {
+      nonAdminUser = await prisma.user.create({
+        data: {
+          email: `test-merchant-audit-${Date.now()}@commercia.cm`,
+          passwordHash: '$2a$12$e0V...',
+          firstName: 'Marchand',
+          lastName: 'Test',
+          isAdmin: false,
+          isActive: true,
+        },
+      });
+      createdTempNonAdmin = true;
+    }
+
     let nonAdminBlockedStatus = 0;
     let nonAdminBlockedBody: any = null;
     if (nonAdminUser) {
@@ -570,6 +585,10 @@ async function runTestSuite() {
         },
       };
       await requireAdmin(mockReqNonAdmin, mockResNonAdmin, () => {});
+    }
+
+    if (createdTempNonAdmin && nonAdminUser) {
+      await prisma.user.delete({ where: { id: nonAdminUser.id } }).catch(() => {});
     }
     assert(
       nonAdminBlockedStatus === 403 && nonAdminBlockedBody?.code === 'FORBIDDEN_SUPER_ADMIN_REQUIRED',
