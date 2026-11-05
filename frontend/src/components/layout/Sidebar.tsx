@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -32,6 +32,7 @@ import {
   BookOpen,
   Lock,
   Check,
+  Mail,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../services/api';
@@ -57,6 +58,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
   const [showAdminMfaModal, setShowAdminMfaModal] = useState(false);
   const [callbackSent, setCallbackSent] = useState(false);
   const [callbackPhone, setCallbackPhone] = useState(user?.phone || '');
+  const [unreadMessages, setUnreadMessages] = useState<number>(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUnread = async () => {
+      try {
+        const res = await api.get<{ unreadCount: number }>('/messages/unread-count');
+        if (isMounted) {
+          setUnreadMessages(res.unreadCount || 0);
+        }
+      } catch {
+        // Silencieux si hors ligne
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const planName = user?.subscription?.planName || 'free';
   const subStatus = user?.subscription?.status || 'free';
@@ -235,6 +258,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ debtCount = 0, lowStockCount =
         >
           <LayoutDashboard size={18} />
           <span>Tableau de bord</span>
+        </NavLink>
+
+        <NavLink
+          to="/messages"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Mail size={18} />
+          <span>Messagerie</span>
+          {unreadMessages > 0 && (
+            <span
+              style={{
+                fontSize: '0.62rem',
+                background: '#DC2626',
+                color: '#FFFFFF',
+                padding: '2px 7px',
+                borderRadius: '999px',
+                fontWeight: 800,
+                boxShadow: '0 0 8px rgba(220, 38, 38, 0.4)',
+              }}
+            >
+              {unreadMessages}
+            </span>
+          )}
         </NavLink>
 
         <NavLink

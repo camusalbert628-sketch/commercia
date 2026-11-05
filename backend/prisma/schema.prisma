@@ -66,6 +66,7 @@ model User {
   feedbacks      UserFeedback[]
   sentCommunications     CommunicationMessage[] @relation("SentCommunications")
   receivedCommunications CommunicationMessage[] @relation("ReceivedCommunications")
+  messageDeliveries      CommunicationRecipient[]
   adminSessions          AdminSession[]
   securityAccessLogs     SecurityAccessLog[]
 }
@@ -1099,12 +1100,13 @@ model UserFeedback {
 
 model CommunicationMessage {
   id             String    @id @default(uuid())
-  type           String    @default("individual") // individual, campaign
+  type           String    @default("individual") // individual, group, campaign, broadcast
   recipientId    String?
   targetAudience String?   // all, pro, business, free, expiring_7d, expired, suspended, custom
   channel        String    @default("internal_notification") // internal_notification, email, sms, whatsapp
   title          String
   content        String
+  importance     String    @default("info") // info, important, urgent
   templateId     String?
   status         String    @default("sent") // scheduled, sent, delivered, failed
   scheduledAt    DateTime?
@@ -1117,8 +1119,26 @@ model CommunicationMessage {
   metadata       String?   // JSON string
   createdAt      DateTime  @default(now())
 
-  sender    User? @relation("SentCommunications", fields: [sentBy], references: [id], onDelete: Cascade)
-  recipient User? @relation("ReceivedCommunications", fields: [recipientId], references: [id], onDelete: SetNull)
+  sender         User?                    @relation("SentCommunications", fields: [sentBy], references: [id], onDelete: Cascade)
+  recipient      User?                    @relation("ReceivedCommunications", fields: [recipientId], references: [id], onDelete: SetNull)
+  recipients     CommunicationRecipient[]
+}
+
+model CommunicationRecipient {
+  id          String    @id @default(uuid())
+  messageId   String
+  userId      String
+  status      String    @default("unread") // unread, read
+  readAt      DateTime?
+  deliveredAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  message     CommunicationMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, status])
+  @@index([messageId])
 }
 
 model CommunicationTemplate {

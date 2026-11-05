@@ -34,6 +34,7 @@ import adminAuthRouter from './modules/admin/adminAuth.routes';
 import phoneRouter from './modules/phone/phone.routes';
 import { deliveriesRouter } from './modules/deliveries/deliveries.routes';
 import { treasuryRouter } from './modules/treasury/treasury.routes';
+import { messagesRouter } from './modules/messages/messages.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 
@@ -123,6 +124,7 @@ app.use('/api/admin-auth', adminAuthRouter);
 app.use('/api/phone', phoneRouter);
 app.use('/api/deliveries', deliveriesRouter);
 app.use('/api/treasury', treasuryRouter);
+app.use('/api/messages', messagesRouter);
 
 
 // Health check

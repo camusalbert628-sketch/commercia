@@ -41,6 +41,7 @@ const ServiceOrdersPage = lazy(() => import('./pages/ServiceOrdersPage').then(m 
 const MobileMoneyPage = lazy(() => import('./pages/MobileMoneyPage').then(m => ({ default: m.MobileMoneyPage })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const GuidePage = lazy(() => import('./pages/GuidePage').then(m => ({ default: m.GuidePage })));
+const MessagesPage = lazy(() => import('./pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
 
 function PageLoadingFallback() {
   return (
@@ -404,6 +405,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <GuidePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/messages"
+            element={
+              <ProtectedRoute>
+                <MessagesPage />
               </ProtectedRoute>
             }
           />

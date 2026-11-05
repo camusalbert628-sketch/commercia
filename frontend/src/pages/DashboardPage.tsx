@@ -114,6 +114,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [hideBanner, setHideBanner] = useState(false);
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [unreadAdminMessages, setUnreadAdminMessages] = useState<number>(0);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const avatarInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -342,6 +343,28 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     fetchDashboard();
   }, [refreshKey, activeBusinessId]);
 
+  // Polling temps réel des messages non lus de l'administration
+  useEffect(() => {
+    let isMounted = true;
+    const checkUnreadMessages = async () => {
+      try {
+        const res = await api.get<{ unreadCount: number }>('/messages/unread-count');
+        if (isMounted) {
+          setUnreadAdminMessages(res.unreadCount || 0);
+        }
+      } catch {
+        // En cas de perte temporaire de réseau, ignorer silencieusement
+      }
+    };
+
+    checkUnreadMessages();
+    const interval = setInterval(checkUnreadMessages, 12000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [refreshKey]);
+
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -410,6 +433,100 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="page-wrapper fade-in">
+      {/* Bannière Visuelle de Notification : NOUVEAU MESSAGE DE L'ADMINISTRATION */}
+      {unreadAdminMessages > 0 && (
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #1E3A8A 100%)',
+            border: '2px solid #818CF8',
+            borderRadius: '16px',
+            padding: '16px 22px',
+            marginBottom: '20px',
+            color: '#FFFFFF',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            boxShadow: '0 8px 24px rgba(79, 70, 229, 0.35)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', zIndex: 1 }}>
+            <div
+              style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.4rem',
+                color: '#FFFFFF',
+                boxShadow: '0 0 16px rgba(239, 68, 68, 0.6)',
+                flexShrink: 0,
+              }}
+            >
+              🔔
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontWeight: 900,
+                    fontSize: '1.05rem',
+                    letterSpacing: '0.02em',
+                    color: '#FDE047',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  NOUVEAU MESSAGE !
+                </span>
+                <span
+                  style={{
+                    background: '#DC2626',
+                    color: '#FFFFFF',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                  }}
+                >
+                  {unreadAdminMessages} non lu{unreadAdminMessages > 1 ? 's' : ''}
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.88rem', color: '#E0E7FF', lineHeight: 1.4 }}>
+                Vous avez reçu un nouveau message de l'administration COMMERCIA. Consultez votre messagerie pour en prendre connaissance.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', zIndex: 1 }}>
+            <Link
+              to="/messages"
+              style={{
+                background: '#FFFFFF',
+                color: '#1E1B4B',
+                padding: '10px 18px',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              }}
+            >
+              <span>Consulter ma messagerie</span>
+              <span style={{ fontSize: '1.1rem' }}>→</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Plan Upgrade Reminder Banner */}
       {!hideBanner && planName === 'free' && (
         <div
