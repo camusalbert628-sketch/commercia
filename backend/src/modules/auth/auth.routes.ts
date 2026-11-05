@@ -275,7 +275,7 @@ router.get('/google/challenge', async (req: AuthRequest, res: Response, next: Ne
     const nonce = crypto.randomBytes(24).toString('hex');
     const redirectUri = (req.query.redirectUri as string) || undefined;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown';
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes de validité pour éviter toute expiration prématurée
 
     await req.prisma.googleOAuthState.create({
       data: {

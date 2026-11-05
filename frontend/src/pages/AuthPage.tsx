@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck, X, Camera, Upload, User as UserIcon, Sparkles, KeyRound, ShieldAlert } from 'lucide-react';
 import { api } from '../services/api';
@@ -83,25 +83,32 @@ export const AuthPage: React.FC = () => {
   const [googleError, setGoogleError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
   const oauthChallengeRef = useRef<{ state: string; nonce: string } | null>(null);
+  const challengeFetchedAtRef = useRef<number>(0);
 
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '210731042943-aaap4r2isg8upmn22qapoifnd15703tn.apps.googleusercontent.com';
 
+  const refreshOAuthChallenge = useCallback(async (): Promise<{ state: string; nonce: string } | null> => {
+    try {
+      const res = await api.get<{ state: string; nonce: string }>('/auth/google/challenge');
+      if (res?.state && res?.nonce) {
+        oauthChallengeRef.current = { state: res.state, nonce: res.nonce };
+        challengeFetchedAtRef.current = Date.now();
+        renderGoogleButtons();
+        return { state: res.state, nonce: res.nonce };
+      }
+    } catch (e) {
+      console.warn('Challenge refresh warning:', e);
+    }
+    return null;
+  }, []);
+
   // Récupère un challenge OAuth (state + nonce) côté serveur contre CSRF et rejeu
   useEffect(() => {
-    api.get<{ state: string; nonce: string }>('/auth/google/challenge')
-      .then((res) => {
-        if (res?.state && res?.nonce) {
-          oauthChallengeRef.current = { state: res.state, nonce: res.nonce };
-          renderGoogleButtons();
-        }
-      })
-      .catch(() => {
-        // Fallback silencieux si le réseau est temporairement indisponible au chargement initial
-      });
-  }, []);
+    refreshOAuthChallenge();
+  }, [refreshOAuthChallenge]);
 
   const handleGoogleCredentialResponse = async (response: any) => {
     if (!response || !response.credential) {
@@ -214,7 +221,7 @@ export const AuthPage: React.FC = () => {
     };
   }, [isLogin, showGoogleModal]);
 
-  const triggerGoogleAuthWithHint = (hintEmail?: string) => {
+  const triggerGoogleAuthWithHint = async (hintEmail?: string) => {
     setGoogleError('');
     setError('');
     const google = (window as any).google;
@@ -222,6 +229,11 @@ export const AuthPage: React.FC = () => {
     if (!google?.accounts?.id) {
       setGoogleError('Le SDK Google officiel est en cours de chargement. Veuillez patienter un instant ou rafraîchir la page.');
       return;
+    }
+
+    // Si le challenge n'existe pas ou a plus de 5 minutes, le rafraîchir immédiatement
+    if (!oauthChallengeRef.current || (Date.now() - challengeFetchedAtRef.current > 5 * 60 * 1000)) {
+      await refreshOAuthChallenge();
     }
 
     try {
@@ -257,12 +269,13 @@ export const AuthPage: React.FC = () => {
     setError('');
     setGoogleError('');
     setShowGoogleModal(true);
+    refreshOAuthChallenge();
     setTimeout(() => {
       renderGoogleButtons();
     }, 100);
   };
 
-  const handleConfirmGoogleAuth = (e: React.FormEvent) => {
+  const handleConfirmGoogleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = googleEmailInput.trim().toLowerCase();
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -272,7 +285,7 @@ export const AuthPage: React.FC = () => {
     }
 
     // Déclenche l'authentification Google réelle avec cet email comme hint (ZÉRO BYPASS SANS JETON CRYPTOGRAPHIQUE)
-    triggerGoogleAuthWithHint(trimmed);
+    await triggerGoogleAuthWithHint(trimmed);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

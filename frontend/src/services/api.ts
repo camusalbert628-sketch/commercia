@@ -104,7 +104,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
-        throw new ApiError('Non authentifié.', 401);
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(errorData.error || errorData.message || 'Non authentifié.', 401);
       }
     }
 
