@@ -2508,193 +2508,388 @@ export const AdminPage: React.FC = () => {
                   boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
                 }}
               >
-                <div style={{ fontSize: '11px', fontWeight: 700, color: adminTheme === 'light' ? '#64748B' : '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
-                  Sélectionner une table PostgreSQL ({tablesList.length} disponibles)
-                </div>
-                <div style={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                  maxHeight: '150px',
-                  overflowY: 'auto',
-                  paddingRight: '4px',
-                }}>
-                  {tablesList.map(t => (
-                    <button
-                      key={t.name}
-                      onClick={() => {
-                        setSelectedTable(t.name);
-                        setTablePage(1);
-                        loadTableRecords(t.name, 1, tableSearch);
-                      }}
-                      style={{
-                        background: selectedTable === t.name
-                          ? '#2563EB'
-                          : (adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.04)'),
-                        border: `1px solid ${selectedTable === t.name
-                          ? '#1D4ED8'
-                          : (adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.08)')}`,
-                        color: selectedTable === t.name
-                          ? '#FFFFFF'
-                          : (adminTheme === 'light' ? '#334155' : '#CBD5E1'),
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: selectedTable === t.name ? 700 : 500,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: selectedTable === t.name ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <span>{t.name}</span>
-                      <span style={{ fontSize: '10px', opacity: selectedTable === t.name ? 0.9 : 0.7, fontWeight: 700 }}>
-                        ({t.estimatedRows})
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                {/* 1. SECTION SPÉCIALE : TABLES SYSTÈME & SÉCURITÉ SUPER ADMIN */}
+                {(() => {
+                  const isAdminTable = (name: string) => {
+                    const adminExact = [
+                      'AdminOtpChallenge',
+                      'AdminRateLimit',
+                      'AdminSecurityConfig',
+                      'AdminSession',
+                      'SecurityAccessLog',
+                      'SystemAlert',
+                      'SystemApiKey',
+                      'SystemLlmConfig',
+                      'AuditLog',
+                      'PlatformGlobalConfig',
+                      'GoogleOAuthState'
+                    ];
+                    return adminExact.includes(name) || name.startsWith('Admin') || name.startsWith('System') || name.startsWith('Security');
+                  };
+
+                  const adminTables = tablesList.filter(t => isAdminTable(t.name));
+                  const merchantTables = tablesList.filter(t => !isAdminTable(t.name));
+
+                  return (
+                    <div>
+                      {/* Encart Tables Admin */}
+                      <div style={{
+                        marginBottom: '16px',
+                        padding: '14px 16px',
+                        borderRadius: '10px',
+                        background: adminTheme === 'light' ? 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 100%)' : 'rgba(124, 58, 237, 0.08)',
+                        border: `1.5px solid ${adminTheme === 'light' ? '#DDD6FE' : 'rgba(139, 92, 246, 0.35)'}`,
+                        boxShadow: adminTheme === 'light' ? '0 2px 6px rgba(124, 58, 237, 0.05)' : 'none',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: 800, color: adminTheme === 'light' ? '#6B21A8' : '#DDD6FE', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                            <ShieldCheck size={15} color="#7C3AED" />
+                            🛡️ TABLES D'ADMINISTRATION & SÉCURITÉ SYSTÈME ({adminTables.length})
+                          </div>
+                          <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '12px', background: adminTheme === 'light' ? '#EDE9FE' : 'rgba(124, 58, 237, 0.25)', color: adminTheme === 'light' ? '#6D28D9' : '#C4B5FD', border: `1px solid ${adminTheme === 'light' ? '#DDD6FE' : 'rgba(139, 92, 246, 0.3)'}` }}>
+                            ⚡ Haute Protection & Gouvernance Admin
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {adminTables.map(t => {
+                            const isSelected = selectedTable === t.name;
+                            return (
+                              <button
+                                key={t.name}
+                                onClick={() => {
+                                  setSelectedTable(t.name);
+                                  setTablePage(1);
+                                  loadTableRecords(t.name, 1, tableSearch);
+                                }}
+                                style={{
+                                  background: isSelected
+                                    ? 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)'
+                                    : (adminTheme === 'light' ? '#FFFFFF' : 'rgba(124, 58, 237, 0.16)'),
+                                  border: `1.5px solid ${isSelected ? '#6D28D9' : (adminTheme === 'light' ? '#C4B5FD' : 'rgba(139, 92, 246, 0.45)')}`,
+                                  color: isSelected ? '#FFFFFF' : (adminTheme === 'light' ? '#5B21B6' : '#E9D5FF'),
+                                  padding: '6px 12px',
+                                  borderRadius: '7px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  boxShadow: isSelected ? '0 4px 14px rgba(124, 58, 237, 0.35)' : (adminTheme === 'light' ? '0 1px 2px rgba(124, 58, 237, 0.08)' : 'none'),
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                <ShieldCheck size={13} color={isSelected ? '#FDE047' : (adminTheme === 'light' ? '#7C3AED' : '#A78BFA')} />
+                                <span>{t.name}</span>
+                                <span style={{
+                                  fontSize: '9.5px',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  background: isSelected ? 'rgba(255, 255, 255, 0.25)' : (adminTheme === 'light' ? '#EDE9FE' : 'rgba(124, 58, 237, 0.3)'),
+                                  color: isSelected ? '#FFFFFF' : (adminTheme === 'light' ? '#7C3AED' : '#C4B5FD'),
+                                  fontWeight: 800,
+                                }}>
+                                  {t.estimatedRows}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Encart Tables Commerciales */}
+                      <div>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: adminTheme === 'light' ? '#64748B' : '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                          📦 Tables Commerciales & Données Marchands ({merchantTables.length})
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                          maxHeight: '130px',
+                          overflowY: 'auto',
+                          paddingRight: '4px',
+                        }}>
+                          {merchantTables.map(t => {
+                            const isSelected = selectedTable === t.name;
+                            return (
+                              <button
+                                key={t.name}
+                                onClick={() => {
+                                  setSelectedTable(t.name);
+                                  setTablePage(1);
+                                  loadTableRecords(t.name, 1, tableSearch);
+                                }}
+                                style={{
+                                  background: isSelected
+                                    ? '#2563EB'
+                                    : (adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.04)'),
+                                  border: `1px solid ${isSelected
+                                    ? '#1D4ED8'
+                                    : (adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.08)')}`,
+                                  color: isSelected
+                                    ? '#FFFFFF'
+                                    : (adminTheme === 'light' ? '#334155' : '#CBD5E1'),
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  fontSize: '11.5px',
+                                  fontWeight: isSelected ? 700 : 500,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  boxShadow: isSelected ? '0 2px 8px rgba(37,99,235,0.25)' : 'none',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                <span>{t.name}</span>
+                                <span style={{ fontSize: '10px', opacity: isSelected ? 0.9 : 0.7, fontWeight: 700 }}>
+                                  ({t.estimatedRows})
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Barre de recherche et pagination pour la table sélectionnée */}
-              <div
-                className="admin-card"
-                style={{
-                  background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
-                  borderRadius: '12px',
-                  border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
-                  padding: '20px',
-                  boxShadow: adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '16px', color: adminTheme === 'light' ? '#172033' : '#FFFFFF' }}>
-                      Table : <span style={{ color: '#2563EB' }}>{selectedTable}</span>
+              {(() => {
+                const isAdminTableSelected = [
+                  'AdminOtpChallenge',
+                  'AdminRateLimit',
+                  'AdminSecurityConfig',
+                  'AdminSession',
+                  'SecurityAccessLog',
+                  'SystemAlert',
+                  'SystemApiKey',
+                  'SystemLlmConfig',
+                  'AuditLog',
+                  'PlatformGlobalConfig',
+                  'GoogleOAuthState'
+                ].includes(selectedTable) || selectedTable.startsWith('Admin') || selectedTable.startsWith('System') || selectedTable.startsWith('Security');
+
+                return (
+                  <div
+                    className="admin-card"
+                    style={{
+                      background: adminTheme === 'light' ? '#FFFFFF' : '#0F172A',
+                      borderRadius: '12px',
+                      border: isAdminTableSelected
+                        ? `1.5px solid ${adminTheme === 'light' ? '#DDD6FE' : 'rgba(139, 92, 246, 0.4)'}`
+                        : `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}`,
+                      padding: '20px',
+                      boxShadow: isAdminTableSelected && adminTheme === 'light'
+                        ? '0 4px 16px rgba(124, 58, 237, 0.08)'
+                        : (adminTheme === 'light' ? '0 1px 3px rgba(0,0,0,0.04)' : 'none'),
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ fontWeight: 800, fontSize: '16px', color: adminTheme === 'light' ? '#172033' : '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {isAdminTableSelected ? (
+                            <>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                                color: '#FFFFFF',
+                                padding: '3px 10px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                letterSpacing: '0.04em',
+                                boxShadow: '0 2px 6px rgba(124, 58, 237, 0.3)',
+                              }}>
+                                <ShieldCheck size={13} color="#FDE047" />
+                                TABLE ADMIN SYSTÈME
+                              </span>
+                              <span>Table : <span style={{ color: '#7C3AED' }}>{selectedTable}</span></span>
+                            </>
+                          ) : (
+                            <span>Table : <span style={{ color: '#2563EB' }}>{selectedTable}</span></span>
+                          )}
+                        </div>
+                        <span style={{
+                          fontSize: '11.5px',
+                          color: adminTheme === 'light' ? '#64748B' : '#94A3B8',
+                          background: adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.05)',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontWeight: 600,
+                        }}>
+                          {tableTotalRecords} enregistrement(s) trouvé(s)
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <div style={{ position: 'relative' }}>
+                          <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: adminTheme === 'light' ? '#94A3B8' : '#64748B' }} />
+                          <input
+                            type="text"
+                            placeholder="Recherche dans la table..."
+                            value={tableSearch}
+                            onChange={(e) => {
+                              setTableSearch(e.target.value);
+                              loadTableRecords(selectedTable, 1, e.target.value);
+                            }}
+                            style={{
+                              background: adminTheme === 'light' ? '#FFFFFF' : '#090D16',
+                              border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.1)'}`,
+                              borderRadius: '8px',
+                              color: adminTheme === 'light' ? '#172033' : '#FFFFFF',
+                              padding: '7px 12px 7px 32px',
+                              fontSize: '12px',
+                              width: '240px',
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+
+                        <button
+                          onClick={() => loadTableRecords(selectedTable, tablePage, tableSearch)}
+                          style={{
+                            background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.06)',
+                            border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.1)'}`,
+                            color: adminTheme === 'light' ? '#334155' : '#CBD5E1',
+                            padding: '7px 12px',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <RefreshCw size={13} className={tableLoading ? 'animate-spin' : ''} />
+                        </button>
+                      </div>
                     </div>
-                    <span style={{
-                      fontSize: '11.5px',
-                      color: adminTheme === 'light' ? '#64748B' : '#94A3B8',
-                      background: adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.05)',
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      fontWeight: 600,
-                    }}>
-                      {tableTotalRecords} enregistrement(s) trouvé(s)
-                    </span>
-                  </div>
 
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <div style={{ position: 'relative' }}>
-                      <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: adminTheme === 'light' ? '#94A3B8' : '#64748B' }} />
-                      <input
-                        type="text"
-                        placeholder="Recherche dans la table..."
-                        value={tableSearch}
-                        onChange={(e) => {
-                          setTableSearch(e.target.value);
-                          loadTableRecords(selectedTable, 1, e.target.value);
-                        }}
-                        style={{
-                          background: adminTheme === 'light' ? '#FFFFFF' : '#090D16',
-                          border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.1)'}`,
-                          borderRadius: '8px',
-                          color: adminTheme === 'light' ? '#172033' : '#FFFFFF',
-                          padding: '7px 12px 7px 32px',
-                          fontSize: '12px',
-                          width: '240px',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-
-                    <button
-                      onClick={() => loadTableRecords(selectedTable, tablePage, tableSearch)}
-                      style={{
-                        background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.06)',
-                        border: `1px solid ${adminTheme === 'light' ? '#CBD5E1' : 'rgba(255,255,255,0.1)'}`,
-                        color: adminTheme === 'light' ? '#334155' : '#CBD5E1',
-                        padding: '7px 12px',
-                        borderRadius: '8px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <RefreshCw size={13} className={tableLoading ? 'animate-spin' : ''} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tableau de visualisation des données */}
-                {tableLoading ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px' }}>
-                    Interrogation réelle de PostgreSQL...
-                  </div>
-                ) : tableRecords.length === 0 ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px' }}>
-                    Aucun enregistrement dans la table <strong>{selectedTable}</strong> pour ces critères.
-                  </div>
-                ) : (
-                  <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}` }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
-                      <thead style={{ background: adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)' }}>
-                        <tr style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`, color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
-                          {tableColumns.slice(0, 7).map(col => (
-                            <th key={col.column_name} style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              {col.column_name}
-                            </th>
-                          ))}
-                          <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tableRecords.map((row, i) => (
-                          <tr key={row.id || i} style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.03)'}` }}>
-                            {tableColumns.slice(0, 7).map(col => {
-                              const val = row[col.column_name];
-                              let displayVal = val;
-                              if (val === null || val === undefined) displayVal = <span style={{ color: adminTheme === 'light' ? '#94A3B8' : '#475569' }}>null</span>;
-                              else if (typeof val === 'boolean') displayVal = val ? 'true' : 'false';
-                              else if (typeof val === 'object') displayVal = JSON.stringify(val).slice(0, 40) + '...';
-                              else displayVal = String(val).slice(0, 50);
+                    {/* Tableau de visualisation des données */}
+                    {tableLoading ? (
+                      <div style={{ padding: '40px', textAlign: 'center', color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px' }}>
+                        Interrogation réelle de PostgreSQL...
+                      </div>
+                    ) : tableRecords.length === 0 ? (
+                      <div style={{ padding: '40px', textAlign: 'center', color: adminTheme === 'light' ? '#64748B' : '#94A3B8', fontSize: '13px' }}>
+                        Aucun enregistrement dans la table <strong>{selectedTable}</strong> pour ces critères.
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto', borderRadius: '8px', border: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.06)'}` }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
+                          <thead style={{ background: isAdminTableSelected ? (adminTheme === 'light' ? 'linear-gradient(90deg, #FAF5FF 0%, #F5F3FF 100%)' : 'rgba(124, 58, 237, 0.15)') : (adminTheme === 'light' ? '#F8FAFC' : 'rgba(255,255,255,0.02)') }}>
+                            <tr style={{ borderBottom: `1px solid ${adminTheme === 'light' ? '#E5EAF0' : 'rgba(255,255,255,0.08)'}`, color: adminTheme === 'light' ? '#64748B' : '#94A3B8' }}>
+                              {tableColumns.slice(0, 7).map(col => (
+                                <th key={col.column_name} style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                  {col.column_name}
+                                </th>
+                              ))}
+                              <th style={{ padding: '10px 14px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'right' }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tableRecords.map((row, i) => {
+                              const isSuperAdminUserRow = (selectedTable === 'User' && (row.email === 'admin@commercia.com' || row.isAdmin === true || row.role === 'admin')) || (selectedTable === 'AdminSession' && row.userId);
 
                               return (
-                                <td key={col.column_name} style={{ padding: '10px 14px', color: adminTheme === 'light' ? '#172033' : '#E2E8F0', fontFamily: col.column_name.includes('id') || col.column_name.includes('At') ? 'monospace' : 'inherit', fontSize: '12px' }}>
-                                  {displayVal}
-                                </td>
+                                <tr
+                                  key={row.id || i}
+                                  style={{
+                                    borderBottom: `1px solid ${adminTheme === 'light' ? '#F1F5F9' : 'rgba(255,255,255,0.03)'}`,
+                                    background: isSuperAdminUserRow
+                                      ? (adminTheme === 'light' ? 'linear-gradient(90deg, #FEF3C7 0%, #FFFBEB 100%)' : 'linear-gradient(90deg, rgba(245, 158, 11, 0.15) 0%, rgba(124, 58, 237, 0.12) 100%)')
+                                      : 'transparent',
+                                    borderLeft: isSuperAdminUserRow ? '4px solid #F59E0B' : 'none',
+                                  }}
+                                >
+                                  {tableColumns.slice(0, 7).map(col => {
+                                    const val = row[col.column_name];
+                                    let displayVal = val;
+                                    if (val === null || val === undefined) displayVal = <span style={{ color: adminTheme === 'light' ? '#94A3B8' : '#475569' }}>null</span>;
+                                    else if (typeof val === 'boolean') displayVal = val ? 'true' : 'false';
+                                    else if (typeof val === 'object') displayVal = JSON.stringify(val).slice(0, 40) + '...';
+                                    else displayVal = String(val).slice(0, 50);
+
+                                    return (
+                                      <td key={col.column_name} style={{ padding: '10px 14px', color: adminTheme === 'light' ? '#172033' : '#E2E8F0', fontFamily: col.column_name.includes('id') || col.column_name.includes('At') ? 'monospace' : 'inherit', fontSize: '12px' }}>
+                                        {col.column_name === 'email' && isSuperAdminUserRow ? (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontWeight: 700 }}>{displayVal}</span>
+                                            <span style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '3px',
+                                              background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                                              color: '#FFFFFF',
+                                              padding: '2px 7px',
+                                              borderRadius: '4px',
+                                              fontSize: '10px',
+                                              fontWeight: 800,
+                                              letterSpacing: '0.04em',
+                                              boxShadow: '0 2px 4px rgba(124, 58, 237, 0.25)',
+                                            }}>
+                                              <ShieldCheck size={11} color="#FDE047" />
+                                              👑 SUPER ADMIN
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          displayVal
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td style={{ padding: '10px 14px', textAlign: 'right' }}>
+                                    {isSuperAdminUserRow && selectedTable === 'User' ? (
+                                      <div style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        background: adminTheme === 'light' ? '#FEF3C7' : 'rgba(245, 158, 11, 0.2)',
+                                        color: adminTheme === 'light' ? '#92400E' : '#FDE68A',
+                                        border: `1.5px solid ${adminTheme === 'light' ? '#FDE68A' : 'rgba(245, 158, 11, 0.4)'}`,
+                                        padding: '4px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                      }}>
+                                        <Lock size={12} color="#D97706" />
+                                        🛡️ Système Protégé (Immuable)
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => {
+                                          setDeleteTarget({ type: 'record', id: row.id, name: `${selectedTable} #${row.id}` });
+                                          setShowDeleteModal(true);
+                                        }}
+                                        style={{
+                                          background: adminTheme === 'light' ? '#FEF2F2' : 'rgba(239, 68, 68, 0.1)',
+                                          color: adminTheme === 'light' ? '#DC2626' : '#F87171',
+                                          border: `1px solid ${adminTheme === 'light' ? '#FECACA' : 'rgba(239, 68, 68, 0.2)'}`,
+                                          padding: '4px 10px',
+                                          borderRadius: '6px',
+                                          cursor: 'pointer',
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        Supprimer
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
                               );
                             })}
-                            <td style={{ padding: '10px 14px', textAlign: 'right' }}>
-                              <button
-                                onClick={() => {
-                                  setDeleteTarget({ type: 'record', id: row.id, name: `${selectedTable} #${row.id}` });
-                                  setShowDeleteModal(true);
-                                }}
-                                style={{
-                                  background: adminTheme === 'light' ? '#FEF2F2' : 'rgba(239, 68, 68, 0.1)',
-                                  color: adminTheme === 'light' ? '#DC2626' : '#F87171',
-                                  border: `1px solid ${adminTheme === 'light' ? '#FECACA' : 'rgba(239, 68, 68, 0.2)'}`,
-                                  padding: '4px 10px',
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Supprimer
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           )}
 
