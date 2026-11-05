@@ -20,8 +20,9 @@ router.get('/merchants', async (req: AuthRequest, res: Response, next) => {
 
     const ruleConfig = await SubscriptionAutomationService.getRuleConfig(req.prisma);
 
-    // Récupération de tous les utilisateurs marchands avec leurs relations
+    // Récupération de tous les utilisateurs marchands réels (exclusion stricte du Super Admin)
     const allUsers = await req.prisma.user.findMany({
+      where: { isAdmin: false },
       include: {
         subscription: {
           include: {

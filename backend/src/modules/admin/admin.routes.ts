@@ -99,9 +99,10 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
       activeAlertsCount,
       recentAuditLogs,
     ] = await Promise.all([
-      req.prisma.user.count(),
-      req.prisma.business.count(),
+      req.prisma.user.count({ where: { isAdmin: false } }),
+      req.prisma.business.count({ where: { members: { some: { user: { isAdmin: false } } } } }),
       req.prisma.sale.aggregate({
+        where: { business: { members: { some: { user: { isAdmin: false } } } } },
         _sum: { totalAmount: true },
         _count: { id: true },
       }),
@@ -116,6 +117,7 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
         include: { plan: true, user: { select: { email: true, firstName: true, lastName: true, isAdmin: true } } },
       }),
       req.prisma.user.findMany({
+        where: { isAdmin: false },
         take: 50,
         orderBy: { createdAt: 'desc' },
         include: {

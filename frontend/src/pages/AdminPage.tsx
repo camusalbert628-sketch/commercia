@@ -1678,7 +1678,7 @@ export const AdminPage: React.FC = () => {
                     {stats?.metrics?.totalUsers ?? '...'}
                   </div>
                   <div style={{ fontSize: '11px', color: adminTheme === 'light' ? '#94A3B8' : '#64748B', marginTop: '4px' }}>
-                    Comptes réels stockés dans Neon
+                    Comptes marchands (hors admin)
                   </div>
                 </div>
 
@@ -1724,7 +1724,7 @@ export const AdminPage: React.FC = () => {
                     {stats?.metrics?.totalBusinesses ?? '...'}
                   </div>
                   <div style={{ fontSize: '11px', color: adminTheme === 'light' ? '#94A3B8' : '#64748B', marginTop: '4px' }}>
-                    Points de vente actifs créés
+                    Points de vente marchands créés
                   </div>
                 </div>
 
