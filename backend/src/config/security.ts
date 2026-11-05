@@ -117,26 +117,45 @@ export const getAllowedOrigins = (): (string | RegExp)[] => {
  */
 export const validateOAuthRedirectUri = (redirectUri?: string): boolean => {
   if (!redirectUri) return true;
-  const allowedExact = new Set([
-    'https://mycommercia.vercel.app',
-    'https://mycommercia.vercel.app/auth',
-    'https://mycommercia.vercel.app/login',
-    'https://mycommercia.vercel.app/auth/callback',
-    'https://commercia.vercel.app',
-    'https://commercia.vercel.app/auth',
-    'https://commercia.vercel.app/login',
-    ...(process.env.NODE_ENV !== 'production'
-      ? [
-          'http://localhost:5173',
-          'http://localhost:5173/auth',
-          'http://localhost:5173/login',
-          'http://localhost:3000',
-          'http://localhost:3000/auth',
-          'http://localhost:3000/login',
-        ]
-      : []),
-  ]);
-  return allowedExact.has(redirectUri.trim());
+  const trimmed = redirectUri.trim();
+
+  // Rejet immédiat des protocoles non web ou dangereux
+  if (
+    trimmed.startsWith('javascript:') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('vbscript:') ||
+    trimmed.startsWith('file:')
+  ) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    const protocol = parsed.protocol.toLowerCase();
+
+    // Protocoles autorisés : http uniquement sur localhost / 127.0.0.1
+    if (protocol === 'http:' && (host === 'localhost' || host === '127.0.0.1')) {
+      return true;
+    }
+
+    if (protocol !== 'https:') {
+      return false;
+    }
+
+    // Domaines officiels de production COMMERCIA et déploiements Vercel autorisés
+    if (
+      host === 'mycommercia.vercel.app' ||
+      host === 'commercia.vercel.app' ||
+      host.endsWith('.vercel.app')
+    ) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
 };
 
 // Google OAuth Client & Allowed Audiences
