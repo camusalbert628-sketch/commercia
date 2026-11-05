@@ -32,6 +32,8 @@ import { mobileMoneyRouter } from './modules/mobileMoney/mobileMoney.routes';
 import { feedbackRouter } from './modules/feedback/feedback.routes';
 import adminAuthRouter from './modules/admin/adminAuth.routes';
 import phoneRouter from './modules/phone/phone.routes';
+import { deliveriesRouter } from './modules/deliveries/deliveries.routes';
+import { treasuryRouter } from './modules/treasury/treasury.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 
@@ -119,6 +121,8 @@ app.use('/api/mobile-money', mobileMoneyRouter);
 app.use('/api/feedback', feedbackRouter);
 app.use('/api/admin-auth', adminAuthRouter);
 app.use('/api/phone', phoneRouter);
+app.use('/api/deliveries', deliveriesRouter);
+app.use('/api/treasury', treasuryRouter);
 
 
 // Health check

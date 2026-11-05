@@ -54,28 +54,11 @@ export const DeliveriesPage: React.FC = () => {
   const activeBizId = activeBusinessId || user?.businesses?.[0]?.id || 'default';
   const activeBusiness = user?.businesses?.find((b: any) => b.id === activeBizId) || user?.businesses?.[0];
   const currency = activeBusiness?.currency || 'XAF';
-  const deliveryKey = `commercia_deliveries_${activeBizId}`;
 
   const isPro = Boolean(user?.isAdmin || user?.subscription?.isPro);
 
-  const [deliveries, setDeliveries] = useState<DeliveryItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(deliveryKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.filter(
-            (d: any) =>
-              d &&
-              !d.id?.startsWith('del-demo-') &&
-              !d.customerName?.includes('Fatou Ndiaye')
-          );
-        }
-      }
-    } catch (_) {}
-    return [];
-  });
-
+  const [deliveries, setDeliveries] = useState<DeliveryItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -96,88 +79,103 @@ export const DeliveriesPage: React.FC = () => {
   const [scheduledTime, setScheduledTime] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Synchronize on active business change
-  useEffect(() => {
+  // Chargement réel depuis PostgreSQL Neon
+  const fetchDeliveries = async () => {
     try {
-      const saved = localStorage.getItem(deliveryKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setDeliveries(parsed.filter((d: any) => d && !d.customerName?.includes('Fatou Ndiaye')));
-          return;
-        }
-      }
-    } catch (_) {}
-    setDeliveries([]);
-  }, [deliveryKey]);
+      setLoading(true);
+      const data = await api.get<DeliveryItem[]>('/deliveries');
+      setDeliveries(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Erreur chargement livraisons:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Save changes locally
   useEffect(() => {
-    try {
-      localStorage.setItem(deliveryKey, JSON.stringify(deliveries));
-    } catch (_) {}
-  }, [deliveries, deliveryKey]);
+    fetchDeliveries();
+  }, [activeBizId]);
 
-  const handleCreateDelivery = (e: React.FormEvent) => {
+  const handleCreateDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim() || !address.trim()) return;
 
-    const newDel: DeliveryItem = {
-      id: 'del-' + Date.now(),
-      orderNumber: `CMD-${Math.floor(1000 + Math.random() * 9000)}`,
-      customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
-      city: city.trim(),
-      address: address.trim(),
-      landmark: landmark.trim() || undefined,
-      itemsDescription: itemsDescription.trim() || 'Colis marchandise',
-      amountToCollect: Number(amountToCollect) || 0,
-      deliveryFee: Number(deliveryFee) || 0,
-      feePaidBy,
-      status: 'pending',
-      courierName: courierName.trim() || undefined,
-      courierPhone: courierPhone.trim() || undefined,
-      scheduledDate: new Date().toISOString().split('T')[0],
-      scheduledTime: scheduledTime.trim() || undefined,
-      notes: notes.trim() || undefined,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const payload = {
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        city: city.trim() || null,
+        address: address.trim(),
+        landmark: landmark.trim() || null,
+        itemsDescription: itemsDescription.trim() || 'Colis marchandise',
+        amountToCollect: Number(amountToCollect) || 0,
+        deliveryFee: Number(deliveryFee) || 0,
+        feePaidBy,
+        courierName: courierName.trim() || null,
+        courierPhone: courierPhone.trim() || null,
+        scheduledTime: scheduledTime.trim() || null,
+        notes: notes.trim() || null,
+      };
 
-    setDeliveries(prev => [newDel, ...prev]);
-    setShowAddModal(false);
+      const created = await api.post<DeliveryItem>('/deliveries', payload);
+      setDeliveries(prev => [created, ...prev]);
+      setShowAddModal(false);
 
-    // Reset form
-    setCustomerName('');
-    setCustomerPhone('');
-    setAddress('');
-    setLandmark('');
-    setItemsDescription('');
-    setAmountToCollect('');
-    setCourierName('');
-    setCourierPhone('');
-    setNotes('');
+      // Reset form
+      setCustomerName('');
+      setCustomerPhone('');
+      setCity('');
+      setAddress('');
+      setLandmark('');
+      setItemsDescription('');
+      setAmountToCollect('');
+      setDeliveryFee('');
+      setCourierName('');
+      setCourierPhone('');
+      setScheduledTime('');
+      setNotes('');
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l’enregistrement de la livraison en base.');
+    }
   };
 
   const updateStatus = async (id: string, newStatus: DeliveryItem['status']) => {
     const targetItem = deliveries.find(d => d.id === id);
-    setDeliveries(prev =>
-      prev.map(d => (d.id === id ? { ...d, status: newStatus } : d))
-    );
+    try {
+      await api.put(`/deliveries/${id}`, { status: newStatus });
+      setDeliveries(prev =>
+        prev.map(d => (d.id === id ? { ...d, status: newStatus } : d))
+      );
 
-    // Si la livraison est marquée comme livrée avec succès et comportait un montant COD à encaisser
-    if (newStatus === 'delivered' && targetItem && targetItem.amountToCollect > 0 && targetItem.status !== 'delivered') {
-      try {
-        await api.post('/cash/movement', {
-          type: 'in',
-          amount: Number(targetItem.amountToCollect),
-          method: 'cash',
-          category: 'manual_deposit',
-          description: `Encaissement livraison #${targetItem.orderNumber} (${targetItem.customerName})`,
-        });
-      } catch (e) {
-        // La caisse physique peut être fermée ou hors-ligne, ne bloque pas la livraison
-        console.info('Caisse fermée lors du règlement de livraison:', e);
+      // Si la livraison est marquée comme livrée avec succès et comportait un montant COD à encaisser
+      if (newStatus === 'delivered' && targetItem && targetItem.amountToCollect > 0 && targetItem.status !== 'delivered') {
+        try {
+          await api.post('/cash/movement', {
+            type: 'in',
+            amount: Number(targetItem.amountToCollect),
+            method: 'cash',
+            category: 'manual_deposit',
+            description: `Encaissement livraison #${targetItem.orderNumber || targetItem.id.slice(0, 8)} (${targetItem.customerName})`,
+          });
+        } catch (e) {
+          console.info('Caisse fermée lors du règlement de livraison:', e);
+        }
       }
+    } catch (err: any) {
+      alert(err.message || 'Impossible de mettre à jour le statut en base.');
+    }
+  };
+
+  const handleDeleteDelivery = async (id: string) => {
+    if (!window.confirm('Voulez-vous vraiment supprimer cette livraison de la base de données ?')) return;
+    try {
+      await api.delete(`/deliveries/${id}`);
+      setDeliveries(prev => prev.filter(d => d.id !== id));
+      if (selectedDelivery?.id === id) {
+        setSelectedDelivery(null);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la suppression.');
     }
   };
 

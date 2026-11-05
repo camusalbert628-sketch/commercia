@@ -122,6 +122,10 @@ model Business {
   mealPreparations  MealPreparation[]
   serviceOrders     ServiceOrder[]
   mobileMoneyOperations MobileMoneyOperation[]
+  deliveries        Delivery[]
+  treasuryAccounts  TreasuryAccount[]
+  treasuryMovements TreasuryMovement[]
+  treasuryEcheances TreasuryEcheance[]
 }
 
 
@@ -1260,6 +1264,97 @@ model AdminSecurityConfig {
   emailNotificationOnNewIp Boolean @default(true)
   updatedBy               String?
   updatedAt               DateTime @updatedAt
+}
+
+// ===================== GESTION DES LIVRAISONS RÉELLES =====================
+
+model Delivery {
+  id               String    @id @default(uuid())
+  businessId       String
+  customerName     String
+  customerPhone    String?
+  city             String?
+  address          String
+  landmark         String?
+  itemsDescription String
+  amountToCollect  Float     @default(0)
+  deliveryFee      Float     @default(0)
+  feePaidBy        String    @default("client") // client, merchant
+  courierName      String?
+  courierPhone     String?
+  scheduledTime    String?
+  status           String    @default("pending") // pending, in_transit, delivered, cancelled
+  notes            String?
+  deliveredAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([status])
+}
+
+// ===================== TRÉSORERIE & COMPTES RÉELS =====================
+
+model TreasuryAccount {
+  id          String   @id @default(uuid())
+  businessId  String
+  nom         String
+  type        String   // caisse, banque, mobile_money
+  soldeActuel Float    @default(0)
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business  Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  movements TreasuryMovement[]
+
+  @@index([businessId])
+}
+
+model TreasuryMovement {
+  id            String    @id @default(uuid())
+  businessId    String
+  compteId      String
+  compteCibleId String?
+  numero        String
+  date          DateTime  @default(now())
+  type          String    // ENTREE, SORTIE, VIREMENT
+  categorie     String
+  montant       Float
+  libelle       String
+  soldeApres    Float?
+  reference     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  compte   TreasuryAccount @relation(fields: [compteId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([compteId])
+}
+
+model TreasuryEcheance {
+  id            String    @id @default(uuid())
+  businessId    String
+  compteId      String?
+  type          String    // ENCAISSEMENT, DECAISSEMENT
+  dateEcheance  DateTime
+  montant       Float
+  tiers         String
+  motif         String
+  statut        String    @default("EN_ATTENTE") // EN_ATTENTE, REGLE, ANNULE
+  rappelEnvoye  Boolean   @default(false)
+  dateReglement DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([statut])
 }
 
 

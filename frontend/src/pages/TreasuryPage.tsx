@@ -18,33 +18,39 @@ import {
   Sparkles,
 } from 'lucide-react';
 import {
-  calculateTreasuryOverview,
-  getTreasuryMovements,
-  saveTreasuryMovements,
-  getTreasuryAccounts,
-  saveTreasuryAccounts,
   hasPremiumAccess,
-  sanitizeLegacyData,
 } from '../services/premiumService';
-import { TreasuryMovement, TreasuryAccount } from '../types/premium';
+import { TreasuryMovement, TreasuryAccount, TreasuryOverview } from '../types/premium';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { api } from '../services/api';
 import { PageGuideBanner } from '../components/common/PageGuideBanner';
 import { CustomSelect } from '../components/common/CustomSelect';
 import { formatCurrency } from '../utils/formatters';
+
+const initialOverview: TreasuryOverview = {
+  tresorerieDisponible: 0,
+  depensesMoyennesJour: 0,
+  autonomieJours: null,
+  entreesAttendues30j: 0,
+  sortiesPrevues30j: 0,
+  tresoreriePrevue30j: 0,
+  resultatMois: 0,
+  statutBadge: 'NON_INITIALISEE',
+  phraseLecture: 'Chargement des données réelles de trésorerie...',
+  comptes: [],
+  prochainesEcheances: [],
+  historiquePrevisionnel: [],
+};
 
 export const TreasuryPage: React.FC = () => {
   const { user, activeBusinessId } = useAuthStore();
   const currentBusiness = user?.businesses?.find(b => b.id === activeBusinessId) || user?.businesses?.[0];
   const currency = currentBusiness?.currency || 'XAF';
 
-  // Ensure legacy data is sanitized before loading state
-  useEffect(() => {
-    sanitizeLegacyData();
-  }, []);
-
-  const [overview, setOverview] = useState(calculateTreasuryOverview());
-  const [movements, setMovements] = useState<TreasuryMovement[]>(getTreasuryMovements());
+  const [overview, setOverview] = useState<TreasuryOverview>(initialOverview);
+  const [movements, setMovements] = useState<TreasuryMovement[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'apercu' | 'journal' | 'echeances' | 'comptes'>('apercu');
 
   // Modals state
@@ -73,9 +79,30 @@ export const TreasuryPage: React.FC = () => {
   const navigate = useNavigate();
   const access = hasPremiumAccess();
 
+  // Chargement réel depuis PostgreSQL Neon
+  const fetchTreasuryData = async () => {
+    try {
+      setLoading(true);
+      const [ovData, mvtsData] = await Promise.all([
+        api.get<TreasuryOverview>('/treasury/overview'),
+        api.get<TreasuryMovement[]>('/treasury/movements'),
+      ]);
+      setOverview(ovData);
+      setMovements(Array.isArray(mvtsData) ? mvtsData : []);
+    } catch (err) {
+      console.error('Erreur chargement trésorerie réelle:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTreasuryData();
+  }, [activeBusinessId]);
+
   // Sync selected accounts when accounts change
   useEffect(() => {
-    if (overview.comptes.length > 0) {
+    if (overview.comptes && overview.comptes.length > 0) {
       if (!moveCompteId || !overview.comptes.some(a => a.id === moveCompteId)) {
         setMoveCompteId(overview.comptes[0].id);
       }
@@ -93,7 +120,7 @@ export const TreasuryPage: React.FC = () => {
   }, [overview.comptes]);
 
   const handleOpenMovementModal = () => {
-    if (overview.comptes.length === 0) {
+    if (!overview.comptes || overview.comptes.length === 0) {
       alert('Veuillez d\'abord ajouter un compte financier (Caisse, Banque ou Mobile Money) avant d\'enregistrer un mouvement.');
       setShowAddAccountModal(true);
       return;
@@ -102,7 +129,7 @@ export const TreasuryPage: React.FC = () => {
   };
 
   const handleOpenVirementModal = () => {
-    if (overview.comptes.length < 2) {
+    if (!overview.comptes || overview.comptes.length < 2) {
       alert('Un virement interne nécessite au moins deux comptes actifs (ex: Banque et Caisse). Ajoutez un second compte pour faire un virement.');
       setShowAddAccountModal(true);
       return;
@@ -110,51 +137,29 @@ export const TreasuryPage: React.FC = () => {
     setShowVirementModal(true);
   };
 
-  const handleCreateMovement = (e: React.FormEvent) => {
+  const handleCreateMovement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!moveMontant || moveMontant <= 0 || !moveLibelle.trim()) return;
 
-    // Strict Rule B.5 & B.10: Owner Deposits & Owner Withdrawals are NOT operating income/expense
-    const isOwnerDeposit = moveCategorie.includes('Apport') || moveCategorie.includes('Prêt');
-    const isOwnerWithdrawal = moveCategorie.includes('Prélèvement') || moveCategorie.includes('Ration');
-    const imputable = !isOwnerDeposit && !isOwnerWithdrawal;
+    try {
+      await api.post('/treasury/movements', {
+        compteId: moveCompteId,
+        type: moveType,
+        categorie: moveCategorie,
+        montant: Number(moveMontant),
+        libelle: moveLibelle.trim(),
+      });
 
-    const accounts = getTreasuryAccounts();
-    const acc = accounts.find(a => a.id === moveCompteId);
-    if (!acc) return;
-
-    const amt = Number(moveMontant);
-    const newSolde = moveType === 'ENTREE' ? acc.soldeActuel + amt : acc.soldeActuel - amt;
-    acc.soldeActuel = newSolde;
-    saveTreasuryAccounts(accounts);
-
-    const newMvt: TreasuryMovement = {
-      id: 'm-' + Date.now(),
-      numero: `MVT-00${movements.length + 1}`,
-      date: new Date().toISOString(),
-      compteId: acc.id,
-      compteNom: acc.nom,
-      type: moveType,
-      nature: isOwnerWithdrawal ? 'non_operationnel' : isOwnerDeposit ? 'non_operationnel' : 'charge_fixe',
-      categorie: moveCategorie,
-      montant: amt,
-      libelle: moveLibelle,
-      modePaiement: acc.type === 'caisse' ? 'especes' : acc.type === 'mobile_money' ? 'mobile_money' : 'virement',
-      origine: 'MANUEL',
-      imputableResultat: imputable,
-      soldeApres: newSolde,
-    };
-
-    const updatedMvts = [newMvt, ...movements];
-    setMovements(updatedMvts);
-    saveTreasuryMovements(updatedMvts);
-    setOverview(calculateTreasuryOverview());
-    setShowAddMovementModal(false);
-    setMoveMontant('');
-    setMoveLibelle('');
+      await fetchTreasuryData();
+      setShowAddMovementModal(false);
+      setMoveMontant('');
+      setMoveLibelle('');
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l’enregistrement du mouvement de trésorerie.');
+    }
   };
 
-  const handleVirement = (e: React.FormEvent) => {
+  const handleVirement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (virSource === virDest) {
       alert('Veuillez sélectionner deux comptes distincts pour effectuer un virement interne.');
@@ -163,60 +168,42 @@ export const TreasuryPage: React.FC = () => {
     const amt = Number(virMontant);
     if (!amt || amt <= 0) return;
 
-    const accounts = getTreasuryAccounts();
-    const sAcc = accounts.find(a => a.id === virSource);
-    const dAcc = accounts.find(a => a.id === virDest);
-    if (!sAcc || !dAcc) return;
+    try {
+      await api.post('/treasury/movements', {
+        compteId: virSource,
+        compteCibleId: virDest,
+        type: 'VIREMENT',
+        categorie: 'Virement interne',
+        montant: amt,
+        libelle: virLibelle.trim() || 'Virement interne',
+      });
 
-    sAcc.soldeActuel -= amt;
-    dAcc.soldeActuel += amt;
-    saveTreasuryAccounts(accounts);
-
-    const newMvt: TreasuryMovement = {
-      id: 'm-' + Date.now(),
-      numero: `MVT-00${movements.length + 1}`,
-      date: new Date().toISOString(),
-      compteId: sAcc.id,
-      compteNom: sAcc.nom,
-      compteDestinationId: dAcc.id,
-      compteDestinationNom: dAcc.nom,
-      type: 'VIREMENT',
-      nature: 'non_operationnel',
-      categorie: 'Virement interne',
-      montant: amt,
-      libelle: virLibelle,
-      modePaiement: 'virement',
-      origine: 'MANUEL',
-      imputableResultat: false,
-      soldeApres: sAcc.soldeActuel,
-    };
-
-    const updatedMvts = [newMvt, ...movements];
-    setMovements(updatedMvts);
-    saveTreasuryMovements(updatedMvts);
-    setOverview(calculateTreasuryOverview());
-    setShowVirementModal(false);
-    setVirMontant('');
+      await fetchTreasuryData();
+      setShowVirementModal(false);
+      setVirMontant('');
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors du virement interne.');
+    }
   };
 
-  const handleAddAccount = (e: React.FormEvent) => {
+  const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccNom.trim()) return;
-    const accounts = getTreasuryAccounts();
-    const newAcc: TreasuryAccount = {
-      id: 'acc-' + Date.now(),
-      nom: newAccNom.trim(),
-      type: newAccType,
-      soldeInitial: Number(newAccSolde) || 0,
-      soldeActuel: Number(newAccSolde) || 0,
-      actif: true,
-    };
-    const updated = [...accounts, newAcc];
-    saveTreasuryAccounts(updated);
-    setOverview(calculateTreasuryOverview());
-    setShowAddAccountModal(false);
-    setNewAccNom('');
-    setNewAccSolde('');
+
+    try {
+      await api.post('/treasury/accounts', {
+        nom: newAccNom.trim(),
+        type: newAccType,
+        soldeActuel: Number(newAccSolde) || 0,
+      });
+
+      await fetchTreasuryData();
+      setShowAddAccountModal(false);
+      setNewAccNom('');
+      setNewAccSolde('');
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de la création du compte financier.');
+    }
   };
 
   return (
