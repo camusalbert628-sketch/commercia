@@ -13,6 +13,7 @@ export interface PlanCapabilities {
   maxDailySales: number; // -1 pour illimité
   maxPointsOfSale: number;
   maxUsers: number;
+  maxCommercialLotCampaigns: number; // 4 pour Pro, -1 pour Business (illimité)
   allowedModules: string[];
   features: string[];
 }
@@ -26,6 +27,7 @@ export const CAPABILITIES: Record<PlanTier, PlanCapabilities> = {
     maxDailySales: 15,
     maxPointsOfSale: 1,
     maxUsers: 1,
+    maxCommercialLotCampaigns: 0,
     allowedModules: [
       'stock_alerts',
       'customer_credits',
@@ -49,11 +51,12 @@ export const CAPABILITIES: Record<PlanTier, PlanCapabilities> = {
     maxDailySales: -1,
     maxPointsOfSale: 1,
     maxUsers: 3,
+    maxCommercialLotCampaigns: 4, // Quota strict de 4 campagnes pour le Plan Pro
     allowedModules: [
       'stock_alerts',
       'customer_credits',
       'cash_journal',
-      'commercial_lots',      // Espace autonome lots/ballots
+      'commercial_lots',      // Espace autonome lots/ballots (max 4 campagnes)
       'growth_cac',           // Métriques CAC et rentabilité canaux
       'treasury_scenarios',   // Prévisions de trésorerie
       'deliveries_tracking',  // Livraisons & colis
@@ -66,7 +69,7 @@ export const CAPABILITIES: Record<PlanTier, PlanCapabilities> = {
       'Ventes et encaissements illimités',
       'Gestion complète des stocks & alertes ruptures',
       'Carnet de créances & relances WhatsApp 1-clic',
-      'Gestion des lots commerciaux et ballots',
+      'Gestion des lots commerciaux et ballots (jusqu’à 4 campagnes)',
       'Livraisons et expéditions de colis',
       'Trésorerie prévisionnelle & Croissance CAC',
       'Copilote IA COMMERCIA',
@@ -80,6 +83,7 @@ export const CAPABILITIES: Record<PlanTier, PlanCapabilities> = {
     maxDailySales: -1,
     maxPointsOfSale: 5,
     maxUsers: 10,
+    maxCommercialLotCampaigns: -1, // Illimité (au-delà de 4 campagnes)
     allowedModules: [
       'stock_alerts',
       'customer_credits',
@@ -96,6 +100,7 @@ export const CAPABILITIES: Record<PlanTier, PlanCapabilities> = {
     ],
     features: [
       'Tout le plan Pro',
+      'Campagnes de gestion des lots & ballots illimitées (au-delà de 4)',
       'Multi-boutiques & points de vente consolidés',
       'Gestion d\'équipe avec rôles gérant / caissier étanches',
       'Export comptable avancé & rapports multi-magasins',
@@ -103,6 +108,15 @@ export const CAPABILITIES: Record<PlanTier, PlanCapabilities> = {
     ],
   },
 };
+
+/**
+ * Retourne le nombre maximum de campagnes de lots autorisées pour un forfait
+ * -1 = illimité (Plan Business)
+ */
+export function getMaxCommercialLotCampaigns(plan: PlanTier): number {
+  const cap = CAPABILITIES[plan] || CAPABILITIES.free;
+  return cap.maxCommercialLotCampaigns;
+}
 
 /**
  * Vérifie si un plan a le droit d'activer un module donné

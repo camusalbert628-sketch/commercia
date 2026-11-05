@@ -715,6 +715,7 @@ export const SubscriptionPage: React.FC = () => {
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', flex: 1, fontSize: '0.88rem', lineHeight: 2.1, color: '#1E293B' }}>
               <li><strong>✅ Ventes illimitées chaque jour</strong></li>
+              <li><strong>✅ Gestion des lots & ballots (jusqu'à 4 campagnes)</strong></li>
               <li><strong>✅ Alertes stocks faibles & inventaires</strong></li>
               <li><strong>✅ Suivi des dettes clients & rappels WhatsApp</strong></li>
               <li><strong>✅ Livraisons & Expéditions colis (COD)</strong></li>
@@ -760,6 +761,7 @@ export const SubscriptionPage: React.FC = () => {
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', flex: 1, fontSize: '0.88rem', lineHeight: 2.1, color: '#334155' }}>
               <li><strong>✅ Toutes les fonctionnalités Pro</strong></li>
+              <li><strong>✅ Campagnes de gestion des lots illimitées (au-delà de 4)</strong></li>
               <li><strong>✅ Multi-points de vente (jusqu'à 5 boutiques)</strong></li>
               <li><strong>✅ Gestion multi-caissiers & permissions</strong></li>
               <li><strong>✅ Rapprochement bancaire & transferts multi-comptes</strong></li>

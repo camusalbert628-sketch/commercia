@@ -83,6 +83,17 @@ export const LotsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'closed' | 'draft'>('all');
 
+  // Règle de Quotas de Campagnes :
+  // - Plan Pro : limité à 4 campagnes maximum
+  // - Plan Business et Super Admin : illimité (au-delà de 4)
+  const isBusinessOrAdmin = Boolean(
+    user?.isAdmin ||
+    user?.subscription?.planName === 'business' ||
+    user?.subscription?.planDisplayName?.toLowerCase().includes('business')
+  );
+  const currentCampaignsCount = overview?.campaigns?.length ?? overview?.quota?.currentCount ?? 0;
+  const isProAtCampaignLimit = !isBusinessOrAdmin && currentCampaignsCount >= 4;
+
   // Copilot LLM states partitioned by campaign ID (Strict Lot Isolation)
   const [aiGenerating, setAiGenerating] = useState(false);
   const [strategiesByCampaign, setStrategiesByCampaign] = useState<Record<string, string>>(() => {
@@ -118,6 +129,7 @@ export const LotsPage: React.FC = () => {
 
   // Modals state
   const [showWizardModal, setShowWizardModal] = useState(false);
+  const [showUpgradeBusinessModal, setShowUpgradeBusinessModal] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -504,7 +516,14 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
       await loadOverview();
       loadCampaignDetail(res.campaign.id);
     } catch (err: any) {
-      alert('Erreur lors de la création : ' + err.message);
+      const errMsg = err?.response?.data?.message || err?.message || '';
+      const errCode = err?.response?.data?.code || err?.response?.data?.error;
+      if (errCode === 'UPGRADE_TO_BUSINESS_REQUIRED' || errCode === 'LOT_CAMPAIGN_LIMIT_REACHED' || errMsg.includes('4 campagnes') || errMsg.includes('Business')) {
+        setShowWizardModal(false);
+        setShowUpgradeBusinessModal(true);
+      } else {
+        alert('Erreur lors de la création : ' + errMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -964,22 +983,105 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
             <span>Rafraîchir</span>
           </button>
 
-          {currentView === 'list' ? (
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setWizardStep(1);
-                if (wItems.length === 0) {
-                  setWItems([{ name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 }]);
-                }
-                setShowWizardModal(true);
-              }}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)' }}
-            >
-              <Plus size={16} />
-              <span>+ Nouvelle Campagne de Gestion de Lot</span>
-            </button>
-          ) : (
+          {currentView === 'list' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {/* Badge Quota de Campagnes */}
+              {user?.isAdmin ? (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  background: '#F0FDF4',
+                  color: '#15803D',
+                  border: '1px solid #BBF7D0',
+                }}>
+                  <ShieldCheck size={14} color="#16A34A" />
+                  <span>Super Admin : <strong>Campagnes Illimitées</strong></span>
+                </div>
+              ) : isBusinessOrAdmin ? (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 100%)',
+                  color: '#6D28D9',
+                  border: '1px solid #DDD6FE',
+                }}>
+                  <Crown size={14} color="#7C3AED" />
+                  <span>Forfait Business : <strong>Campagnes Illimitées ({currentCampaignsCount})</strong></span>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  background: isProAtCampaignLimit ? '#FEF2F2' : '#EFF6FF',
+                  color: isProAtCampaignLimit ? '#DC2626' : '#1D4ED8',
+                  border: isProAtCampaignLimit ? '1px solid #FECACA' : '1px solid #BFDBFE',
+                }}>
+                  {isProAtCampaignLimit ? <AlertTriangle size={14} color="#DC2626" /> : <Layers size={14} color="#2563EB" />}
+                  <span>Quota Forfait Pro : <strong>{currentCampaignsCount} / 4 campagnes</strong></span>
+                  {isProAtCampaignLimit && (
+                    <span style={{
+                      background: '#DC2626',
+                      color: '#FFFFFF',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      marginLeft: '2px',
+                      letterSpacing: '0.5px',
+                    }}>
+                      LIMITE ATTEINTE
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (isProAtCampaignLimit) {
+                    setShowUpgradeBusinessModal(true);
+                    return;
+                  }
+                  setWizardStep(1);
+                  if (wItems.length === 0) {
+                    setWItems([{ name: '', variant: '', quantityReceived: 1, estimatedSellingPrice: 0 }]);
+                  }
+                  setShowWizardModal(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: isProAtCampaignLimit
+                    ? 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)'
+                    : 'linear-gradient(135deg, #0062FF 0%, #004BD6 100%)',
+                  boxShadow: isProAtCampaignLimit ? '0 4px 12px rgba(124, 58, 237, 0.25)' : undefined,
+                }}
+              >
+                {isProAtCampaignLimit ? <Crown size={16} /> : <Plus size={16} />}
+                <span>
+                  {isProAtCampaignLimit ? 'Passer à Business (+ de 4 campagnes)' : '+ Nouvelle Campagne de Gestion de Lot'}
+                </span>
+              </button>
+            </div>
+          )}
+
+          {currentView === 'detail' && (
             <>
               <button
                 className="btn btn-primary"
@@ -1070,6 +1172,9 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                 <div className="stat-value" style={{ color: '#0062FF' }}>{overview.summary.totalCampaigns}</div>
                 <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: '4px' }}>
                   {overview.summary.activeCampaignsCount} en cours • {overview.summary.closedCampaignsCount} clôturées
+                </div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: isProAtCampaignLimit ? '#DC2626' : (isBusinessOrAdmin ? '#7C3AED' : '#2563EB'), marginTop: '2px' }}>
+                  {user?.isAdmin ? 'Quota : Illimité (Admin)' : (isBusinessOrAdmin ? 'Quota : Illimité (Business)' : `Quota : ${overview.summary.totalCampaigns}/4 campagnes (Pro)`)}
                 </div>
               </div>
               <div className="stat-icon" style={{ background: '#EFF6FF', color: '#0062FF' }}>
@@ -4743,6 +4848,179 @@ EXIGENCES STRICTES DE QUALITÉ ET DE FORME :
                 >
                   <CheckCircle2 size={16} />
                   <span>{batchLoading ? 'Enregistrement...' : 'Enregistrer ces Articles dans le Lot'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL SURCLASSEMENT FORFAIT BUSINESS POUR QUOTA LOTS */}
+      {showUpgradeBusinessModal && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }}>
+          <div
+            className="modal-container"
+            style={{
+              maxWidth: '540px',
+              width: '95%',
+              padding: '0',
+              overflow: 'hidden',
+              borderRadius: '16px',
+              border: '1px solid #DDD6FE',
+              boxShadow: '0 20px 40px -15px rgba(109, 40, 217, 0.3)',
+            }}
+          >
+            {/* Header avec gradient prestige violet/indigo */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                color: '#FFFFFF',
+                padding: '24px 26px',
+                position: 'relative',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowUpgradeBusinessModal(false)}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: '#FFFFFF',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={18} />
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Crown size={24} color="#FDE047" />
+                </div>
+                <div>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    display: 'inline-block',
+                    marginBottom: '4px',
+                  }}>
+                    Quota de Campagnes Atteint
+                  </span>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 900, margin: 0, color: '#FFFFFF' }}>
+                    Limite de 4 Campagnes (Forfait Pro)
+                  </h3>
+                </div>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.86rem', opacity: 0.95, lineHeight: 1.5 }}>
+                Le Forfait Pro inclut jusqu’à 4 campagnes de gestion des lots. Pour aller au-delà et créer des campagnes en illimité, passez dès maintenant au Forfait Business.
+              </p>
+            </div>
+
+            {/* Corps du modal */}
+            <div style={{ padding: '24px 26px', background: '#FFFFFF' }}>
+              <div style={{
+                background: '#F8FAFC',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '16px',
+                marginBottom: '20px',
+              }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0F172A', marginBottom: '10px' }}>
+                  Avantages exclusifs du Forfait Business :
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.82rem', color: '#334155' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={16} color="#059669" />
+                    <span><strong>Campagnes de Lots Illimitées</strong> : Créez et pilotez autant de lots, ballots et arrivages que souhaité.</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={16} color="#059669" />
+                    <span><strong>Multi-points de vente</strong> : Jusqu'à 5 boutiques ou entrepôts consolidés.</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={16} color="#059669" />
+                    <span><strong>Gestion d'Équipe Avancée</strong> : Jusqu'à 10 utilisateurs avec permissions caissier / gérant.</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={16} color="#059669" />
+                    <span><strong>Support Prioritaire Dédié 7j/7</strong> : Traitement VIP de vos demandes d'assistance.</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Prix et CTA */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 18px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #FAF5FF 0%, #F5F3FF 100%)',
+                border: '1px solid #DDD6FE',
+                marginBottom: '20px',
+              }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6D28D9', textTransform: 'uppercase' }}>
+                    Tarif Forfait Business
+                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0F172A' }}>
+                    12 000 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>FCFA / mois</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUpgradeBusinessModal(false);
+                    navigate('/subscription');
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 18px',
+                    fontWeight: 800,
+                    fontSize: '0.86rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                  }}
+                >
+                  <Crown size={15} color="#FDE047" />
+                  <span>Passer à Business →</span>
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowUpgradeBusinessModal(false)}
+                  style={{ fontSize: '0.85rem', padding: '8px 16px' }}
+                >
+                  Gérer mes 4 campagnes existantes
                 </button>
               </div>
             </div>

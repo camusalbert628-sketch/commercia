@@ -116,7 +116,26 @@ router.get('/overview', async (req: AuthRequest, res: Response, next: NextFuncti
 
     const consolidated = consolidateLotsOverview(campaignsData);
 
-    res.json(consolidated);
+    // Calcul du quota de campagnes selon le forfait (Plan Pro : 4 max, Plan Business : illimité)
+    const subDetails = await getUserSubscriptionDetails(prisma, req.userId!);
+    const isAdmin = Boolean(subDetails.isAdmin);
+    const isBusiness = subDetails.planName === 'business' || isAdmin;
+    const maxAllowed = isBusiness ? -1 : 4;
+    const currentCount = campaigns.length;
+    const canCreate = isBusiness || currentCount < 4;
+
+    res.json({
+      ...consolidated,
+      quota: {
+        currentCount,
+        maxAllowed,
+        canCreate,
+        isBusiness,
+        isAdmin,
+        planName: subDetails.planName,
+        planDisplayName: subDetails.planDisplayName,
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -161,6 +180,32 @@ router.post('/campaigns', async (req: AuthRequest, res: Response, next: NextFunc
   try {
     const prisma = req.prisma;
     const businessId = await getTenantBusinessId(req);
+    const userId = req.userId;
+
+    // Contrôle strict de quota d'abonnement :
+    // - Plan Pro : 4 campagnes maximum autorisées
+    // - Plan Business et Super Admin : au-delà de 4 (illimité)
+    const subDetails = await getUserSubscriptionDetails(prisma, userId!);
+    const isAdmin = Boolean(subDetails.isAdmin);
+    const isBusiness = subDetails.planName === 'business' || isAdmin;
+
+    if (!isBusiness) {
+      const existingCampaignsCount = await prisma.commercialLotCampaign.count({
+        where: { businessId },
+      });
+
+      if (existingCampaignsCount >= 4) {
+        return res.status(403).json({
+          error: 'LOT_CAMPAIGN_LIMIT_REACHED',
+          code: 'UPGRADE_TO_BUSINESS_REQUIRED',
+          message: 'Limite atteinte : le forfait COMMERCIA PRO permet de créer jusqu’à 4 campagnes de gestion des lots. Passez au Forfait Business pour créer des campagnes en illimité.',
+          currentCount: existingCampaignsCount,
+          maxAllowed: 4,
+          planName: subDetails.planName,
+        });
+      }
+    }
+
     const parsed = createCampaignSchema.parse(req.body);
 
     const purchasePriceXaf = Math.round(parsed.purchasePriceOriginal * parsed.exchangeRate);

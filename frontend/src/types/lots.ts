@@ -189,6 +189,15 @@ export interface LotsOverviewResponse {
   };
   campaignsNeedingAttention: CampaignSummaryItem[];
   campaigns: CampaignSummaryItem[];
+  quota?: {
+    currentCount: number;
+    maxAllowed: number; // 4 pour Pro, -1 pour Business (illimité)
+    canCreate: boolean;
+    isBusiness: boolean;
+    isAdmin: boolean;
+    planName: string;
+    planDisplayName: string;
+  };
 }
 
 export interface LotFinancials {
