@@ -30,6 +30,10 @@ import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { calculateDiscountedPrice, validatePromoCode, verifyPromoCodeWithServer } from '../utils/promoService';
 import { formatCurrency } from '../utils/formatters';
+import {
+  SubscriptionCongratulationsModal,
+  SubscriptionCelebrationData,
+} from '../components/subscription/SubscriptionCongratulationsModal';
 
 interface PaymentItem {
   id: string;
@@ -82,6 +86,10 @@ export const SubscriptionPage: React.FC = () => {
   const [serverDiscount, setServerDiscount] = useState<number>(0);
   const [serverPromoInfo, setServerPromoInfo] = useState<any>(null);
   const [isValidatingPromo, setIsValidatingPromo] = useState<boolean>(false);
+
+  // Panneau de félicitations d'abonnement actif (données réelles)
+  const [celebrationData, setCelebrationData] = useState<SubscriptionCelebrationData | null>(null);
+  const [showCelebration, setShowCelebration] = useState<boolean>(false);
 
   const sub = user?.subscription;
   const isPro = !!(user?.isAdmin || sub?.isPro);
@@ -236,6 +244,24 @@ export const SubscriptionPage: React.FC = () => {
             clearInterval(pollTimer);
             setVerifiedPayment(check.payment);
             setPaymentStep('success');
+            setShowPayModal(false);
+
+            const celData: SubscriptionCelebrationData = check.celebration || {
+              paymentId: check.payment?.id,
+              customerName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+              businessName: user?.businesses?.[0]?.name,
+              planName: check.payment?.plan?.displayName || check.subscription?.planDisplayName || (selectedPlan === 'business' ? 'Formule Business' : 'Formule Pro'),
+              amount: check.payment?.amount || finalPrice,
+              currency: check.payment?.currency || 'XAF',
+              confirmedAt: check.payment?.verifiedAt || new Date().toISOString(),
+              startDate: check.subscription?.startDate,
+              endDate: check.subscription?.endDate,
+              reference: check.payment?.reference || ref,
+              isRenewal: check.celebration?.isRenewal || false,
+            };
+
+            setCelebrationData(celData);
+            setShowCelebration(true);
             await fetchMe();
             await loadHistory();
           }
@@ -261,9 +287,24 @@ export const SubscriptionPage: React.FC = () => {
       const check = await api.get<any>(`/payments/verify/${targetRef}?confirm=true`);
       if (check.status === 'completed' || check.payment?.status === 'completed') {
         setVerifiedPayment(check.payment);
-        if (showPayModal) {
-          setPaymentStep('success');
-        }
+        setShowPayModal(false);
+
+        const celData: SubscriptionCelebrationData = check.celebration || {
+          paymentId: check.payment?.id,
+          customerName: `${user?.firstName || ''} ${user?.lastName || ''}`.trim(),
+          businessName: user?.businesses?.[0]?.name,
+          planName: check.payment?.plan?.displayName || check.subscription?.planDisplayName || (selectedPlan === 'business' ? 'Formule Business' : 'Formule Pro'),
+          amount: check.payment?.amount || finalPrice,
+          currency: check.payment?.currency || 'XAF',
+          confirmedAt: check.payment?.verifiedAt || new Date().toISOString(),
+          startDate: check.subscription?.startDate,
+          endDate: check.subscription?.endDate,
+          reference: check.payment?.reference || targetRef,
+          isRenewal: check.celebration?.isRenewal || false,
+        };
+
+        setCelebrationData(celData);
+        setShowCelebration(true);
         await fetchMe();
         await loadHistory();
       } else {
@@ -1597,6 +1638,12 @@ export const SubscriptionPage: React.FC = () => {
           </div>
         </div>
       )}
+      {/* PANNEAU DE FÉLICITATIONS D'ABONNEMENT CONFIRMÉ & ACTIF */}
+      <SubscriptionCongratulationsModal
+        isOpen={showCelebration}
+        data={celebrationData}
+        onClose={() => setShowCelebration(false)}
+      />
     </div>
   );
 };

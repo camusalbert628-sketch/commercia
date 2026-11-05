@@ -14,6 +14,11 @@ import { OfflineSyncBanner } from './components/common/OfflineSyncBanner';
 import { ProRouteGuard } from './components/common/ProRouteGuard';
 import { AdminRouteGuard } from './components/AdminRouteGuard';
 import { GlobalInactivityManager } from './components/common/GlobalInactivityManager';
+import { api } from './services/api';
+import {
+  SubscriptionCongratulationsModal,
+  SubscriptionCelebrationData,
+} from './components/subscription/SubscriptionCongratulationsModal';
 
 // Lazy-loaded pages for mobile performance and fast initial load
 const AuthPage = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })));
@@ -59,6 +64,25 @@ function PageLoadingFallback() {
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { user, isImpersonating, stopImpersonation } = useAuthStore();
+  const [globalCelebration, setGlobalCelebration] = React.useState<SubscriptionCelebrationData | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get<any>('/payments/latest-completed')
+      .then((res) => {
+        if (res?.celebration && res.celebration.reference) {
+          try {
+            const stored = localStorage.getItem('commercia_celebrated_payment_refs');
+            const list: string[] = stored ? JSON.parse(stored) : [];
+            if (!list.includes(res.celebration.reference)) {
+              setGlobalCelebration(res.celebration);
+            }
+          } catch (_) {}
+        }
+      })
+      .catch(() => {});
+  }, [user?.id]);
+
   const {
     isSaleModalOpen,
     closeSaleModal,
@@ -143,6 +167,13 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Global Omniscient AI Chatbot */}
       <CommerciaChatbot />
+
+      {/* Global Subscription Congratulations Celebration Panel */}
+      <SubscriptionCongratulationsModal
+        isOpen={Boolean(globalCelebration)}
+        data={globalCelebration}
+        onClose={() => setGlobalCelebration(null)}
+      />
     </div>
   );
 }

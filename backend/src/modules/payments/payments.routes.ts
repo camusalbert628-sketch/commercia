@@ -258,16 +258,44 @@ router.get('/verify/:reference', authenticate, async (req: AuthRequest, res: Res
   try {
     const payment = await req.prisma.payment.findUnique({
       where: { reference: req.params.reference },
-      include: { plan: true },
+      include: {
+        plan: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            businesses: {
+              select: {
+                business: {
+                  select: { id: true, name: true },
+                },
+              },
+              take: 1,
+            },
+          },
+        },
+      },
     });
 
     if (!payment) {
       throw new AppError('Paiement introuvable pour cette référence.', 404);
     }
 
-    // Si déjà complété, renvoyer immédiatement les détails
+    // Si déjà complété, renvoyer immédiatement les détails avec le récapitulatif de célébration
     if (payment.status === 'completed') {
       const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId!);
+      const prevCount = await req.prisma.payment.count({
+        where: {
+          userId: req.userId!,
+          status: 'completed',
+          id: { not: payment.id },
+        },
+      });
+      const isRenewal = prevCount > 0;
+
       return res.json({
         payment: {
           id: payment.id,
@@ -278,9 +306,23 @@ router.get('/verify/:reference', authenticate, async (req: AuthRequest, res: Res
           method: payment.method,
           provider: payment.provider,
           verifiedAt: payment.verifiedAt,
+          planName: payment.plan?.displayName || subDetails.planDisplayName || 'Plan Pro',
         },
         status: 'completed',
         subscription: subDetails,
+        celebration: {
+          paymentId: payment.id,
+          customerName: `${payment.user?.firstName || ''} ${payment.user?.lastName || ''}`.trim(),
+          businessName: payment.user?.businesses?.[0]?.business?.name || null,
+          planName: payment.plan?.displayName || subDetails.planDisplayName || 'Plan Pro',
+          amount: payment.amount,
+          currency: payment.currency,
+          confirmedAt: payment.verifiedAt || payment.updatedAt || new Date(),
+          startDate: subDetails.startDate,
+          endDate: subDetails.endDate,
+          reference: payment.reference,
+          isRenewal,
+        },
       });
     }
 
@@ -338,15 +380,123 @@ router.get('/verify/:reference', authenticate, async (req: AuthRequest, res: Res
 
     const refreshedPayment = await req.prisma.payment.findUnique({
       where: { id: payment.id },
-      include: { plan: true },
+      include: {
+        plan: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            businesses: {
+              select: {
+                business: {
+                  select: { id: true, name: true },
+                },
+              },
+              take: 1,
+            },
+          },
+        },
+      },
     });
 
     const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId!);
+    const prevCount = await req.prisma.payment.count({
+      where: {
+        userId: req.userId!,
+        status: 'completed',
+        id: { not: payment.id },
+      },
+    });
+    const isRenewal = prevCount > 0;
 
     res.json({
       payment: refreshedPayment,
       status: refreshedPayment?.status || 'pending',
       subscription: subDetails,
+      celebration: refreshedPayment?.status === 'completed' ? {
+        paymentId: refreshedPayment.id,
+        customerName: `${refreshedPayment.user?.firstName || ''} ${refreshedPayment.user?.lastName || ''}`.trim(),
+        businessName: refreshedPayment.user?.businesses?.[0]?.name || null,
+        planName: refreshedPayment.plan?.displayName || subDetails.planDisplayName || 'Plan Pro',
+        amount: refreshedPayment.amount,
+        currency: refreshedPayment.currency,
+        confirmedAt: refreshedPayment.verifiedAt || refreshedPayment.updatedAt || new Date(),
+        startDate: subDetails.startDate,
+        endDate: subDetails.endDate,
+        reference: refreshedPayment.reference,
+        isRenewal,
+      } : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// =========================================================================
+// 5.5 RÉCUPÉRATION DU DERNIER PAIEMENT CONFIRMÉ POUR CÉLÉBRATION IDEMPOTENTE
+// GET /api/payments/latest-completed
+// =========================================================================
+router.get('/latest-completed', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const payment = await req.prisma.payment.findFirst({
+      where: {
+        userId: req.userId!,
+        status: 'completed',
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        plan: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            businesses: {
+              select: {
+                business: {
+                  select: { id: true, name: true },
+                },
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      return res.json({ celebration: null });
+    }
+
+    const subDetails = await getUserSubscriptionDetails(req.prisma, req.userId!);
+    const prevCount = await req.prisma.payment.count({
+      where: {
+        userId: req.userId!,
+        status: 'completed',
+        id: { not: payment.id },
+      },
+    });
+    const isRenewal = prevCount > 0;
+
+    return res.json({
+      celebration: {
+        paymentId: payment.id,
+        customerName: `${payment.user?.firstName || ''} ${payment.user?.lastName || ''}`.trim(),
+        businessName: payment.user?.businesses?.[0]?.business?.name || null,
+        planName: payment.plan?.displayName || subDetails.planDisplayName || 'Plan Pro',
+        amount: payment.amount,
+        currency: payment.currency,
+        confirmedAt: payment.verifiedAt || payment.updatedAt || new Date(),
+        startDate: subDetails.startDate,
+        endDate: subDetails.endDate,
+        reference: payment.reference,
+        isRenewal,
+      },
     });
   } catch (error) {
     next(error);
