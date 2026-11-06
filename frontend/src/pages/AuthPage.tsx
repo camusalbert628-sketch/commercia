@@ -123,6 +123,12 @@ export const AuthPage: React.FC = () => {
       setLoading(true);
       setGoogleError('');
       setError('');
+      setInactivityNotice(null);
+
+      // S'assurer qu'un challenge OAuth existe (state + nonce)
+      if (!oauthChallengeRef.current || (Date.now() - challengeFetchedAtRef.current > 5 * 60 * 1000)) {
+        await refreshOAuthChallenge();
+      }
 
       // Envoi du véritable credential cryptographique Google + state/nonce au backend HTTPS
       const res = await api.post<any>('/auth/google', {
@@ -144,6 +150,7 @@ export const AuthPage: React.FC = () => {
       const errMsg = err.message || 'Échec de vérification cryptographique du jeton Google par le serveur.';
       setGoogleError(errMsg);
       setError(errMsg);
+      refreshOAuthChallenge();
     } finally {
       setGoogleLoading(false);
       setLoading(false);

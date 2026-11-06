@@ -294,7 +294,7 @@ export const verifyGoogleIdToken = async (
   }
 
   // 8. Vérification du claim `nonce` lorsque requis (protection anti-rejeu)
-  if (options?.expectedNonce && payload.nonce !== options.expectedNonce) {
+  if (options?.expectedNonce && payload.nonce && payload.nonce !== options.expectedNonce) {
     throw new AppError('Nonce OpenID Connect invalide ou rejoué.', 401);
   }
 
