@@ -92,8 +92,15 @@ router.get('/promos', async (req: AuthRequest, res: Response, next) => {
               userId: r.userId,
               userName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Commerçant',
               userEmail: user?.email || 'N/A',
-              discountAmount: r.discountAmount,
-              redeemedAt: r.redeemedAt.toISOString(),
+              discountAmount: Number(r.discountAmount || 0),
+              finalAmount: Number(r.finalAmount || 0),
+              createdAt: r.redeemedAt ? r.redeemedAt.toISOString() : (r.createdAt ? r.createdAt.toISOString() : new Date().toISOString()),
+              redeemedAt: r.redeemedAt ? r.redeemedAt.toISOString() : new Date().toISOString(),
+              user: user ? {
+                firstName: user.firstName || 'Commerçant',
+                lastName: user.lastName || '',
+                email: user.email || '',
+              } : undefined,
             };
           })
         );
@@ -112,11 +119,34 @@ router.get('/promos', async (req: AuthRequest, res: Response, next) => {
             notified: b.notified,
             viewedAt: b.viewedAt ? b.viewedAt.toISOString() : null,
             usedAt: b.usedAt ? b.usedAt.toISOString() : null,
-            createdAt: b.createdAt.toISOString(),
+            createdAt: b.createdAt ? b.createdAt.toISOString() : new Date().toISOString(),
+            user: u ? {
+              id: u.id,
+              firstName: u.firstName || 'Commerçant',
+              lastName: u.lastName || '',
+              email: u.email || '',
+              companyName: u?.businesses?.[0]?.business?.name,
+            } : undefined,
           };
         });
 
         const remainingUses = Math.max(0, p.maxUses - p.currentUses);
+
+        let parsedPlans = ['pro', 'business'];
+        if (p.applicablePlans) {
+          try {
+            parsedPlans = typeof p.applicablePlans === 'string' ? JSON.parse(p.applicablePlans) : p.applicablePlans;
+          } catch (_) {}
+        }
+
+        let parsedCycles = ['monthly', 'yearly'];
+        if (p.applicableCycles) {
+          try {
+            parsedCycles = typeof p.applicableCycles === 'string' ? JSON.parse(p.applicableCycles) : p.applicableCycles;
+          } catch (_) {}
+        }
+
+        const computedStatus = p.status || (isExpired ? 'expired' : isQuotaReached ? 'depleted' : !p.isActive ? 'disabled' : 'active');
 
         return {
           id: p.id,
@@ -125,35 +155,41 @@ router.get('/promos', async (req: AuthRequest, res: Response, next) => {
           description: p.description,
           distributionType: p.distributionType || 'broadcast', // personal, group, broadcast
           discountType: p.discountType,
-          discountValue: p.discountValue,
-          minOrderAmount: p.minOrderAmount,
-          maxDiscount: p.maxDiscount,
+          discountValue: Number(p.discountValue || 0),
+          minOrderAmount: Number(p.minOrderAmount || 0),
+          maxDiscount: p.maxDiscount ? Number(p.maxDiscount) : null,
+          maxDiscountCap: p.maxDiscount ? Number(p.maxDiscount) : null,
           maxUses: p.maxUses,
           currentUses: p.currentUses,
           remainingUses,
           maxUsesPerUser: p.maxUsesPerUser,
-          validFrom: p.validFrom.toISOString(),
+          validFrom: p.validFrom ? p.validFrom.toISOString() : new Date().toISOString(),
           validUntil: p.validUntil ? p.validUntil.toISOString() : null,
-          applicablePlans: p.applicablePlans ? JSON.parse(p.applicablePlans) : ['pro', 'business'],
-          applicableCycles: p.applicableCycles ? JSON.parse(p.applicableCycles) : ['monthly', 'yearly'],
+          applicablePlans: parsedPlans,
+          applicableCycles: parsedCycles,
           allowNew: p.allowNew !== false,
           allowRenewal: p.allowRenewal !== false,
-          isActive: p.isActive,
+          isActive: Boolean(p.isActive),
+          status: computedStatus,
           statusText,
-          beneficiariesCount: p.beneficiaries.length,
+          beneficiariesCount: p.beneficiaries ? p.beneficiaries.length : 0,
+          beneficiaries: beneficiariesList,
           beneficiariesList,
+          redemptionsCount: p.currentUses || (p.redemptions ? p.redemptions.length : 0),
+          totalDiscountGiven: Number(totalDiscountsGiven || 0),
           stats: {
             totalUses: p.currentUses,
             remainingUses,
             uniqueUsersCount: uniqueUserIds.size,
             confirmedPaymentsCount: associatedPayments.length,
-            totalDiscountsGiven,
+            totalDiscountsGiven: Number(totalDiscountsGiven || 0),
             associatedGrossTurnover: associatedGross,
             associatedNetRevenue: associatedNet,
-            lastUsedAt: p.redemptions[0]?.redeemedAt ? p.redemptions[0].redeemedAt.toISOString() : null,
+            lastUsedAt: p.redemptions?.[0]?.redeemedAt ? p.redemptions[0].redeemedAt.toISOString() : null,
           },
+          redemptions: redemptionsList,
           redemptionsList,
-          createdAt: p.createdAt.toISOString(),
+          createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
         };
       })
     );

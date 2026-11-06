@@ -160,10 +160,42 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
   const loadPromos = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get<{ success: boolean; promos: PromoCampaign[] }>('/admin/promos');
-      setPromos(res.promos || []);
+      const res = await api.get<{ success?: boolean; promos?: any[] }>('/admin/promos');
+      const list = Array.isArray(res) ? res : res?.promos || [];
+      const normalized: PromoCampaign[] = list.map((p: any) => ({
+        id: p.id || '',
+        code: p.code || '',
+        name: p.name || `Campagne ${p.code || ''}`,
+        discountType: p.discountType || 'percent',
+        discountValue: Number(p.discountValue || 0),
+        distributionType: p.distributionType || 'broadcast',
+        minOrderAmount: Number(p.minOrderAmount || 0),
+        maxDiscountCap: p.maxDiscountCap ? Number(p.maxDiscountCap) : (p.maxDiscount ? Number(p.maxDiscount) : null),
+        validFrom: p.validFrom || null,
+        validUntil: p.validUntil || null,
+        maxUses: p.maxUses !== undefined ? Number(p.maxUses) : 100,
+        maxUsesPerUser: p.maxUsesPerUser ? Number(p.maxUsesPerUser) : 1,
+        eligiblePlans: p.eligiblePlans || p.applicablePlans || ['pro', 'business'],
+        allowNew: p.allowNew !== false,
+        allowRenewal: p.allowRenewal !== false,
+        isActive: Boolean(p.isActive),
+        status: p.status || (p.statusText === 'Actif' ? 'active' : p.statusText === 'Expiré' ? 'expired' : 'active'),
+        createdAt: p.createdAt || new Date().toISOString(),
+        beneficiariesCount: Number(p.beneficiariesCount ?? (p.beneficiaries?.length || p.beneficiariesList?.length || 0)),
+        beneficiaries: p.beneficiaries || p.beneficiariesList || [],
+        redemptionsCount: Number(p.redemptionsCount ?? (p.currentUses || p.redemptions?.length || p.redemptionsList?.length || 0)),
+        remainingUses: p.remainingUses !== undefined ? Number(p.remainingUses) : null,
+        totalDiscountGiven: Number(p.totalDiscountGiven ?? p.stats?.totalDiscountsGiven ?? 0),
+        redemptions: (p.redemptions || p.redemptionsList || []).map((r: any) => ({
+          ...r,
+          discountAmount: Number(r.discountAmount || 0),
+          finalAmount: Number(r.finalAmount || 0),
+        })),
+      }));
+      setPromos(normalized);
     } catch (err: any) {
       console.error('Erreur chargement promos:', err);
+      setPromos([]);
     } finally {
       setLoading(false);
     }
@@ -173,10 +205,12 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
   const loadMerchants = useCallback(async () => {
     setLoadingMerchants(true);
     try {
-      const res = await api.get<{ users: MerchantUser[] }>('/admin/communication/users');
-      setMerchants(res.users || []);
+      const res = await api.get<{ users?: MerchantUser[] }>('/admin/communication/users');
+      const list = Array.isArray(res) ? res : res?.users || [];
+      setMerchants(list);
     } catch (err: any) {
       console.error('Erreur chargement marchands:', err);
+      setMerchants([]);
     } finally {
       setLoadingMerchants(false);
     }
@@ -189,18 +223,21 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
 
   // Filtrage local des marchands
   const filteredMerchants = useMemo(() => {
+    if (!Array.isArray(merchants)) return [];
     return merchants.filter((u) => {
-      if (merchantPlanFilter !== 'all' && u.plan.toLowerCase() !== merchantPlanFilter.toLowerCase()) {
+      if (!u) return false;
+      const planStr = (u.plan || '').toLowerCase();
+      if (merchantPlanFilter !== 'all' && planStr !== merchantPlanFilter.toLowerCase()) {
         return false;
       }
       if (!merchantSearch.trim()) return true;
       const q = merchantSearch.toLowerCase();
       return (
-        u.fullName.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.businessName.toLowerCase().includes(q) ||
-        u.id.toLowerCase().includes(q) ||
-        (u.phone && u.phone.includes(q))
+        (u.fullName || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.businessName || '').toLowerCase().includes(q) ||
+        (u.id || '').toLowerCase().includes(q) ||
+        Boolean(u.phone && u.phone.includes(q))
       );
     });
   }, [merchants, merchantSearch, merchantPlanFilter]);
@@ -336,28 +373,32 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
 
   // Statistiques agrégées
   const stats = useMemo(() => {
-    const totalCampagnes = promos.length;
-    const actives = promos.filter((p) => p.status === 'active' && p.isActive).length;
-    const totalRedemptions = promos.reduce((acc, p) => acc + (p.redemptionsCount || 0), 0);
-    const totalEconomies = promos.reduce((acc, p) => acc + (p.totalDiscountGiven || 0), 0);
+    const list = Array.isArray(promos) ? promos : [];
+    const totalCampagnes = list.length;
+    const actives = list.filter((p) => p && (p.status === 'active' || (p as any).statusText === 'Actif') && p.isActive).length;
+    const totalRedemptions = list.reduce((acc, p) => acc + Number(p?.redemptionsCount || 0), 0);
+    const totalEconomies = list.reduce((acc, p) => acc + Number(p?.totalDiscountGiven || 0), 0);
     return { totalCampagnes, actives, totalRedemptions, totalEconomies };
   }, [promos]);
 
   // Filtrage des campagnes affichées
   const filteredPromos = useMemo(() => {
+    if (!Array.isArray(promos)) return [];
     return promos.filter((p) => {
+      if (!p) return false;
       if (filterType !== 'all' && p.distributionType !== filterType) return false;
       if (filterStatus !== 'all') {
-        if (filterStatus === 'active' && (p.status !== 'active' || !p.isActive)) return false;
-        if (filterStatus === 'expired' && p.status !== 'expired') return false;
+        const isActiveState = (p.status === 'active' || (p as any).statusText === 'Actif') && p.isActive;
+        if (filterStatus === 'active' && !isActiveState) return false;
+        if (filterStatus === 'expired' && p.status !== 'expired' && (p as any).statusText !== 'Expiré') return false;
         if (filterStatus === 'disabled' && p.isActive) return false;
       }
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
-        p.name.toLowerCase().includes(q) ||
-        p.code.toLowerCase().includes(q) ||
-        p.distributionType.toLowerCase().includes(q)
+        Boolean(p.name && p.name.toLowerCase().includes(q)) ||
+        Boolean(p.code && p.code.toLowerCase().includes(q)) ||
+        Boolean(p.distributionType && p.distributionType.toLowerCase().includes(q))
       );
     });
   }, [promos, filterType, filterStatus, searchQuery]);
@@ -473,7 +514,7 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
             <DollarSign size={16} color="#10B981" />
           </div>
           <div style={{ fontSize: '24px', fontWeight: 900, color: '#10B981' }}>
-            {stats.totalEconomies.toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 700 }}>FCFA</span>
+            {Number(stats.totalEconomies || 0).toLocaleString('fr-FR')} <span style={{ fontSize: '14px', fontWeight: 700 }}>FCFA</span>
           </div>
         </div>
 
@@ -485,7 +526,7 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
             <CheckCircle size={16} color="#8B5CF6" />
           </div>
           <div style={{ fontSize: '24px', fontWeight: 900, color: textPrimary }}>
-            {stats.totalRedemptions} <span style={{ fontSize: '13px', fontWeight: 600, color: textSecondary }}>abonnements débloqués</span>
+            {Number(stats.totalRedemptions || 0)} <span style={{ fontSize: '13px', fontWeight: 600, color: textSecondary }}>abonnements débloqués</span>
           </div>
         </div>
 
@@ -688,13 +729,13 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
                       {/* Valeur Réduction */}
                       <td style={{ padding: '12px 14px' }}>
                         <strong style={{ fontSize: '13.5px', color: '#10B981', fontWeight: 900 }}>
-                          {p.discountType === 'percent' ? `-${p.discountValue}%` : `-${p.discountValue.toLocaleString('fr-FR')} FCFA`}
+                          {p.discountType === 'percent' ? `-${p.discountValue}%` : `-${Number(p.discountValue || 0).toLocaleString('fr-FR')} FCFA`}
                         </strong>
-                        {p.maxDiscountCap && (
+                        {p.maxDiscountCap ? (
                           <div style={{ fontSize: '10.5px', color: textSecondary, marginTop: '2px' }}>
-                            Plafond : {p.maxDiscountCap.toLocaleString('fr-FR')} FCFA
+                            Plafond : {Number(p.maxDiscountCap || 0).toLocaleString('fr-FR')} FCFA
                           </div>
-                        )}
+                        ) : null}
                       </td>
 
                       {/* Dates */}
@@ -714,7 +755,7 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
                           <span style={{ color: textSecondary, fontSize: '11.5px' }}>Tous marchands</span>
                         ) : (
                           <span style={{ fontWeight: 800, color: textPrimary, fontSize: '12.5px' }}>
-                            {p.beneficiariesCount} commerçant(s)
+                            {Number(p.beneficiariesCount || 0)} commerçant(s)
                           </span>
                         )}
                       </td>
@@ -722,26 +763,26 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
                       {/* Utilisations */}
                       <td style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontWeight: 800, color: textPrimary }}>{p.redemptionsCount}</span>
+                          <span style={{ fontWeight: 800, color: textPrimary }}>{Number(p.redemptionsCount || 0)}</span>
                           <span style={{ color: textSecondary }}>/ {p.maxUses ? p.maxUses : '∞'}</span>
                         </div>
-                        {p.maxUses && (
+                        {p.maxUses ? (
                           <div style={{ width: '60px', height: '4px', background: isLight ? '#E2E8F0' : '#334155', borderRadius: '2px', marginTop: '4px', overflow: 'hidden' }}>
                             <div
                               style={{
-                                width: `${Math.min(100, (p.redemptionsCount / p.maxUses) * 100)}%`,
+                                width: `${Math.min(100, (Number(p.redemptionsCount || 0) / p.maxUses) * 100)}%`,
                                 height: '100%',
-                                background: p.redemptionsCount >= p.maxUses ? '#EF4444' : '#0062FF',
+                                background: Number(p.redemptionsCount || 0) >= p.maxUses ? '#EF4444' : '#0062FF',
                               }}
                             />
                           </div>
-                        )}
+                        ) : null}
                       </td>
 
                       {/* Économie consentie */}
                       <td style={{ padding: '12px 14px' }}>
-                        <span style={{ fontWeight: 800, color: p.totalDiscountGiven > 0 ? '#10B981' : textSecondary }}>
-                          {p.totalDiscountGiven.toLocaleString('fr-FR')} FCFA
+                        <span style={{ fontWeight: 800, color: Number(p.totalDiscountGiven || 0) > 0 ? '#10B981' : textSecondary }}>
+                          {Number(p.totalDiscountGiven || 0).toLocaleString('fr-FR')} FCFA
                         </span>
                       </td>
 
@@ -1474,13 +1515,13 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
               <div>
                 <div style={{ fontSize: '11px', color: textSecondary }}>Remise</div>
                 <div style={{ fontSize: '15px', fontWeight: 900, color: '#10B981' }}>
-                  {inspectPromo.discountType === 'percent' ? `-${inspectPromo.discountValue}%` : `-${inspectPromo.discountValue.toLocaleString('fr-FR')} FCFA`}
+                  {inspectPromo.discountType === 'percent' ? `-${inspectPromo.discountValue}%` : `-${Number(inspectPromo.discountValue || 0).toLocaleString('fr-FR')} FCFA`}
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '11px', color: textSecondary }}>Économies réelles</div>
                 <div style={{ fontSize: '15px', fontWeight: 900, color: textPrimary }}>
-                  {inspectPromo.totalDiscountGiven.toLocaleString('fr-FR')} FCFA
+                  {Number(inspectPromo.totalDiscountGiven || 0).toLocaleString('fr-FR')} FCFA
                 </div>
               </div>
             </div>
@@ -1561,8 +1602,8 @@ export const PromosView: React.FC<PromosViewProps> = ({ adminTheme }) => {
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 800, color: '#10B981' }}>-{r.discountAmount.toLocaleString('fr-FR')} FCFA</div>
-                        <div style={{ fontSize: '11px', color: textSecondary }}>Final: {r.finalAmount.toLocaleString('fr-FR')} FCFA</div>
+                        <div style={{ fontWeight: 800, color: '#10B981' }}>-{Number(r.discountAmount || 0).toLocaleString('fr-FR')} FCFA</div>
+                        <div style={{ fontSize: '11px', color: textSecondary }}>Final: {Number(r.finalAmount || 0).toLocaleString('fr-FR')} FCFA</div>
                       </div>
                     </div>
                   ))

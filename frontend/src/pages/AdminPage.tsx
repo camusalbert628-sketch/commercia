@@ -69,6 +69,7 @@ import { AutomationAlertsView } from '../components/admin/AutomationAlertsView';
 import { SecurityAuthView } from '../components/admin/SecurityAuthView';
 import { InternationalPhonesView } from '../components/admin/InternationalPhonesView';
 import { InternationalPhoneInput } from '../components/common/InternationalPhoneInput';
+import { ErrorBoundary } from '../components/common/ErrorBoundary';
 
 // Types stricts
 type AdminTab =
@@ -3813,9 +3814,11 @@ export const AdminPage: React.FC = () => {
               PILIER 4 : MARKETING (CODES PROMOTIONNELS & CONVERSIONS)
              ========================================================================= */}
           {activeTab === 'promos' && (
-            <PromosView
-              adminTheme={adminTheme}
-            />
+            <ErrorBoundary>
+              <PromosView
+                adminTheme={adminTheme}
+              />
+            </ErrorBoundary>
           )}
 
           {/* =========================================================================
@@ -4894,7 +4897,9 @@ export const AdminPage: React.FC = () => {
                   ------------------------------------------------------------- */}
               {paymentSubTab === 'promos' && (
                 <div style={{ marginTop: '16px' }}>
-                  <PromosView adminTheme={adminTheme} />
+                  <ErrorBoundary>
+                    <PromosView adminTheme={adminTheme} />
+                  </ErrorBoundary>
                 </div>
               )}
             </div>
